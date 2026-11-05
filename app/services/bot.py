@@ -139,6 +139,7 @@ class AutoTradingBot:
             "strategy": self.strategy,
             "allocation_per_trade": self.allocation_per_trade,
             "max_positions": self.max_positions,
+            "is_unlimited_positions": (self.strategy == "123_REVERSAL"),
             "interval_seconds": self.interval_seconds,
             "fast_period": self.fast_period,
             "slow_period": self.slow_period,
@@ -258,8 +259,8 @@ class AutoTradingBot:
             if hasattr(pos, 'peak_price'):
                 pos.peak_price = peak
 
-            # OPTION B: Trailing Stop-Loss & Breakeven Shield
-            if self.use_trailing_stop:
+            # OPTION B: Trailing Stop-Loss & Breakeven Shield (Only for SMA / RSI strategies)
+            if self.use_trailing_stop and self.strategy != "123_REVERSAL":
                 # Stage 1: Breakeven Shield at +2.0%
                 if pnl_pct >= self.trailing_trigger_pct and not getattr(pos, 'trailing_active', False):
                     pos.trailing_active = True
@@ -293,12 +294,12 @@ class AutoTradingBot:
                     exec_res = PaperTradingEngine.execute_order(symbol, "SELL", pos.quantity, execution_price=current_price)
                 return {
                     "symbol": symbol, "displayName": display_name, "price": current_price,
-                    "change_pct": change_pct, "signal": "STOP_LOSS", "reason": f"Trailing Stop hit @ ₹{current_price:.2f} ({lock_pnl:+.2f}%)",
+                    "change_pct": change_pct, "signal": "STOP_LOSS", "reason": f"Indicator Stop-Loss hit @ ₹{current_price:.2f} (SL: ₹{sl_level:.2f}, {lock_pnl:+.2f}%)",
                     "action_executed": "STOP_EXIT" if allow_order_execution else "OFFLINE (No orders placed)", "ema_200": ema_200, "trend_200": trend_200, "vol_ratio": vol_ratio, "atr_14": atr_14
                 }
 
-            # Check if Fixed % Stop-Loss triggered
-            if pnl_pct <= -abs(self.stop_loss_pct):
+            # Check if Fixed % Stop-Loss triggered (DISABLED for 123_REVERSAL strategy - strictly uses indicator stop)
+            if self.strategy != "123_REVERSAL" and pnl_pct <= -abs(self.stop_loss_pct):
                 if allow_order_execution:
                     self.add_log(f"[STOP-LOSS] {display_name}: Hit -{abs(pnl_pct):.2f}% <= -{self.stop_loss_pct}%. Liquidating {pos.quantity} shares @ ₹{current_price:.2f}", "ERROR")
                     exec_res = PaperTradingEngine.execute_order(symbol, "SELL", pos.quantity, execution_price=current_price)
@@ -308,15 +309,24 @@ class AutoTradingBot:
                     "action_executed": "LIQUIDATED" if allow_order_execution else "OFFLINE (No orders placed)", "ema_200": ema_200, "trend_200": trend_200, "vol_ratio": vol_ratio, "atr_14": atr_14
                 }
 
-            # Check Take-Profit
+            # Check Take-Profit:
             tp_level = getattr(pos, 'take_profit', 0.0) or 0.0
-            if (tp_level > 0 and current_price >= tp_level) or (pnl_pct >= abs(self.take_profit_pct)):
+            is_tp_hit = False
+            tp_reason = ""
+            if tp_level > 0 and current_price >= tp_level:
+                is_tp_hit = True
+                tp_reason = f"Indicator Target achieved @ ₹{current_price:.2f} (Target: ₹{tp_level:.2f}, +{pnl_pct:.2f}%)"
+            elif self.strategy != "123_REVERSAL" and (pnl_pct >= abs(self.take_profit_pct)):
+                is_tp_hit = True
+                tp_reason = f"Take-Profit target achieved at +{pnl_pct:.2f}%"
+
+            if is_tp_hit:
                 if allow_order_execution:
-                    self.add_log(f"🎯 [TAKE-PROFIT] {display_name}: Hit +{pnl_pct:.2f}%. Selling {pos.quantity} shares @ ₹{current_price:.2f} to lock gains!", "SUCCESS")
+                    self.add_log(f"🎯 [TAKE-PROFIT] {display_name}: Hit +{pnl_pct:.2f}%. Selling {pos.quantity} shares @ ₹{current_price:.2f} to lock gains! ({tp_reason})", "SUCCESS")
                     exec_res = PaperTradingEngine.execute_order(symbol, "SELL", pos.quantity, execution_price=current_price)
                 return {
                     "symbol": symbol, "displayName": display_name, "price": current_price,
-                    "change_pct": change_pct, "signal": "TAKE_PROFIT", "reason": f"Take-Profit target achieved at +{pnl_pct:.2f}%",
+                    "change_pct": change_pct, "signal": "TAKE_PROFIT", "reason": tp_reason,
                     "action_executed": "PROFIT_LOCKED" if allow_order_execution else "OFFLINE (No orders placed)", "ema_200": ema_200, "trend_200": trend_200, "vol_ratio": vol_ratio, "atr_14": atr_14
                 }
 
@@ -574,8 +584,12 @@ class AutoTradingBot:
             if sig == "BUY":
                 buys_found += 1
                 if can_execute_trades:
-                    # If we don't already hold this stock and have available portfolio slots
-                    if symbol not in held_map and len(held_map) < self.max_positions:
+                    # For 123_REVERSAL strategy: UNLIMITED positions (no limit on positions)
+                    # For other strategies: capped at self.max_positions
+                    is_unlimited_positions = (self.strategy == "123_REVERSAL")
+                    has_position_slot = is_unlimited_positions or (len(held_map) < self.max_positions)
+
+                    if symbol not in held_map and has_position_slot:
                         # Calculate quantity based on capital allocation
                         trade_qty = max(1, int(self.allocation_per_trade / price))
                         total_cost = trade_qty * price
@@ -591,7 +605,11 @@ class AutoTradingBot:
                                 pos_rec = Position.query.filter_by(symbol=symbol).first()
                                 if pos_rec:
                                     atr_val = eval_res.get("atr_14") or (price * 0.025)
-                                    if eval_res.get("suggested_sl") and eval_res.get("suggested_tp"):
+                                    if self.strategy == "123_REVERSAL":
+                                        # Strictly follow the target and stop loss as given by the 1-2-3 indicator (NO 1% applied)
+                                        pos_rec.stop_loss = eval_res.get("suggested_sl") or round(price * 0.98, 2)
+                                        pos_rec.take_profit = eval_res.get("suggested_tp") or round(price * 1.04, 2)
+                                    elif eval_res.get("suggested_sl") and eval_res.get("suggested_tp"):
                                         pos_rec.stop_loss = eval_res["suggested_sl"]
                                         pos_rec.take_profit = eval_res["suggested_tp"]
                                     elif self.use_atr_exits:
@@ -608,9 +626,16 @@ class AutoTradingBot:
                                         pass
 
                                 chg_str = f" (Charges: ₹{exec_res['charges']['total_charges']:.2f})" if "charges" in exec_res else ""
-                                self.add_log(f"⚡ AUTO-BOUGHT {trade_qty} shares of {display_name} @ ₹{price:.2f} (Total: ₹{total_cost:,.2f}{chg_str}) | {eval_res['reason']}", "SUCCESS")
+                                self.add_log(f"⚡ AUTO-BOUGHT {trade_qty} shares of {display_name} @ ₹{price:.2f} (Total: ₹{total_cost:,.2f}{chg_str}) | Target: ₹{pos_rec.take_profit:.2f} | Stop: ₹{pos_rec.stop_loss:.2f}", "SUCCESS")
                                 # Add to local held map to prevent double-buys
-                                held_map[symbol] = Position(symbol=symbol, quantity=trade_qty, average_price=price, peak_price=price, stop_loss=pos_rec.stop_loss if pos_rec else 0.0)
+                                held_map[symbol] = Position(
+                                    symbol=symbol,
+                                    quantity=trade_qty,
+                                    average_price=price,
+                                    peak_price=price,
+                                    stop_loss=pos_rec.stop_loss if pos_rec else 0.0,
+                                    take_profit=pos_rec.take_profit if pos_rec else 0.0
+                                )
                         else:
                             self.add_log(f"BUY signal on {display_name}, but insufficient cash (Needed ₹{total_cost:,.2f}, Avail ₹{available_cash:,.2f})", "WARNING")
                 else:

@@ -84,19 +84,22 @@
                     <input type="number" id="bot-allocation" class="config-input" value="15000" step="1000" min="1000" onchange="onStrategyChange()">
                 </div>
 
-                <div class="config-item">
+                <div class="config-item" id="cfg-item-max-positions">
                     <label><i class="fa-solid fa-boxes-stacked"></i> MAX CONCURRENT POSITIONS</label>
-                    <input type="number" id="bot-max-positions" class="config-input" value="3" min="1" max="20" onchange="onStrategyChange()">
+                    <input type="number" id="bot-max-positions" class="config-input" value="3" min="1" max="50" onchange="onStrategyChange()">
+                    <span id="badge-unlimited-pos" class="badge" style="font-size: 0.68rem; background: rgba(0, 240, 144, 0.15); color: var(--green); border: 1px solid rgba(0, 240, 144, 0.3); margin-top: 4px; display: inline-block;">✨ Unlimited (1-2-3 Mode)</span>
                 </div>
 
-                <div class="config-item">
-                    <label><i class="fa-solid fa-arrow-down" style="color: var(--red);"></i> STOP-LOSS (%)</label>
+                <div class="config-item" id="cfg-item-stop-loss">
+                    <label><i class="fa-solid fa-arrow-down" style="color: var(--red);"></i> STOP-LOSS</label>
                     <input type="number" id="bot-stop-loss" class="config-input" value="1.0" step="0.1" min="0.1" onchange="onStrategyChange()">
+                    <span id="badge-strat-sl" class="badge" style="font-size: 0.68rem; background: rgba(255, 51, 102, 0.15); color: var(--red); border: 1px solid rgba(255, 51, 102, 0.3); margin-top: 4px; display: inline-block;">📍 Point 3 Pattern Stop (Indicator)</span>
                 </div>
 
-                <div class="config-item">
-                    <label><i class="fa-solid fa-arrow-up" style="color: var(--green);"></i> TAKE-PROFIT (%)</label>
+                <div class="config-item" id="cfg-item-take-profit">
+                    <label><i class="fa-solid fa-arrow-up" style="color: var(--green);"></i> TARGET</label>
                     <input type="number" id="bot-take-profit" class="config-input" value="1.0" step="0.1" min="0.1" onchange="onStrategyChange()">
+                    <span id="badge-strat-tp" class="badge" style="font-size: 0.68rem; background: rgba(0, 240, 144, 0.15); color: var(--green); border: 1px solid rgba(0, 240, 144, 0.3); margin-top: 4px; display: inline-block;">🎯 Measured Move (Indicator)</span>
                 </div>
 
                 <div class="config-item" style="display: flex; flex-direction: column; justify-content: center;">
@@ -253,8 +256,8 @@
                                     <th>CURRENT</th>
                                     <th>P&L (₹)</th>
                                     <th>P&L (%)</th>
-                                    <th>STOP-LOSS (-1.0%)</th>
-                                    <th>TARGET (+1.0%)</th>
+                                    <th>STOP-LOSS</th>
+                                    <th>TARGET</th>
                                     <th>MANUAL EXIT</th>
                                 </tr>
                             </thead>
@@ -1677,6 +1680,7 @@
     let replayRealizedPnl = 0;
 
     document.addEventListener('DOMContentLoaded', () => {
+        syncStrategyUIHints();
         fetchBotStatus();
         loadBotHoldings();
         loadAccountMetrics();
@@ -1889,7 +1893,36 @@
             renderRadarTable(allScannerData);
         }
 
+        syncStrategyUIHints();
         renderLogs(data.logs || []);
+    }
+
+    function syncStrategyUIHints() {
+        const stratSelect = document.getElementById('bot-strategy');
+        const is123 = (!stratSelect || stratSelect.value === '123_REVERSAL');
+        const unlBadge = document.getElementById('badge-unlimited-pos');
+        const slBadge = document.getElementById('badge-strat-sl');
+        const tpBadge = document.getElementById('badge-strat-tp');
+        const posInput = document.getElementById('bot-max-positions');
+        const slInput = document.getElementById('bot-stop-loss');
+        const tpInput = document.getElementById('bot-take-profit');
+
+        if (unlBadge) unlBadge.style.display = is123 ? 'inline-block' : 'none';
+        if (slBadge) slBadge.style.display = is123 ? 'inline-block' : 'none';
+        if (tpBadge) tpBadge.style.display = is123 ? 'inline-block' : 'none';
+
+        if (posInput) {
+            posInput.style.opacity = is123 ? '0.6' : '1.0';
+            posInput.title = is123 ? 'Unlimited positions for 1-2-3 Reversal strategy' : '';
+        }
+        if (slInput) {
+            slInput.style.opacity = is123 ? '0.6' : '1.0';
+            slInput.title = is123 ? 'Dynamic stop loss given by 1-2-3 indicator' : '';
+        }
+        if (tpInput) {
+            tpInput.style.opacity = is123 ? '0.6' : '1.0';
+            tpInput.title = is123 ? 'Dynamic target given by 1-2-3 indicator' : '';
+        }
     }
 
     function renderRadarTable(results) {
@@ -2069,6 +2102,7 @@
     }
 
     async function onStrategyChange() {
+        syncStrategyUIHints();
         const stratSelect = document.getElementById('bot-strategy');
         if (!stratSelect) return;
         const selectedStrat = stratSelect.value;
