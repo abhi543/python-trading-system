@@ -7,6 +7,11 @@ views_bp = Blueprint('views', __name__)
 def dashboard():
     return render_template('dashboard.html')
 
+@views_bp.route('/debug-env')
+def debug_env():
+    from flask import request
+    return jsonify({k: str(v) for k, v in request.environ.items() if 'VERCEL' in k or 'HTTP_' in k or 'PATH' in k or 'REQUEST_URI' in k})
+
 @views_bp.route('/health')
 def health():
     return jsonify({
