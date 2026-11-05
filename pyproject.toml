@@ -4,7 +4,3 @@ version = "0.1.0"
 description = "Personal algorithmic trading desk and backtester"
 readme = "README.md"
 requires-python = ">=3.10"
-
-[tool.vercel]
-entrypoint = "run:app"
-
