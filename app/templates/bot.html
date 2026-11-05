@@ -147,12 +147,12 @@
 
                 <div class="config-item">
                     <label><i class="fa-solid fa-indian-rupee-sign"></i> CAPITAL PER TRADE (₹)</label>
-                    <input type="number" id="bot-allocation" class="config-input" value="50000" step="5000" min="5000">
+                    <input type="number" id="bot-allocation" class="config-input" value="15000" step="1000" min="1000" onchange="onStrategyChange()">
                 </div>
 
                 <div class="config-item">
                     <label><i class="fa-solid fa-boxes-stacked"></i> MAX CONCURRENT POSITIONS</label>
-                    <input type="number" id="bot-max-positions" class="config-input" value="10" min="1" max="50">
+                    <input type="number" id="bot-max-positions" class="config-input" value="3" min="1" max="20" onchange="onStrategyChange()">
                 </div>
 
                 <div class="config-item">
@@ -442,7 +442,7 @@
                             <div class="rule-icon"><i class="fa-solid fa-coins" style="color: #a78bfa;"></i></div>
                             <div>
                                 <h4>₹10 Lakh Capital & Position Sizing</h4>
-                                <p>Allocates up to <strong>₹50,000</strong> per trade across up to <strong>10 concurrent positions</strong>, backed by ₹10,00,000 margin.</p>
+                                <p>Allocates up to <strong>₹15,000</strong> per trade across up to <strong>3 concurrent positions</strong>, backed by ₹10,00,000 margin.</p>
                             </div>
                         </div>
                     </div>
@@ -2140,6 +2140,18 @@
         if (data.use_atr_exits !== undefined) {
             document.getElementById('bot-use-atr').checked = data.use_atr_exits;
         }
+        if (data.allocation_per_trade !== undefined && !document.getElementById('bot-allocation').matches(':focus')) {
+            document.getElementById('bot-allocation').value = data.allocation_per_trade;
+        }
+        if (data.max_positions !== undefined && !document.getElementById('bot-max-positions').matches(':focus')) {
+            document.getElementById('bot-max-positions').value = data.max_positions;
+        }
+        if (data.stop_loss_pct !== undefined && !document.getElementById('bot-stop-loss').matches(':focus')) {
+            document.getElementById('bot-stop-loss').value = data.stop_loss_pct;
+        }
+        if (data.take_profit_pct !== undefined && !document.getElementById('bot-take-profit').matches(':focus')) {
+            document.getElementById('bot-take-profit').value = data.take_profit_pct;
+        }
 
         const summary = data.scan_summary || {};
         const scannedCount = summary.total_scanned || (summary.scanner_results ? summary.scanner_results.length : 0);
@@ -2282,8 +2294,8 @@
                 scan_mode: document.getElementById('bot-scan-mode').value,
                 single_symbol: document.getElementById('bot-symbol').value.trim().toUpperCase(),
                 strategy: document.getElementById('bot-strategy').value,
-                allocation_per_trade: parseFloat(document.getElementById('bot-allocation').value) || 50000,
-                max_positions: parseInt(document.getElementById('bot-max-positions').value) || 10,
+                allocation_per_trade: parseFloat(document.getElementById('bot-allocation').value) || 15000,
+                max_positions: parseInt(document.getElementById('bot-max-positions').value) || 3,
                 interval_seconds: 20,
                 stop_loss_pct: parseFloat(document.getElementById('bot-stop-loss').value) || 1.0,
                 take_profit_pct: parseFloat(document.getElementById('bot-take-profit').value) || 1.0,
@@ -2312,8 +2324,8 @@
             scan_mode: document.getElementById('bot-scan-mode')?.value || 'ALL_NIFTY_200',
             single_symbol: document.getElementById('bot-symbol')?.value?.trim()?.toUpperCase() || 'RELIANCE.NS',
             strategy: document.getElementById('bot-strategy')?.value || '123_REVERSAL',
-            allocation_per_trade: parseFloat(document.getElementById('bot-allocation')?.value) || 50000,
-            max_positions: parseInt(document.getElementById('bot-max-positions')?.value) || 10,
+            allocation_per_trade: parseFloat(document.getElementById('bot-allocation')?.value) || 15000,
+            max_positions: parseInt(document.getElementById('bot-max-positions')?.value) || 3,
             interval_seconds: 20,
             stop_loss_pct: parseFloat(document.getElementById('bot-stop-loss')?.value) || 1.0,
             take_profit_pct: parseFloat(document.getElementById('bot-take-profit')?.value) || 1.0,
@@ -3123,7 +3135,7 @@
                     hudSig.className = 'signal-badge signal-buy';
                     hudSig.innerHTML = '<i class="fa-solid fa-arrow-up"></i> BUY SIGNAL';
 
-                    const qty = Math.max(1, Math.floor(50000 / currentPrice));
+                    const qty = Math.max(1, Math.floor(15000 / currentPrice));
                     const sl = currentPrice - (1.5 * atr);
                     const tp = currentPrice + (3.0 * atr);
 

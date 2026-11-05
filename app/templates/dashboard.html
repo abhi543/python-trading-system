@@ -131,22 +131,22 @@
                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.6rem;">
                         <div class="form-group">
                             <label>Budget / Stock (₹)</label>
-                            <input type="number" id="bot-allocation" class="form-control mono" value="50000" step="5000" min="5000">
+                            <input type="number" id="bot-allocation" class="form-control mono" value="15000" step="1000" min="1000">
                         </div>
                         <div class="form-group">
                             <label>Max Positions</label>
-                            <input type="number" id="bot-max-positions" class="form-control mono" value="10" min="1" max="50">
+                            <input type="number" id="bot-max-positions" class="form-control mono" value="3" min="1" max="20">
                         </div>
                     </div>
 
                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.6rem;">
                         <div class="form-group">
                             <label>Stop-Loss (%)</label>
-                            <input type="number" id="bot-stop-loss" class="form-control mono" value="2.5" step="0.5" min="0.5">
+                            <input type="number" id="bot-stop-loss" class="form-control mono" value="1.0" step="0.1" min="0.1">
                         </div>
                         <div class="form-group">
                             <label>Take-Profit (%)</label>
-                            <input type="number" id="bot-take-profit" class="form-control mono" value="5.0" step="0.5" min="0.5">
+                            <input type="number" id="bot-take-profit" class="form-control mono" value="1.0" step="0.1" min="0.1">
                         </div>
                     </div>
 
@@ -836,7 +836,7 @@ function updateBotUI(data) {
     signalsEl.innerText = `${buysFound} BUY / ${sellsFound} SELL`;
     signalsEl.className = buysFound > 0 ? 'stat-val text-green' : (sellsFound > 0 ? 'stat-val text-red' : 'stat-val');
 
-    document.getElementById('bot-card-slots').innerText = `${summary.active_positions_count || 0} / ${data.max_positions || 10} Active`;
+    document.getElementById('bot-card-slots').innerText = `${summary.active_positions_count || 0} / ${data.max_positions || 3} Active`;
     
     if (data.last_run_time) {
         document.getElementById('bot-last-tick-time').innerText = `Last scan: ${data.last_run_time.split(' ')[1] || data.last_run_time}`;
@@ -939,8 +939,8 @@ async function toggleBot() {
             scan_mode: scanMode,
             single_symbol: document.getElementById('bot-symbol').value.trim().toUpperCase(),
             strategy: document.getElementById('bot-strategy').value,
-            allocation_per_trade: parseFloat(document.getElementById('bot-allocation').value) || 50000,
-            max_positions: parseInt(document.getElementById('bot-max-positions').value) || 10,
+            allocation_per_trade: parseFloat(document.getElementById('bot-allocation').value) || 15000,
+            max_positions: parseInt(document.getElementById('bot-max-positions').value) || 3,
             interval_seconds: 20,
             stop_loss_pct: parseFloat(document.getElementById('bot-stop-loss').value) || 1.0,
             take_profit_pct: parseFloat(document.getElementById('bot-take-profit').value) || 1.0

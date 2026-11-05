@@ -80,8 +80,8 @@ class AutoTradingBot:
         self.scan_mode = "ALL_NIFTY_200"  # "ALL_NIFTY_200", "ALL_NIFTY_50", or "SINGLE"
         self.single_symbol = "RELIANCE.NS"
         self.strategy = "SMA_CROSSOVER"  # "SMA_CROSSOVER" or "RSI_MOMENTUM"
-        self.allocation_per_trade = 50000.0  # ₹50,000 allocated per stock
-        self.max_positions = 10              # Max 10 concurrent active positions
+        self.allocation_per_trade = 15000.0  # ₹15,000 allocated per stock
+        self.max_positions = 3               # Max 3 concurrent active positions
         self.interval_seconds = 20           # Scan interval
         self.fast_period = 9
         self.slow_period = 21
