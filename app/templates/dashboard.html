@@ -229,6 +229,7 @@
             <thead>
                 <tr>
                     <th>Symbol</th>
+                    <th>Side</th>
                     <th>Shares</th>
                     <th>Avg Cost</th>
                     <th>Current Price</th>
@@ -238,7 +239,7 @@
                 </tr>
             </thead>
             <tbody id="positions-table-body">
-                <tr><td colspan="7" class="text-center" style="padding: 2rem; color: var(--text-muted);">No active positions. Execute a BUY order above to start your paper portfolio.</td></tr>
+                <tr><td colspan="8" class="text-center" style="padding: 2rem; color: var(--text-muted);">No active positions. Execute a BUY order above to start your paper portfolio.</td></tr>
             </tbody>
         </table>
     </div>
@@ -503,7 +504,7 @@ async function loadPortfolio() {
 
         const tbody = document.getElementById('positions-table-body');
         if (!data.positions || data.positions.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="7" class="text-center" style="padding: 2rem; color: var(--text-muted);">No active positions. Execute a BUY order above to start your paper portfolio.</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="8" class="text-center" style="padding: 2rem; color: var(--text-muted);">No active positions. Execute a BUY order above to start your paper portfolio.</td></tr>`;
             return;
         }
 
@@ -515,6 +516,7 @@ async function loadPortfolio() {
             
             tr.innerHTML = `
                 <td><strong>${pos.symbol}</strong></td>
+                <td><span class="badge" style="background: rgba(0, 240, 144, 0.15); color: var(--green); border: 1px solid rgba(0, 240, 144, 0.35); font-weight: 800; font-family: var(--font-code); font-size: 0.72rem; padding: 2px 7px; border-radius: 4px;">LONG</span></td>
                 <td>${pos.quantity}</td>
                 <td>₹${pos.average_price.toFixed(2)}</td>
                 <td>₹${pos.current_price.toFixed(2)}</td>

@@ -265,6 +265,7 @@
                             <thead>
                                 <tr>
                                     <th>STOCK</th>
+                                    <th>SIDE</th>
                                     <th>LTP</th>
                                     <th>24H CHG</th>
                                     <th>SIGNAL</th>
@@ -275,9 +276,9 @@
                             </thead>
                             <tbody id="bot-scanner-tbody">
                                 <tr>
-                                    <td colspan="7" class="text-center" style="padding: 2.5rem; color: var(--text-muted);">
+                                    <td colspan="8" class="text-center" style="padding: 2.5rem; color: var(--text-muted);">
                                         <i class="fa-solid fa-satellite fa-spin" style="font-size: 1.5rem; margin-bottom: 0.75rem; color: var(--blue);"></i><br>
-                                        NIFTY 50 Scanner Ready. Click <strong>"SCAN ALL 50 NOW"</strong> or start the bot to sweep the entire basket.
+                                        NIFTY Scanner Ready. Click <strong>"SCAN BASKET NOW"</strong> or start the bot to sweep the entire basket.
                                     </td>
                                 </tr>
                             </tbody>
@@ -315,6 +316,7 @@
                             <thead>
                                 <tr>
                                     <th>SYMBOL</th>
+                                    <th>SIDE</th>
                                     <th>QTY</th>
                                     <th>AVG PRICE</th>
                                     <th>CURRENT</th>
@@ -327,7 +329,7 @@
                             </thead>
                             <tbody id="bot-holdings-tbody">
                                 <tr>
-                                    <td colspan="9" class="text-center" style="padding: 1.5rem; color: var(--text-muted);">No open positions held.</td>
+                                    <td colspan="10" class="text-center" style="padding: 1.5rem; color: var(--text-muted);">No open positions held.</td>
                                 </tr>
                             </tbody>
                         </table>
@@ -368,6 +370,7 @@
                                     <tr>
                                         <th>EXIT TIME</th>
                                         <th>STOCK</th>
+                                        <th>SIDE</th>
                                         <th>QUANTITY</th>
                                         <th>ENTRY (₹)</th>
                                         <th>EXIT (₹)</th>
@@ -380,7 +383,7 @@
                                 </thead>
                                 <tbody id="bot-closed-trades-tbody">
                                     <tr>
-                                        <td colspan="10" class="text-center" style="padding: 1.5rem; color: var(--text-muted);">No closed trades recorded yet. As your bot executes stop-losses or takes profit, closed trades will be logged here.</td>
+                                        <td colspan="11" class="text-center" style="padding: 1.5rem; color: var(--text-muted);">No closed trades recorded yet. As your bot executes stop-losses or takes profit, closed trades will be logged here.</td>
                                     </tr>
                                 </tbody>
                             </table>
@@ -853,6 +856,35 @@
 
 <!-- STYLES -->
 <style>
+    /* SIDE BADGES */
+    .side-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        padding: 2px 7px;
+        border-radius: 4px;
+        font-size: 0.72rem;
+        font-weight: 800;
+        font-family: var(--font-code);
+        letter-spacing: 0.5px;
+        white-space: nowrap;
+    }
+    .side-long {
+        background: rgba(0, 240, 144, 0.15);
+        color: var(--green);
+        border: 1px solid rgba(0, 240, 144, 0.35);
+    }
+    .side-short {
+        background: rgba(255, 51, 102, 0.15);
+        color: var(--red);
+        border: 1px solid rgba(255, 51, 102, 0.35);
+    }
+    .side-neutral {
+        background: rgba(126, 139, 166, 0.15);
+        color: var(--text-muted);
+        border: 1px solid rgba(126, 139, 166, 0.25);
+    }
+
     .bot-page-container {
         padding: 0;
         width: 100%;
@@ -2200,6 +2232,17 @@
             if (s.signal === 'STOP_LOSS') sigBadge = '<span class="signal-badge" style="background: rgba(255, 51, 102, 0.2); color: var(--red);"><i class="fa-solid fa-skull-crossbones"></i> STOP-LOSS</span>';
             if (s.signal === 'TAKE_PROFIT') sigBadge = '<span class="signal-badge" style="background: rgba(0, 240, 144, 0.2); color: var(--green);"><i class="fa-solid fa-trophy"></i> TAKE-PROFIT</span>';
 
+            let sideBadge = '<span class="side-badge side-neutral">--</span>';
+            if (s.signal === 'BUY') {
+                sideBadge = '<span class="side-badge side-long"><i class="fa-solid fa-arrow-trend-up"></i> LONG</span>';
+            } else if (s.signal === 'SELL' || s.signal === 'STOP_LOSS' || s.signal === 'TAKE_PROFIT') {
+                sideBadge = '<span class="side-badge side-short"><i class="fa-solid fa-arrow-trend-down"></i> SHORT</span>';
+            } else if (s.trend_200 === 'BULLISH') {
+                sideBadge = '<span class="side-badge side-long" style="opacity: 0.85;"><i class="fa-solid fa-arrow-trend-up"></i> LONG</span>';
+            } else if (s.trend_200 === 'BEARISH') {
+                sideBadge = '<span class="side-badge side-short" style="opacity: 0.85;"><i class="fa-solid fa-arrow-trend-down"></i> SHORT</span>';
+            }
+
             if (s.filter_status === 'FILTERED_200EMA') {
                 sigBadge = '<span class="signal-badge" style="background: rgba(255, 189, 46, 0.15); color: #ffbd2e; border: 1px solid rgba(255, 189, 46, 0.4);"><i class="fa-solid fa-filter"></i> FILTERED (&lt; 200 EMA)</span>';
             } else if (s.filter_status === 'FILTERED_VOLUME') {
@@ -2238,6 +2281,7 @@
                     <div style="font-weight: 800; font-family: var(--font-code); color: #fff;">${s.displayName}</div>
                     <div style="font-size: 0.7rem; color: var(--text-muted);">${macroBadge}${volBadge}</div>
                 </td>
+                <td>${sideBadge}</td>
                 <td style="font-weight: 700;">₹${s.price.toFixed(2)}</td>
                 <td class="${changeClass}" style="font-weight: 700;">${changeSign}${(s.change_pct || 0).toFixed(2)}%</td>
                 <td>${sigBadge}</td>
@@ -2581,7 +2625,7 @@
             if (badge) badge.innerText = positions.length;
 
             if (positions.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="9" class="text-center" style="padding: 1.5rem; color: var(--text-muted);">No open positions held. Bot will execute buys when signals trigger.</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="10" class="text-center" style="padding: 1.5rem; color: var(--text-muted);">No open positions held. Bot will execute buys when signals trigger.</td></tr>';
             } else {
                 tbody.innerHTML = '';
                 positions.forEach(p => {
@@ -2602,6 +2646,9 @@
                         <td>
                             <strong>${p.symbol.replace('.NS', '')}</strong> 
                             <span style="font-size:0.7rem; color:var(--text-muted); display: block;">${p.symbol}</span>
+                        </td>
+                        <td>
+                            <span class="side-badge side-long"><i class="fa-solid fa-arrow-trend-up"></i> LONG</span>
                         </td>
                         <td style="font-weight: 700;">${p.quantity}</td>
                         <td>₹${p.average_price.toFixed(2)}</td>
@@ -2709,7 +2756,7 @@
             if (!tbody) return;
 
             if (trades.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="10" class="text-center" style="padding: 1.5rem; color: var(--text-muted);">No closed trades recorded yet. Stop-loss liquidations, trailing stop hits, and take-profit exits will be logged here.</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="11" class="text-center" style="padding: 1.5rem; color: var(--text-muted);">No closed trades recorded yet. Stop-loss liquidations, trailing stop hits, and take-profit exits will be logged here.</td></tr>';
                 return;
             }
 
@@ -2732,6 +2779,9 @@
                         <strong style="font-family: var(--font-code); color: #fff;">${t.displayName}</strong>
                         <span style="font-size: 0.68rem; color: var(--text-muted); display: block;">${t.symbol}</span>
                     </td>
+                    <td>
+                        <span class="side-badge side-long"><i class="fa-solid fa-arrow-trend-up"></i> LONG</span>
+                    </td>
                     <td style="font-weight: 700;">${t.quantity}</td>
                     <td>₹${(t.entry_price || 0).toFixed(2)}</td>
                     <td style="font-weight: 700;">₹${(t.exit_price || 0).toFixed(2)}</td>
@@ -2751,10 +2801,10 @@
             showToast('No closed trades to export', 'warning');
             return;
         }
-        let csv = 'Timestamp,Stock,Quantity,EntryPrice,ExitPrice,NotionalTotal,Charges,Brokerage,STT,ExchCharges,GST,SEBICharges,StampDuty,NetRealizedPnL,ROIPct,Status\n';
+        let csv = 'Timestamp,Stock,Side,Quantity,EntryPrice,ExitPrice,NotionalTotal,Charges,Brokerage,STT,ExchCharges,GST,SEBICharges,StampDuty,NetRealizedPnL,ROIPct,Status\n';
         cachedClosedTrades.forEach(t => {
             const status = (t.realized_pnl || 0) >= 0 ? 'PROFIT' : 'LOSS';
-            csv += `"${t.timestamp}","${t.displayName}",${t.quantity},${t.entry_price},${t.exit_price},${t.total_value},${t.charges || 0},${t.brokerage || 0},${t.stt || 0},${t.exchange_charges || 0},${t.gst || 0},${t.sebi_charges || 0},${t.stamp_duty || 0},${t.realized_pnl},${t.roi_pct}%,"${status}"\n`;
+            csv += `"${t.timestamp}","${t.displayName}","LONG",${t.quantity},${t.entry_price},${t.exit_price},${t.total_value},${t.charges || 0},${t.brokerage || 0},${t.stt || 0},${t.exchange_charges || 0},${t.gst || 0},${t.sebi_charges || 0},${t.stamp_duty || 0},${t.realized_pnl},${t.roi_pct}%,"${status}"\n`;
         });
         const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
         const url = URL.createObjectURL(blob);
@@ -3238,7 +3288,7 @@
         tbody.innerHTML = `
             <tr>
                 <td><strong>${p.symbol.replace('.NS', '')}</strong></td>
-                <td><span style="color: var(--green); font-weight: 700;">LONG</span></td>
+                <td><span class="side-badge side-long"><i class="fa-solid fa-arrow-trend-up"></i> LONG</span></td>
                 <td>₹${p.entryPrice.toFixed(2)}</td>
                 <td style="font-weight: 700;">₹${currentPrice.toFixed(2)}</td>
                 <td class="${pnlColor}" style="font-weight: 800;">${unPnl >= 0 ? '+' : ''}₹${unPnl.toFixed(2)} (${unPct >= 0 ? '+' : ''}${unPct.toFixed(2)}%)</td>
