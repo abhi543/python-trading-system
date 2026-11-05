@@ -75,8 +75,8 @@ class MarketDataService:
 
     @staticmethod
     def get_stock_analysis_data(symbol: str) -> dict:
-        """Fetches both current quote and 1mo historical closes in a single fast HTTP call"""
-        chart_res, resolved_symbol = MarketDataService._fetch_chart_data(symbol, interval="1d", range_val="1mo")
+        """Fetches quote, 1y historical bars, 200 EMA, volume ratio, and ATR-14 in a single fast call"""
+        chart_res, resolved_symbol = MarketDataService._fetch_chart_data(symbol, interval="1d", range_val="1y")
         if not chart_res:
             return {"error": f"No data for {symbol}"}
 
@@ -86,10 +86,25 @@ class MarketDataService:
         
         quotes = chart_res.get('indicators', {}).get('quote', [{}])[0]
         raw_closes = quotes.get('close', [])
-        valid_closes = [float(c) for c in raw_closes if c is not None]
+        raw_highs = quotes.get('high', [])
+        raw_lows = quotes.get('low', [])
+        raw_vols = quotes.get('volume', [])
 
-        if not valid_closes:
-            return {"error": f"No close data for {symbol}"}
+        valid_data = []
+        for i in range(len(raw_closes)):
+            c = raw_closes[i]
+            if c is not None:
+                h = raw_highs[i] if i < len(raw_highs) and raw_highs[i] is not None else c
+                l = raw_lows[i] if i < len(raw_lows) and raw_lows[i] is not None else c
+                v = raw_vols[i] if i < len(raw_vols) and raw_vols[i] is not None else 0
+                valid_data.append({'close': float(c), 'high': float(h), 'low': float(l), 'volume': float(v)})
+
+        if not valid_data:
+            return {"error": f"No valid price series for {symbol}"}
+
+        import pandas as pd
+        df = pd.DataFrame(valid_data)
+        valid_closes = df['close'].tolist()
 
         if current_price is None:
             current_price = valid_closes[-1]
@@ -101,11 +116,43 @@ class MarketDataService:
         change = current_price - prev_close
         percent_change = (change / prev_close * 100) if prev_close else 0.0
 
+        # Option A: 200 EMA Macro Trend
+        ema_200 = None
+        trend_200 = "NEUTRAL"
+        if len(df) >= 50:
+            span_val = min(200, len(df))
+            ema_series = df['close'].ewm(span=span_val, adjust=False).mean()
+            ema_200 = round(float(ema_series.iloc[-1]), 2)
+            trend_200 = "BULLISH" if current_price >= ema_200 else "BEARISH"
+
+        # Option A: Volume Surge Ratio (vs 20-day Average Volume)
+        vol_ratio = 1.0
+        if len(df) >= 20:
+            vol_avg20 = float(df['volume'].rolling(20).mean().iloc[-1])
+            curr_vol = float(df['volume'].iloc[-1])
+            if vol_avg20 > 0:
+                vol_ratio = round(curr_vol / vol_avg20, 2)
+
+        # Option B: ATR-14 (Average True Range for Dynamic Stops)
+        atr_14 = round(float(current_price * 0.025), 2)  # 2.5% default fallback
+        if len(df) >= 15:
+            tr1 = df['high'] - df['low']
+            tr2 = (df['high'] - df['close'].shift(1)).abs()
+            tr3 = (df['low'] - df['close'].shift(1)).abs()
+            tr = pd.concat([tr1, tr2, tr3], axis=1).max(axis=1)
+            atr_calc = tr.rolling(14).mean().iloc[-1]
+            if not pd.isna(atr_calc) and atr_calc > 0:
+                atr_14 = round(float(atr_calc), 2)
+
         return {
             "symbol": resolved_symbol,
             "price": round(float(current_price), 2),
             "percent_change": round(float(percent_change), 2),
-            "closes": valid_closes
+            "closes": valid_closes,
+            "ema_200": ema_200,
+            "trend_200": trend_200,
+            "vol_ratio": vol_ratio,
+            "atr_14": atr_14
         }
 
     @staticmethod

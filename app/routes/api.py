@@ -113,8 +113,26 @@ def reset_account():
     account = Account.query.first()
     if account:
         account.cash_balance = 1000000.0
+    else:
+        account = Account(cash_balance=1000000.0)
+        db.session.add(account)
     db.session.commit()
-    return jsonify({"success": True, "message": "Account reset to ₹10,00,000 and NIFTY 50 watchlist restored"})
+
+    from app.services.bot import bot_instance
+    bot_instance.logs = []
+    bot_instance.last_scan_summary = {
+        "total_scanned": 0,
+        "buys_found": 0,
+        "sells_found": 0,
+        "trades_executed": 0,
+        "scanner_results": []
+    }
+    return jsonify({
+        "success": True, 
+        "message": "Account reset to ₹10,00,000 and NIFTY 50 watchlist restored",
+        "cash_balance": 1000000.0,
+        "total_equity": 1000000.0
+    })
 
 @api_bp.route('/bot/status', methods=['GET'])
 def get_bot_status():

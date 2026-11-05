@@ -27,6 +27,10 @@ class Position(db.Model):
     symbol = db.Column(db.String(20), unique=True, nullable=False)
     quantity = db.Column(db.Float, nullable=False, default=0.0)
     average_price = db.Column(db.Float, nullable=False, default=0.0)
+    peak_price = db.Column(db.Float, default=0.0)
+    stop_loss = db.Column(db.Float, default=0.0)
+    take_profit = db.Column(db.Float, default=0.0)
+    trailing_active = db.Column(db.Boolean, default=False)
     updated_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
 class TradeHistory(db.Model):

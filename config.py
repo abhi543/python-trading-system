@@ -27,4 +27,4 @@ class Config:
     SECRET_KEY = os.environ.get('SECRET_KEY', 'trading-system-secret-key-change-me')
     SQLALCHEMY_DATABASE_URI = get_database_uri()
     SQLALCHEMY_TRACK_MODIFICATIONS = False
-    INITIAL_CASH = float(os.environ.get('INITIAL_CASH', 100000.0))
+    INITIAL_CASH = float(os.environ.get('INITIAL_CASH', 1000000.0))

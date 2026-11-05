@@ -77,6 +77,38 @@
                 <label><i class="fa-solid fa-arrow-up" style="color: var(--green);"></i> TAKE-PROFIT (%)</label>
                 <input type="number" id="bot-take-profit" class="config-input" value="5.0" step="0.5" min="1.0">
             </div>
+
+            <div class="config-item" style="display: flex; flex-direction: column; justify-content: center;">
+                <label style="cursor: pointer; display: flex; align-items: center; gap: 0.5rem;">
+                    <input type="checkbox" id="bot-use-ema200" checked style="accent-color: var(--green); width: 16px; height: 16px;">
+                    <span><i class="fa-solid fa-shield-halved" style="color: var(--green);"></i> 200 EMA Trend Filter</span>
+                </label>
+                <span style="font-size: 0.68rem; color: var(--text-muted); margin-top: 3px;">Only BUY if price &gt; 200 EMA</span>
+            </div>
+
+            <div class="config-item" style="display: flex; flex-direction: column; justify-content: center;">
+                <label style="cursor: pointer; display: flex; align-items: center; gap: 0.5rem;">
+                    <input type="checkbox" id="bot-use-trailing" checked style="accent-color: var(--blue); width: 16px; height: 16px;">
+                    <span><i class="fa-solid fa-shield-heart" style="color: var(--blue);"></i> Trailing Stop &amp; Breakeven</span>
+                </label>
+                <span style="font-size: 0.68rem; color: var(--text-muted); margin-top: 3px;">Ratchets to Breakeven at +2.0%</span>
+            </div>
+
+            <div class="config-item" style="display: flex; flex-direction: column; justify-content: center;">
+                <label style="cursor: pointer; display: flex; align-items: center; gap: 0.5rem;">
+                    <input type="checkbox" id="bot-use-atr" checked style="accent-color: #a78bfa; width: 16px; height: 16px;">
+                    <span><i class="fa-solid fa-arrows-split-up-and-left" style="color: #a78bfa;"></i> ATR Dynamic Exits</span>
+                </label>
+                <span style="font-size: 0.68rem; color: var(--text-muted); margin-top: 3px;">1.5x ATR Stop / 3.0x ATR Target</span>
+            </div>
+
+            <div class="config-item" style="display: flex; flex-direction: column; justify-content: center;">
+                <label style="cursor: pointer; display: flex; align-items: center; gap: 0.5rem;">
+                    <input type="checkbox" id="bot-use-vol" style="accent-color: #ffd166; width: 16px; height: 16px;">
+                    <span><i class="fa-solid fa-fire-flame-curved" style="color: #ffd166;"></i> Volume Surge Check</span>
+                </label>
+                <span style="font-size: 0.68rem; color: var(--text-muted); margin-top: 3px;">Trigger only on volume &gt; 20-day avg</span>
+            </div>
         </div>
     </div>
 
@@ -764,14 +796,15 @@
         try {
             const res = await fetch('/api/portfolio');
             const data = await res.json();
-            if (data.account) {
-                document.getElementById('nav-total-equity').innerText = `₹${(data.account.total_equity || 1000000).toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
-                document.getElementById('nav-cash-balance').innerText = `₹${(data.account.cash_balance || 1000000).toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
-                const pnl = data.account.unrealized_pnl || 0;
-                const pnlEl = document.getElementById('nav-pnl');
-                pnlEl.innerText = `${pnl >= 0 ? '+' : ''}₹${pnl.toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
-                pnlEl.className = pnl >= 0 ? 'metric-value text-green' : 'metric-value text-red';
-            }
+            const cash = (data.cash_balance !== undefined) ? data.cash_balance : (data.account ? data.account.cash_balance : 1000000);
+            const equity = (data.total_equity !== undefined) ? data.total_equity : (data.account ? data.account.total_equity : 1000000);
+            const pnl = (data.unrealized_pnl !== undefined) ? data.unrealized_pnl : (data.account ? data.account.unrealized_pnl : 0);
+
+            document.getElementById('nav-total-equity').innerText = `₹${equity.toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+            document.getElementById('nav-cash-balance').innerText = `₹${cash.toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+            const pnlEl = document.getElementById('nav-pnl');
+            pnlEl.innerText = `${pnl >= 0 ? '+' : ''}₹${pnl.toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+            pnlEl.className = pnl >= 0 ? 'metric-value text-green' : 'metric-value text-red';
         } catch (e) {}
     }
 
@@ -816,6 +849,18 @@
         if (data.strategy && !document.getElementById('bot-strategy').matches(':focus')) {
             document.getElementById('bot-strategy').value = data.strategy;
         }
+        if (data.use_ema200_filter !== undefined) {
+            document.getElementById('bot-use-ema200').checked = data.use_ema200_filter;
+        }
+        if (data.use_volume_filter !== undefined) {
+            document.getElementById('bot-use-vol').checked = data.use_volume_filter;
+        }
+        if (data.use_trailing_stop !== undefined) {
+            document.getElementById('bot-use-trailing').checked = data.use_trailing_stop;
+        }
+        if (data.use_atr_exits !== undefined) {
+            document.getElementById('bot-use-atr').checked = data.use_atr_exits;
+        }
 
         // Update KPIs
         const summary = data.scan_summary || {};
@@ -853,6 +898,12 @@
             if (s.signal === 'STOP_LOSS') sigBadge = '<span class="signal-badge" style="background: rgba(255, 51, 102, 0.2); color: var(--red);"><i class="fa-solid fa-skull-crossbones"></i> STOP-LOSS</span>';
             if (s.signal === 'TAKE_PROFIT') sigBadge = '<span class="signal-badge" style="background: rgba(0, 240, 144, 0.2); color: var(--green);"><i class="fa-solid fa-trophy"></i> TAKE-PROFIT</span>';
 
+            if (s.filter_status === 'FILTERED_200EMA') {
+                sigBadge = '<span class="signal-badge" style="background: rgba(255, 189, 46, 0.15); color: #ffbd2e; border: 1px solid rgba(255, 189, 46, 0.4);"><i class="fa-solid fa-filter"></i> FILTERED (&lt; 200 EMA)</span>';
+            } else if (s.filter_status === 'FILTERED_VOLUME') {
+                sigBadge = '<span class="signal-badge" style="background: rgba(255, 189, 46, 0.15); color: #ffbd2e; border: 1px solid rgba(255, 189, 46, 0.4);"><i class="fa-solid fa-filter"></i> FILTERED (Low Vol)</span>';
+            }
+
             const changeClass = (s.change_pct || 0) >= 0 ? 'text-green' : 'text-red';
             const changeSign = (s.change_pct || 0) >= 0 ? '+' : '';
             
@@ -863,6 +914,15 @@
                 indText = `RSI: ${s.rsi}`;
             }
 
+            let macroBadge = '';
+            if (s.trend_200 === 'BULLISH') {
+                macroBadge = '<span style="color: var(--green); font-size: 0.72rem; font-weight: 700; margin-right: 6px;"><i class="fa-solid fa-arrow-trend-up"></i> &gt; 200 EMA</span>';
+            } else if (s.trend_200 === 'BEARISH') {
+                macroBadge = '<span style="color: #ffbd2e; font-size: 0.72rem; font-weight: 700; margin-right: 6px;"><i class="fa-solid fa-arrow-trend-down"></i> &lt; 200 EMA</span>';
+            }
+
+            let volBadge = s.vol_ratio ? `<span style="font-size: 0.72rem; color: var(--text-muted);">Vol: ${s.vol_ratio}x</span>` : '';
+
             let actionBadge = '<span style="color: var(--text-muted);">--</span>';
             if (s.action_executed) {
                 actionBadge = `<span style="color: var(--green); font-weight: 700;"><i class="fa-solid fa-check"></i> ${s.action_executed}</span>`;
@@ -871,7 +931,7 @@
             tr.innerHTML = `
                 <td>
                     <div style="font-weight: 800; font-family: var(--font-code); color: #fff;">${s.displayName}</div>
-                    <div style="font-size: 0.7rem; color: var(--text-muted);">${s.symbol}</div>
+                    <div style="font-size: 0.7rem; color: var(--text-muted);">${macroBadge}${volBadge}</div>
                 </td>
                 <td style="font-weight: 700;">₹${s.price.toFixed(2)}</td>
                 <td class="${changeClass}" style="font-weight: 700;">${changeSign}${(s.change_pct || 0).toFixed(2)}%</td>
@@ -946,7 +1006,11 @@
                 max_positions: parseInt(document.getElementById('bot-max-positions').value) || 10,
                 interval_seconds: 20,
                 stop_loss_pct: parseFloat(document.getElementById('bot-stop-loss').value) || 2.5,
-                take_profit_pct: parseFloat(document.getElementById('bot-take-profit').value) || 5.0
+                take_profit_pct: parseFloat(document.getElementById('bot-take-profit').value) || 5.0,
+                use_ema200_filter: document.getElementById('bot-use-ema200').checked,
+                use_volume_filter: document.getElementById('bot-use-vol').checked,
+                use_trailing_stop: document.getElementById('bot-use-trailing').checked,
+                use_atr_exits: document.getElementById('bot-use-atr').checked
             };
 
             try {
@@ -1013,19 +1077,28 @@
                 const pnlClass = p.unrealized_pnl >= 0 ? 'text-green' : 'text-red';
                 const pnlSign = p.unrealized_pnl >= 0 ? '+' : '';
                 
-                // Stop-loss at -2.5% and take-profit at +5%
-                const slPrice = (p.average_price * 0.975).toFixed(2);
-                const tpPrice = (p.average_price * 1.05).toFixed(2);
+                // Dynamic ATR / Trailing stop vs default %
+                let slDisplay = `₹${(p.stop_loss || p.average_price * 0.975).toFixed(2)}`;
+                if (p.trailing_active) {
+                    slDisplay += ` <span style="font-size: 0.68rem; color: var(--green); font-weight: 700;">🛡️ Breakeven</span>`;
+                }
+                let tpDisplay = `₹${(p.take_profit || p.average_price * 1.05).toFixed(2)}`;
+                if (p.take_profit) {
+                    tpDisplay += ` <span style="font-size: 0.68rem; color: #a78bfa;">🎯 Target</span>`;
+                }
 
                 tr.innerHTML = `
-                    <td><strong>${p.symbol.replace('.NS', '')}</strong> <span style="font-size:0.7rem; color:var(--text-muted);">${p.symbol}</span></td>
-                    <td>${p.quantity}</td>
+                    <td>
+                        <strong>${p.symbol.replace('.NS', '')}</strong> 
+                        <span style="font-size:0.7rem; color:var(--text-muted); display: block;">${p.symbol}</span>
+                    </td>
+                    <td style="font-weight: 700;">${p.quantity}</td>
                     <td>₹${p.average_price.toFixed(2)}</td>
-                    <td>₹${p.current_price.toFixed(2)}</td>
-                    <td class="${pnlClass}">${pnlSign}₹${p.unrealized_pnl.toFixed(2)}</td>
-                    <td class="${pnlClass}">${pnlSign}${p.pnl_percent.toFixed(2)}%</td>
-                    <td style="color: var(--red); font-weight: 700;">₹${slPrice} (-2.5%)</td>
-                    <td style="color: var(--green); font-weight: 700;">₹${tpPrice} (+5.0%)</td>
+                    <td style="font-weight: 700;">₹${p.current_price.toFixed(2)}</td>
+                    <td class="${pnlClass}" style="font-weight: 700;">${pnlSign}₹${p.unrealized_pnl.toFixed(2)}</td>
+                    <td class="${pnlClass}" style="font-weight: 700;">${pnlSign}${p.unrealized_pnl_pct.toFixed(2)}%</td>
+                    <td style="color: var(--red); font-weight: 700;">${slDisplay}</td>
+                    <td style="color: var(--green); font-weight: 700;">${tpDisplay}</td>
                     <td>
                         <button class="btn-action-close" onclick="exitBotPosition('${p.symbol}', ${p.quantity})">
                             <i class="fa-solid fa-xmark"></i> Exit
@@ -1069,3 +1142,4 @@
     }
 </script>
 {% endblock %}
+

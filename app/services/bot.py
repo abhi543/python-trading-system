@@ -5,6 +5,7 @@ from datetime import datetime
 import pandas as pd
 import numpy as np
 
+from app import db
 from app.services.market_data import MarketDataService
 from app.services.paper_trader import PaperTradingEngine
 from app.models.trading import Position, Account, NIFTY_50_DEFAULT
@@ -25,6 +26,17 @@ class AutoTradingBot:
         self.rsi_overbought = 65
         self.stop_loss_pct = 2.5             # 2.5% Stop loss
         self.take_profit_pct = 5.0           # 5.0% Take profit
+        
+        # Option A: Macro Trend & Volume Confirmation
+        self.use_ema200_filter = True        # Only BUY if price >= 200 EMA
+        self.use_volume_filter = False       # Volume surge confirmation
+        
+        # Option B: Trailing Stop-Loss & Dynamic ATR Exits
+        self.use_trailing_stop = True        # Breakeven & Trailing stop
+        self.trailing_trigger_pct = 2.0      # Breakeven ratchet triggered at +2.0%
+        self.use_atr_exits = True            # Dynamic ATR-based exits
+        self.atr_multiplier_sl = 1.5         # 1.5x ATR initial stop
+        self.atr_multiplier_tp = 3.0         # 3.0x ATR profit target
         
         self.logs = []
         self.last_run_time = None
@@ -64,6 +76,13 @@ class AutoTradingBot:
             "rsi_period": self.rsi_period,
             "stop_loss_pct": self.stop_loss_pct,
             "take_profit_pct": self.take_profit_pct,
+            "use_ema200_filter": self.use_ema200_filter,
+            "use_volume_filter": self.use_volume_filter,
+            "use_trailing_stop": self.use_trailing_stop,
+            "trailing_trigger_pct": self.trailing_trigger_pct,
+            "use_atr_exits": self.use_atr_exits,
+            "atr_multiplier_sl": self.atr_multiplier_sl,
+            "atr_multiplier_tp": self.atr_multiplier_tp,
             "last_run_time": self.last_run_time,
             "scan_summary": self.last_scan_summary,
             "logs": self.logs[:30]
@@ -82,10 +101,22 @@ class AutoTradingBot:
             self.stop_loss_pct = float(config.get("stop_loss_pct", self.stop_loss_pct))
             self.take_profit_pct = float(config.get("take_profit_pct", self.take_profit_pct))
             self.interval_seconds = int(config.get("interval_seconds", self.interval_seconds))
+            
+            # Options A & B toggles
+            if "use_ema200_filter" in config:
+                self.use_ema200_filter = bool(config["use_ema200_filter"])
+            if "use_volume_filter" in config:
+                self.use_volume_filter = bool(config["use_volume_filter"])
+            if "use_trailing_stop" in config:
+                self.use_trailing_stop = bool(config["use_trailing_stop"])
+            if "use_atr_exits" in config:
+                self.use_atr_exits = bool(config["use_atr_exits"])
 
         self.is_running = True
         mode_label = "ALL NIFTY 50 STOCKS" if self.scan_mode == "ALL_NIFTY_50" else self.single_symbol
-        self.add_log(f"Auto-Bot ACTIVATED on {mode_label} | Model: {self.strategy} | Allocation/Trade: ₹{self.allocation_per_trade:,.0f} | Max Slots: {self.max_positions}", "SUCCESS")
+        ema_tag = "200 EMA Filter [ON]" if self.use_ema200_filter else "200 EMA Filter [OFF]"
+        trail_tag = "Trailing Stop [ON]" if self.use_trailing_stop else "Trailing Stop [OFF]"
+        self.add_log(f"Auto-Bot ACTIVATED on {mode_label} | {self.strategy} | {ema_tag} | {trail_tag} | Alloc: ₹{self.allocation_per_trade:,.0f}", "SUCCESS")
 
         if not self.thread or not self.thread.is_alive():
             self.thread = threading.Thread(target=self._run_loop, daemon=True)
@@ -109,32 +140,82 @@ class AutoTradingBot:
         current_price = stock_data["price"]
         change_pct = stock_data.get("percent_change", 0.0)
         closes = stock_data.get("closes", [])
+        ema_200 = stock_data.get("ema_200")
+        trend_200 = stock_data.get("trend_200", "NEUTRAL")
+        vol_ratio = stock_data.get("vol_ratio", 1.0)
+        atr_14 = stock_data.get("atr_14", round(current_price * 0.025, 2))
         display_name = symbol.replace('.NS', '')
 
         # Check existing position
         pos = held_positions_map.get(symbol)
         
-        # 1. Stop-Loss & Take-Profit check
+        # 1. OPTION B: Dynamic Trailing Stop-Loss & Take-Profit check
         if pos and pos.quantity > 0:
             avg_price = pos.average_price
             pnl_pct = ((current_price - avg_price) / avg_price) * 100
-            
+
+            # Track peak price attained
+            peak = max(getattr(pos, 'peak_price', 0.0) or avg_price, current_price)
+            if hasattr(pos, 'peak_price'):
+                pos.peak_price = peak
+
+            # OPTION B: Trailing Stop-Loss & Breakeven Shield
+            if self.use_trailing_stop:
+                # Stage 1: Breakeven Shield at +2.0%
+                if pnl_pct >= self.trailing_trigger_pct and not getattr(pos, 'trailing_active', False):
+                    pos.trailing_active = True
+                    if (getattr(pos, 'stop_loss', 0.0) or 0.0) < avg_price:
+                        pos.stop_loss = avg_price
+                        try:
+                            db.session.commit()
+                        except Exception:
+                            pass
+                        self.add_log(f"🛡️ [BREAKEVEN SHIELD] {display_name}: Gain reached +{pnl_pct:.2f}%. Stop-loss raised to Breakeven (₹{avg_price:.2f}). Trade is 100% Risk-Free!", "SUCCESS")
+
+                # Stage 2: Trail upward behind higher peaks
+                if getattr(pos, 'trailing_active', False):
+                    trail_distance = (self.atr_multiplier_sl * atr_14) if self.use_atr_exits else (peak * 0.02)
+                    dynamic_stop = round(peak - trail_distance, 2)
+                    current_sl = getattr(pos, 'stop_loss', 0.0) or 0.0
+                    if dynamic_stop > current_sl and dynamic_stop > avg_price:
+                        pos.stop_loss = dynamic_stop
+                        try:
+                            db.session.commit()
+                        except Exception:
+                            pass
+                        self.add_log(f"📈 [TRAILING STOP TRAIL] {display_name}: High ₹{peak:.2f}! Stop raised to ₹{dynamic_stop:.2f} (Locking +{((dynamic_stop-avg_price)/avg_price*100):.1f}%)", "SUCCESS")
+
+            # Check if Trailing / Dynamic Stop-Loss triggered
+            sl_level = getattr(pos, 'stop_loss', 0.0) or 0.0
+            if sl_level > 0 and current_price <= sl_level:
+                lock_pnl = ((current_price - avg_price) / avg_price) * 100
+                self.add_log(f"🛑 [STOP HIT] {display_name}: Liquidated @ ₹{current_price:.2f} (Stop was ₹{sl_level:.2f}, Result: {lock_pnl:+.2f}%)", "ERROR" if lock_pnl < 0 else "SUCCESS")
+                exec_res = PaperTradingEngine.execute_order(symbol, "SELL", pos.quantity)
+                return {
+                    "symbol": symbol, "displayName": display_name, "price": current_price,
+                    "change_pct": change_pct, "signal": "STOP_LOSS", "reason": f"Trailing Stop hit @ ₹{current_price:.2f} ({lock_pnl:+.2f}%)",
+                    "action_executed": "STOP_EXIT", "ema_200": ema_200, "trend_200": trend_200, "vol_ratio": vol_ratio, "atr_14": atr_14
+                }
+
+            # Check if Fixed % Stop-Loss triggered
             if pnl_pct <= -abs(self.stop_loss_pct):
                 self.add_log(f"[STOP-LOSS] {display_name}: Hit -{abs(pnl_pct):.2f}% <= -{self.stop_loss_pct}%. Liquidating {pos.quantity} shares @ ₹{current_price:.2f}", "ERROR")
                 exec_res = PaperTradingEngine.execute_order(symbol, "SELL", pos.quantity)
                 return {
                     "symbol": symbol, "displayName": display_name, "price": current_price,
                     "change_pct": change_pct, "signal": "STOP_LOSS", "reason": f"Stop-Loss triggered at {pnl_pct:.2f}%",
-                    "action_executed": "LIQUIDATED"
+                    "action_executed": "LIQUIDATED", "ema_200": ema_200, "trend_200": trend_200, "vol_ratio": vol_ratio, "atr_14": atr_14
                 }
 
-            if pnl_pct >= abs(self.take_profit_pct):
-                self.add_log(f"[TAKE-PROFIT] {display_name}: Hit +{pnl_pct:.2f}% >= +{self.take_profit_pct}%. Selling {pos.quantity} shares @ ₹{current_price:.2f} to lock gains!", "SUCCESS")
+            # Check Take-Profit
+            tp_level = getattr(pos, 'take_profit', 0.0) or 0.0
+            if (tp_level > 0 and current_price >= tp_level) or (pnl_pct >= abs(self.take_profit_pct)):
+                self.add_log(f"🎯 [TAKE-PROFIT] {display_name}: Hit +{pnl_pct:.2f}%. Selling {pos.quantity} shares @ ₹{current_price:.2f} to lock gains!", "SUCCESS")
                 exec_res = PaperTradingEngine.execute_order(symbol, "SELL", pos.quantity)
                 return {
                     "symbol": symbol, "displayName": display_name, "price": current_price,
                     "change_pct": change_pct, "signal": "TAKE_PROFIT", "reason": f"Take-Profit target achieved at +{pnl_pct:.2f}%",
-                    "action_executed": "PROFIT_LOCKED"
+                    "action_executed": "PROFIT_LOCKED", "ema_200": ema_200, "trend_200": trend_200, "vol_ratio": vol_ratio, "atr_14": atr_14
                 }
 
         # 2. Strategy Indicator Evaluation
@@ -142,7 +223,8 @@ class AutoTradingBot:
             return {
                 "symbol": symbol, "displayName": display_name, "price": current_price,
                 "change_pct": change_pct, "signal": "HOLD", "reason": "Insufficient candles",
-                "fast_sma": None, "slow_sma": None, "rsi": None, "action_executed": None
+                "fast_sma": None, "slow_sma": None, "rsi": None, "action_executed": None,
+                "ema_200": ema_200, "trend_200": trend_200, "vol_ratio": vol_ratio, "atr_14": atr_14
             }
 
         s_closes = pd.Series(closes)
@@ -193,6 +275,18 @@ class AutoTradingBot:
             else:
                 reason = f"Neutral Momentum (RSI: {current_rsi:.1f})"
 
+        # OPTION A: Filter BUY signals with 200 EMA Macro Trend & Volume Surge
+        filter_status = None
+        if signal == "BUY":
+            if self.use_ema200_filter and trend_200 == "BEARISH":
+                signal = "HOLD"
+                reason = f"BUY Filtered: Bearish Trend (Price ₹{current_price:.1f} < 200 EMA ₹{ema_200})"
+                filter_status = "FILTERED_200EMA"
+            elif self.use_volume_filter and vol_ratio < 1.0:
+                signal = "HOLD"
+                reason = f"BUY Filtered: Low Volume Surge ({vol_ratio:.2f}x < 1.0x avg)"
+                filter_status = "FILTERED_VOLUME"
+
         return {
             "symbol": symbol,
             "displayName": display_name,
@@ -203,6 +297,11 @@ class AutoTradingBot:
             "fast_sma": fast_sma,
             "slow_sma": slow_sma,
             "rsi": rsi_val,
+            "ema_200": ema_200,
+            "trend_200": trend_200,
+            "vol_ratio": vol_ratio,
+            "atr_14": atr_14,
+            "filter_status": filter_status,
             "action_executed": None
         }
 
@@ -267,9 +366,27 @@ class AutoTradingBot:
                             trades_executed += 1
                             available_cash -= total_cost
                             eval_res["action_executed"] = f"BOUGHT {trade_qty} SHARES"
+                            
+                            # Set Initial Stop-Loss and Take-Profit targets on position
+                            pos_rec = Position.query.filter_by(symbol=symbol).first()
+                            if pos_rec:
+                                atr_val = eval_res.get("atr_14") or (price * 0.025)
+                                if self.use_atr_exits:
+                                    pos_rec.stop_loss = round(price - (self.atr_multiplier_sl * atr_val), 2)
+                                    pos_rec.take_profit = round(price + (self.atr_multiplier_tp * atr_val), 2)
+                                else:
+                                    pos_rec.stop_loss = round(price * (1 - self.stop_loss_pct / 100), 2)
+                                    pos_rec.take_profit = round(price * (1 + self.take_profit_pct / 100), 2)
+                                pos_rec.peak_price = price
+                                pos_rec.trailing_active = False
+                                try:
+                                    db.session.commit()
+                                except Exception:
+                                    pass
+
                             self.add_log(f"⚡ AUTO-BOUGHT {trade_qty} shares of {display_name} @ ₹{price:.2f} (Total: ₹{total_cost:,.2f}) | {eval_res['reason']}", "SUCCESS")
                             # Add to local held map to prevent double-buys
-                            held_map[symbol] = Position(symbol=symbol, quantity=trade_qty, average_price=price)
+                            held_map[symbol] = Position(symbol=symbol, quantity=trade_qty, average_price=price, peak_price=price, stop_loss=pos_rec.stop_loss if pos_rec else 0.0)
                     else:
                         self.add_log(f"BUY signal on {display_name}, but insufficient cash (Needed ₹{total_cost:,.2f}, Avail ₹{available_cash:,.2f})", "WARNING")
 

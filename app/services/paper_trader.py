@@ -33,16 +33,28 @@ class PaperTradingEngine:
                 "current_price": round(current_price, 2),
                 "market_value": round(market_value, 2),
                 "unrealized_pnl": round(unrealized_pnl, 2),
-                "unrealized_pnl_pct": round(unrealized_pnl_pct, 2)
+                "unrealized_pnl_pct": round(unrealized_pnl_pct, 2),
+                "peak_price": round(getattr(pos, 'peak_price', 0.0) or pos.average_price, 2),
+                "stop_loss": round(getattr(pos, 'stop_loss', 0.0) or 0.0, 2),
+                "take_profit": round(getattr(pos, 'take_profit', 0.0) or 0.0, 2),
+                "trailing_active": bool(getattr(pos, 'trailing_active', False))
             })
             
         total_equity = account.cash_balance + total_market_value
         
+        account_data = {
+            "cash_balance": round(account.cash_balance, 2),
+            "market_value": round(total_market_value, 2),
+            "total_equity": round(total_equity, 2),
+            "unrealized_pnl": round(total_unrealized_pnl, 2)
+        }
+
         return {
             "cash_balance": round(account.cash_balance, 2),
             "market_value": round(total_market_value, 2),
             "total_equity": round(total_equity, 2),
             "unrealized_pnl": round(total_unrealized_pnl, 2),
+            "account": account_data,
             "positions": portfolio_positions
         }
 
@@ -76,13 +88,23 @@ class PaperTradingEngine:
             account.cash_balance -= total_cost
             position = Position.query.filter_by(symbol=symbol).first()
             if not position:
-                position = Position(symbol=symbol, quantity=quantity, average_price=price)
+                position = Position(
+                    symbol=symbol, 
+                    quantity=quantity, 
+                    average_price=price,
+                    peak_price=price,
+                    stop_loss=0.0,
+                    take_profit=0.0,
+                    trailing_active=False
+                )
                 db.session.add(position)
             else:
                 new_qty = position.quantity + quantity
                 new_avg = ((position.quantity * position.average_price) + total_cost) / new_qty
                 position.quantity = new_qty
                 position.average_price = new_avg
+                if hasattr(position, 'peak_price'):
+                    position.peak_price = max(position.peak_price or 0.0, price)
                 
             trade = TradeHistory(
                 symbol=symbol,

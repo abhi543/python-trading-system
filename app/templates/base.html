@@ -773,5 +773,37 @@
     </main>
 
     <div id="toast-container" class="toast-container"></div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const resetBtn = document.getElementById('reset-account-btn');
+            if (resetBtn) {
+                resetBtn.addEventListener('click', async () => {
+                    if (!confirm('Reset paper desk to ₹10,00,000 cash and restore fresh NIFTY 50 watchlist?')) return;
+                    try {
+                        const res = await fetch('/api/reset-account', { method: 'POST' });
+                        const data = await res.json();
+                        if (data.success) {
+                            document.getElementById('nav-total-equity').innerText = '₹10,00,000.00';
+                            document.getElementById('nav-cash-balance').innerText = '₹10,00,000.00';
+                            document.getElementById('nav-pnl').innerText = '₹0.00';
+                            document.getElementById('nav-pnl').className = 'metric-value text-green';
+                            
+                            if (typeof loadPortfolio === 'function') loadPortfolio();
+                            if (typeof loadBotHoldings === 'function') loadBotHoldings();
+                            if (typeof fetchBotStatus === 'function') fetchBotStatus();
+                            if (typeof loadWatchlist === 'function') loadWatchlist();
+                            
+                            if (typeof showToast === 'function') {
+                                showToast('Desk reset to ₹10,00,000 cash capital!', 'success');
+                            }
+                        }
+                    } catch (e) {
+                        alert('Reset failed: ' + e);
+                    }
+                });
+            }
+        });
+    </script>
 </body>
 </html>
