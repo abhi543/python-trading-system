@@ -841,22 +841,28 @@
 <!-- STYLES -->
 <style>
     .bot-page-container {
-        padding: 1.5rem 2rem 3rem 2rem;
-        max-width: 1680px;
+        padding: 0;
+        width: 100%;
+        max-width: 100%;
         margin: 0 auto;
         display: flex;
         flex-direction: column;
-        gap: 1.5rem;
+        gap: 1.25rem;
+        box-sizing: border-box;
+        overflow-x: hidden;
     }
 
     /* MODE SELECTOR BAR */
     .bot-mode-bar {
         display: flex;
-        gap: 0.75rem;
+        gap: 0.5rem;
         background: var(--bg-card);
-        padding: 0.5rem;
+        padding: 0.4rem;
         border-radius: 12px;
         border: 1px solid var(--border);
+        flex-wrap: wrap;
+        width: 100%;
+        box-sizing: border-box;
     }
 
     /* AFTER-HOURS SIMULATION LAB */
@@ -1014,7 +1020,8 @@
         position: absolute;
         top: calc(100% + 8px);
         right: 0;
-        width: 330px;
+        width: min(330px, 92vw);
+        max-width: 92vw;
         background: #0f172a;
         border: 1px solid rgba(0, 240, 144, 0.3);
         border-radius: 12px;
@@ -1025,6 +1032,7 @@
         gap: 0.25rem;
         z-index: 1000;
         animation: botDropdownFadeIn 0.18s ease-out;
+        box-sizing: border-box;
     }
     .bot-dropdown-wrapper.open .bot-dropdown-menu {
         display: flex;
@@ -1130,16 +1138,20 @@
 
     .simlab-dropdown-box {
         display: flex;
-        gap: 1.25rem;
+        gap: 1rem;
         align-items: flex-end;
         flex-wrap: wrap;
+        width: 100%;
+        box-sizing: border-box;
     }
 
     .simlab-cards-grid {
         display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-        gap: 1.25rem;
+        grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+        gap: 1rem;
         margin-bottom: 1.5rem;
+        width: 100%;
+        box-sizing: border-box;
     }
 
     .simlab-card {
@@ -1291,12 +1303,20 @@
         background: linear-gradient(135deg, rgba(16, 21, 36, 0.95) 0%, rgba(10, 14, 25, 0.95) 100%);
         border: 1px solid var(--border-highlight);
         border-radius: 14px;
-        padding: 1.75rem 2rem;
+        padding: 1.5rem 1.75rem;
         display: flex;
         justify-content: space-between;
         align-items: center;
-        gap: 2rem;
+        gap: 1.5rem;
         box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+        flex-wrap: wrap;
+        width: 100%;
+        box-sizing: border-box;
+    }
+
+    .bot-hero-info {
+        flex: 1 1 360px;
+        min-width: 0;
     }
 
     .bot-status-header {
@@ -1373,9 +1393,11 @@
 
     .bot-hero-actions {
         display: flex;
-        flex-direction: column;
-        gap: 0.75rem;
-        min-width: 260px;
+        flex-direction: row;
+        flex-wrap: wrap;
+        gap: 0.65rem;
+        align-items: center;
+        min-width: 0;
     }
 
     .btn-bot-start {
@@ -1658,15 +1680,65 @@
     /* TWO-COLUMN LAYOUT */
     .bot-main-layout {
         display: grid;
-        grid-template-columns: 1fr 440px;
-        gap: 1.5rem;
+        grid-template-columns: minmax(0, 1fr) 380px;
+        gap: 1.25rem;
+        width: 100%;
+        max-width: 100%;
+        box-sizing: border-box;
     }
 
-    @media (max-width: 1200px) {
-        .bot-main-layout { grid-template-columns: 1fr; }
-        .bot-kpi-grid { grid-template-columns: repeat(2, 1fr); }
-        .bot-hero-card { flex-direction: column; align-items: flex-start; }
-        .bot-hero-actions { width: 100%; flex-direction: row; }
+    .bot-left-col {
+        min-width: 0;
+        width: 100%;
+        max-width: 100%;
+        display: flex;
+        flex-direction: column;
+        gap: 1.25rem;
+        box-sizing: border-box;
+    }
+
+    .bot-right-col {
+        min-width: 0;
+        width: 100%;
+        max-width: 100%;
+        display: flex;
+        flex-direction: column;
+        gap: 1.25rem;
+        box-sizing: border-box;
+    }
+
+    @media (max-width: 1350px) {
+        .bot-main-layout {
+            grid-template-columns: 1fr;
+        }
+        .bot-right-col {
+            width: 100%;
+        }
+        .bot-kpi-grid {
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+        }
+        .bot-hero-card {
+            flex-direction: column;
+            align-items: stretch;
+        }
+        .bot-hero-actions {
+            width: 100%;
+            flex-direction: row;
+            flex-wrap: wrap;
+        }
+        .terminal-card {
+            height: 420px;
+        }
+    }
+
+    @media (max-width: 768px) {
+        .bot-kpi-grid {
+            grid-template-columns: repeat(2, 1fr);
+        }
+        .btn-bot-start, .btn-bot-scan, .btn-bot-dropdown {
+            width: 100%;
+            justify-content: center;
+        }
     }
 
     .bot-section-card {
@@ -1724,7 +1796,16 @@
 
     .table-wrapper {
         overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
         max-height: 520px;
+        width: 100%;
+        max-width: 100%;
+        box-sizing: border-box;
+    }
+
+    .table-wrapper table {
+        width: 100%;
+        min-width: 650px;
     }
 
     /* TERMINAL CONSOLE */
