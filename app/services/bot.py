@@ -82,7 +82,7 @@ class AutoTradingBot:
         self.strategy = "SMA_CROSSOVER"  # "SMA_CROSSOVER" or "RSI_MOMENTUM"
         self.allocation_per_trade = 15000.0  # ₹15,000 allocated per stock
         self.max_positions = 3               # Max 3 concurrent active positions
-        self.interval_seconds = 20           # Scan interval
+        self.interval_seconds = 60           # Scan interval: 1 minute (60s)
         self.fast_period = 9
         self.slow_period = 21
         self.rsi_period = 14

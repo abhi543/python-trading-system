@@ -916,7 +916,7 @@ function updateBotUI(data) {
                     loadTrades();
                 } catch (e) {}
             }
-        }, (data.interval_seconds || 20) * 1000);
+        }, (data.interval_seconds || 60) * 1000);
     } else if (!isBotActive && botTickTimer) {
         clearInterval(botTickTimer);
         botTickTimer = null;
@@ -941,7 +941,7 @@ async function toggleBot() {
             strategy: document.getElementById('bot-strategy').value,
             allocation_per_trade: parseFloat(document.getElementById('bot-allocation').value) || 15000,
             max_positions: parseInt(document.getElementById('bot-max-positions').value) || 3,
-            interval_seconds: 20,
+            interval_seconds: 60,
             stop_loss_pct: parseFloat(document.getElementById('bot-stop-loss').value) || 1.0,
             take_profit_pct: parseFloat(document.getElementById('bot-take-profit').value) || 1.0
         };
