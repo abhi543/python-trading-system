@@ -1,6 +1,14 @@
+import os
 import yfinance as yf
 import pandas as pd
 from datetime import datetime
+
+# Prevent read-only filesystem crash on serverless runtimes
+try:
+    if hasattr(yf, 'set_tz_cache_location'):
+        yf.set_tz_cache_location('/tmp/py-yfinance')
+except Exception:
+    pass
 
 class MarketDataService:
     @staticmethod

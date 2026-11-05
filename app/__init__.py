@@ -1,3 +1,4 @@
+import os
 from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
 from config import Config
@@ -5,16 +6,23 @@ from config import Config
 db = SQLAlchemy()
 
 def create_app(config_class=Config):
-    app = Flask(__name__)
+    # Use explicit absolute paths for templates and static files to ensure reliability across all environments
+    base_app_dir = os.path.dirname(os.path.abspath(__file__))
+    template_dir = os.path.join(base_app_dir, 'templates')
+    static_dir = os.path.join(base_app_dir, 'static')
+    
+    app = Flask(__name__, template_folder=template_dir, static_folder=static_dir)
     app.config.from_object(config_class)
 
     db.init_app(app)
 
     with app.app_context():
-        from app.models import trading
-        db.create_all()
-        # Initialize default portfolio balance and watchlist if empty
-        trading.init_default_data(app.config['INITIAL_CASH'])
+        try:
+            from app.models import trading
+            db.create_all()
+            trading.init_default_data(app.config.get('INITIAL_CASH', 100000.0))
+        except Exception as e:
+            app.logger.warning(f"Database init warning (non-fatal): {e}")
 
     from app.routes.views import views_bp
     from app.routes.api import api_bp
@@ -23,4 +31,3 @@ def create_app(config_class=Config):
     app.register_blueprint(api_bp, url_prefix='/api')
 
     return app
-
