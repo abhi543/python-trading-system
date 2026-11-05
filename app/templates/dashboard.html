@@ -83,13 +83,111 @@
 <!-- BOTTOM SECTION: POSITIONS & STRATEGY BACKTESTER -->
 <div class="bottom-layout">
     <div class="tabs-header">
-        <button class="tab-btn active" data-tab="tab-positions"><i class="fa-solid fa-briefcase"></i> Active Positions</button>
+        <button class="tab-btn active" data-tab="tab-bot"><i class="fa-solid fa-robot"></i> Auto-Trading Bot <span class="badge" id="bot-tab-badge" style="margin-left: 6px; padding: 2px 6px; font-size: 0.65rem; background: rgba(0, 240, 144, 0.15); color: var(--green);">IDLE</span></button>
+        <button class="tab-btn" data-tab="tab-positions"><i class="fa-solid fa-briefcase"></i> Active Positions</button>
         <button class="tab-btn" data-tab="tab-trades"><i class="fa-solid fa-clock-rotate-left"></i> Execution Audit Log</button>
-        <button class="tab-btn" data-tab="tab-backtester"><i class="fa-solid fa-robot"></i> Algorithmic Strategy Backtester</button>
+        <button class="tab-btn" data-tab="tab-backtester"><i class="fa-solid fa-chart-line"></i> Historical Backtester</button>
+    </div>
+
+    <!-- AUTO-TRADING BOT TAB -->
+    <div id="tab-bot" class="tab-content active">
+        <div style="display: grid; grid-template-columns: 360px 1fr; gap: 1.25rem;">
+            <!-- BOT CONFIGURATION PANEL -->
+            <div style="background: var(--bg-surface); padding: 1.25rem; border-radius: 8px; border: 1px solid var(--border); display: flex; flex-direction: column; gap: 1rem;">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <h4 style="font-size: 0.85rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-main);">
+                        <i class="fa-solid fa-sliders"></i> Strategy Parameters
+                    </h4>
+                    <span id="bot-status-pill" class="status-pill" style="font-size: 0.65rem;">
+                        <span class="pulse-dot"></span> <span id="bot-status-text">OFFLINE</span>
+                    </span>
+                </div>
+
+                <form id="bot-config-form" style="display: flex; flex-direction: column; gap: 0.85rem;">
+                    <div class="form-group">
+                        <label>Target Asset (NSE)</label>
+                        <input type="text" id="bot-symbol" class="form-control mono" value="RELIANCE.NS" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Automated Strategy Model</label>
+                        <select id="bot-strategy" class="form-control" style="font-weight: 600;">
+                            <option value="SMA_CROSSOVER" selected>Dual SMA Golden/Death Cross (9/21)</option>
+                            <option value="RSI_MOMENTUM">RSI Mean Reversion (14-Period, 30/70)</option>
+                        </select>
+                    </div>
+
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.6rem;">
+                        <div class="form-group">
+                            <label>Trade Size (Shares)</label>
+                            <input type="number" id="bot-quantity" class="form-control mono" value="10" min="1" step="1">
+                        </div>
+                        <div class="form-group">
+                            <label>Interval (Sec)</label>
+                            <input type="number" id="bot-interval" class="form-control mono" value="15" min="5" max="300">
+                        </div>
+                    </div>
+
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.6rem;">
+                        <div class="form-group">
+                            <label>Stop-Loss (%)</label>
+                            <input type="number" id="bot-stop-loss" class="form-control mono" value="2.0" step="0.5" min="0.5">
+                        </div>
+                        <div class="form-group">
+                            <label>Take-Profit (%)</label>
+                            <input type="number" id="bot-take-profit" class="form-control mono" value="4.0" step="0.5" min="0.5">
+                        </div>
+                    </div>
+
+                    <div style="display: flex; gap: 0.6rem; margin-top: 0.5rem;">
+                        <button type="button" id="bot-toggle-btn" class="btn-submit btn-buy" style="flex: 1;">
+                            <i class="fa-solid fa-play"></i> START AUTO BOT
+                        </button>
+                        <button type="button" id="bot-tick-now-btn" class="btn-reset" style="padding: 0.65rem 1rem;" title="Evaluate strategy immediately">
+                            <i class="fa-solid fa-bolt"></i> Evaluate Now
+                        </button>
+                    </div>
+                </form>
+            </div>
+
+            <!-- BOT RADAR & REAL-TIME LOGS -->
+            <div style="display: flex; flex-direction: column; gap: 1rem;">
+                <!-- SUMMARY METRICS -->
+                <div class="metrics-grid" style="margin-bottom: 0;">
+                    <div class="stat-card">
+                        <span class="stat-label">Bot Execution State</span>
+                        <span class="stat-val text-green" id="bot-card-state">IDLE</span>
+                    </div>
+                    <div class="stat-card">
+                        <span class="stat-label">Last Computed Signal</span>
+                        <span class="stat-val" id="bot-card-signal" style="color: var(--blue);">HOLD</span>
+                    </div>
+                    <div class="stat-card">
+                        <span class="stat-label">Active Monitored Price</span>
+                        <span class="stat-val" id="bot-card-price">₹0.00</span>
+                    </div>
+                    <div class="stat-card">
+                        <span class="stat-label">Last Strategy Evaluation</span>
+                        <span class="stat-val mono" id="bot-card-time" style="font-size: 0.95rem; font-weight: 600;">--:--:--</span>
+                    </div>
+                </div>
+
+                <!-- LIVE LOG TERMINAL -->
+                <div style="background: var(--bg-body); border: 1px solid var(--border); border-radius: 8px; flex: 1; display: flex; flex-direction: column; overflow: hidden; min-height: 220px;">
+                    <div style="padding: 0.6rem 0.9rem; background: var(--bg-surface); border-bottom: 1px solid var(--border); font-size: 0.75rem; font-weight: 700; color: var(--text-muted); display: flex; justify-content: space-between; align-items: center;">
+                        <span><i class="fa-solid fa-terminal"></i> Bot Strategy Decision Stream</span>
+                        <span style="font-size: 0.65rem; color: var(--green);"><i class="fa-solid fa-circle pulse-dot"></i> REAL-TIME</span>
+                    </div>
+                    <div id="bot-logs-container" style="padding: 0.85rem; font-family: var(--font-code); font-size: 0.8rem; overflow-y: auto; max-height: 220px; display: flex; flex-direction: column; gap: 0.4rem;">
+                        <div style="color: var(--text-muted);">Bot engine ready. Configure strategy parameters and click 'START AUTO BOT' or 'Evaluate Now'.</div>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 
     <!-- POSITIONS TAB -->
-    <div id="tab-positions" class="tab-content active">
+    <div id="tab-positions" class="tab-content">
         <table class="data-table">
             <thead>
                 <tr>
@@ -545,6 +643,14 @@ function setupEventListeners() {
         }
     });
 
+    // BOT EVENT LISTENERS
+    document.getElementById('bot-toggle-btn').addEventListener('click', toggleBot);
+    document.getElementById('bot-tick-now-btn').addEventListener('click', tickBotNow);
+
+    // Initial bot status fetch
+    fetchBotStatus();
+    setInterval(fetchBotStatus, 6000);
+
     document.getElementById('backtest-form').addEventListener('submit', async (e) => {
         e.preventDefault();
         const symbol = document.getElementById('bt-symbol').value.trim().toUpperCase();
@@ -634,5 +740,168 @@ function showToast(message, type = 'success') {
     container.appendChild(toast);
     setTimeout(() => { toast.remove(); }, 4000);
 }
+
+/* --- AUTO-TRADING BOT CLIENT LOGIC --- */
+let isBotActive = false;
+let botTickTimer = null;
+
+async function fetchBotStatus() {
+    try {
+        const res = await fetch('/api/bot/status');
+        const data = await res.json();
+        updateBotUI(data);
+    } catch (err) {
+        console.error('Error fetching bot status:', err);
+    }
+}
+
+function updateBotUI(data) {
+    isBotActive = data.is_running;
+    
+    // Update badge & pills
+    const badge = document.getElementById('bot-tab-badge');
+    const pillText = document.getElementById('bot-status-text');
+    const stateCard = document.getElementById('bot-card-state');
+    const toggleBtn = document.getElementById('bot-toggle-btn');
+    
+    if (isBotActive) {
+        badge.innerText = 'ACTIVE';
+        badge.style.background = 'rgba(0, 240, 144, 0.2)';
+        badge.style.color = 'var(--green)';
+        
+        pillText.innerText = 'ACTIVE / RUNNING';
+        stateCard.innerText = 'AUTO RUNNING';
+        stateCard.className = 'stat-val text-green';
+        
+        toggleBtn.className = 'btn-submit btn-sell';
+        toggleBtn.innerHTML = '<i class="fa-solid fa-pause"></i> PAUSE AUTO BOT';
+    } else {
+        badge.innerText = 'IDLE';
+        badge.style.background = 'rgba(126, 139, 166, 0.15)';
+        badge.style.color = 'var(--text-muted)';
+        
+        pillText.innerText = 'OFFLINE / PAUSED';
+        stateCard.innerText = 'PAUSED';
+        stateCard.className = 'stat-val';
+        stateCard.style.color = 'var(--text-muted)';
+        
+        toggleBtn.className = 'btn-submit btn-buy';
+        toggleBtn.innerHTML = '<i class="fa-solid fa-play"></i> START AUTO BOT';
+    }
+
+    // Update signal card
+    const signalCard = document.getElementById('bot-card-signal');
+    signalCard.innerText = data.last_signal || 'HOLD';
+    if (data.last_signal === 'BUY') {
+        signalCard.className = 'stat-val text-green';
+    } else if (data.last_signal === 'SELL' || data.last_signal === 'STOP_LOSS_SELL' || data.last_signal === 'TAKE_PROFIT_SELL') {
+        signalCard.className = 'stat-val text-red';
+    } else {
+        signalCard.className = 'stat-val';
+        signalCard.style.color = 'var(--blue)';
+    }
+
+    // Update price and time
+    if (data.current_price) {
+        document.getElementById('bot-card-price').innerText = `₹${data.current_price.toFixed(2)}`;
+    }
+    if (data.last_run_time) {
+        document.getElementById('bot-card-time').innerText = data.last_run_time.split(' ')[1] || data.last_run_time;
+    }
+
+    // Render logs
+    const logsContainer = document.getElementById('bot-logs-container');
+    if (data.logs && data.logs.length > 0) {
+        logsContainer.innerHTML = '';
+        data.logs.forEach(log => {
+            const entry = document.createElement('div');
+            let color = 'var(--text-main)';
+            if (log.level === 'SUCCESS') color = 'var(--green)';
+            if (log.level === 'ERROR') color = 'var(--red)';
+            if (log.level === 'WARNING') color = '#ffb300';
+            if (log.level === 'INFO') color = 'var(--text-muted)';
+            
+            entry.innerHTML = `<span style="color: var(--text-muted);">[${log.timestamp}]</span> <span style="color: ${color}; font-weight: 600;">[${log.level}]</span> <span>${log.message}</span>`;
+            logsContainer.appendChild(entry);
+        });
+    }
+
+    // Ensure serverless client ticker runs if active
+    if (isBotActive && !botTickTimer) {
+        botTickTimer = setInterval(async () => {
+            if (isBotActive) {
+                try {
+                    await fetch('/api/bot/tick', { method: 'POST' });
+                    fetchBotStatus();
+                    loadPortfolio();
+                    loadTrades();
+                } catch (e) {}
+            }
+        }, (data.interval_seconds || 15) * 1000);
+    } else if (!isBotActive && botTickTimer) {
+        clearInterval(botTickTimer);
+        botTickTimer = null;
+    }
+}
+
+async function toggleBot() {
+    if (isBotActive) {
+        try {
+            const res = await fetch('/api/bot/stop', { method: 'POST' });
+            const data = await res.json();
+            showToast('Auto-trading bot paused', 'success');
+            updateBotUI(data.status);
+        } catch (err) {
+            showToast('Failed to stop bot', 'error');
+        }
+    } else {
+        const config = {
+            symbol: document.getElementById('bot-symbol').value.trim().toUpperCase(),
+            strategy: document.getElementById('bot-strategy').value,
+            quantity: parseFloat(document.getElementById('bot-quantity').value) || 10,
+            interval_seconds: parseInt(document.getElementById('bot-interval').value) || 15,
+            stop_loss_pct: parseFloat(document.getElementById('bot-stop-loss').value) || 2.0,
+            take_profit_pct: parseFloat(document.getElementById('bot-take-profit').value) || 4.0
+        };
+
+        try {
+            const res = await fetch('/api/bot/start', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(config)
+            });
+            const data = await res.json();
+            if (data.success) {
+                showToast(`Auto-bot activated for ${config.symbol}`, 'success');
+                updateBotUI(data.status);
+                // Trigger first immediate evaluation
+                tickBotNow();
+            } else {
+                showToast('Failed to start bot', 'error');
+            }
+        } catch (err) {
+            showToast('Start bot request failed', 'error');
+        }
+    }
+}
+
+async function tickBotNow() {
+    showToast('Evaluating strategy signals...', 'success');
+    try {
+        const res = await fetch('/api/bot/tick', { method: 'POST' });
+        const data = await res.json();
+        if (data.bot_state) {
+            updateBotUI(data.bot_state);
+        }
+        loadPortfolio();
+        loadTrades();
+        const sig = data.result?.signal || 'HOLD';
+        const msg = data.result?.reason || 'Evaluation completed';
+        showToast(`Signal: ${sig} | ${msg}`, sig === 'BUY' ? 'success' : (sig === 'SELL' ? 'error' : 'info'));
+    } catch (err) {
+        showToast('Evaluation failed', 'error');
+    }
+}
+
 </script>
 {% endblock %}

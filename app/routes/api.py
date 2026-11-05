@@ -116,3 +116,32 @@ def reset_account():
     db.session.commit()
     return jsonify({"success": True, "message": "Account reset to ₹10,00,000 and NIFTY 50 watchlist restored"})
 
+@api_bp.route('/bot/status', methods=['GET'])
+def get_bot_status():
+    from app.services.bot import bot_instance
+    return jsonify(bot_instance.get_status())
+
+@api_bp.route('/bot/start', methods=['POST'])
+def start_bot():
+    from app.services.bot import bot_instance
+    config = request.get_json() or {}
+    res = bot_instance.start(config)
+    return jsonify(res)
+
+@api_bp.route('/bot/stop', methods=['POST'])
+def stop_bot():
+    from app.services.bot import bot_instance
+    res = bot_instance.stop()
+    return jsonify(res)
+
+@api_bp.route('/bot/tick', methods=['POST'])
+def tick_bot():
+    from app.services.bot import bot_instance
+    res = bot_instance.evaluate_signals()
+    return jsonify({
+        "status": "evaluated",
+        "result": res,
+        "bot_state": bot_instance.get_status()
+    })
+
+
