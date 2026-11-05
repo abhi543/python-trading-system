@@ -46,6 +46,7 @@ def get_trades():
         cost_basis = t.total - (t.realized_pnl or 0.0)
         roi_pct = round(((t.realized_pnl or 0.0) / cost_basis) * 100, 2) if (cost_basis > 0 and t.side == "SELL") else 0.0
         entry_p = round(cost_basis / t.quantity, 2) if (t.quantity > 0 and cost_basis > 0) else t.price
+        charges = round(getattr(t, 'charges', 0.0) or 0.0, 2)
         res.append({
             "id": t.id,
             "symbol": t.symbol,
@@ -55,6 +56,14 @@ def get_trades():
             "price": t.price,
             "entry_price": entry_p,
             "total": t.total,
+            "charges": charges,
+            "brokerage": round(getattr(t, 'brokerage', 0.0) or 0.0, 2),
+            "stt": round(getattr(t, 'stt', 0.0) or 0.0, 2),
+            "exchange_charges": round(getattr(t, 'exchange_charges', 0.0) or 0.0, 2),
+            "sebi_charges": round(getattr(t, 'sebi_charges', 0.0) or 0.0, 2),
+            "gst": round(getattr(t, 'gst', 0.0) or 0.0, 2),
+            "stamp_duty": round(getattr(t, 'stamp_duty', 0.0) or 0.0, 2),
+            "net_total": round(getattr(t, 'net_total', 0.0) or (t.total + charges if t.side == 'BUY' else t.total - charges), 2),
             "realized_pnl": t.realized_pnl or 0.0,
             "roi_pct": roi_pct,
             "timestamp": t.timestamp.strftime("%Y-%m-%d %H:%M:%S")
@@ -66,12 +75,15 @@ def get_closed_trades():
     trades = TradeHistory.query.filter_by(side="SELL").order_by(TradeHistory.timestamp.desc()).all()
     closed = []
     total_pnl = 0.0
+    total_charges = 0.0
     wins = 0
     losses = 0
 
     for t in trades:
         pnl = t.realized_pnl or 0.0
+        charges = round(getattr(t, 'charges', 0.0) or 0.0, 2)
         total_pnl += pnl
+        total_charges += charges
         if pnl > 0:
             wins += 1
         elif pnl < 0:
@@ -89,6 +101,14 @@ def get_closed_trades():
             "entry_price": entry_p,
             "exit_price": t.price,
             "total_value": t.total,
+            "charges": charges,
+            "brokerage": round(getattr(t, 'brokerage', 0.0) or 0.0, 2),
+            "stt": round(getattr(t, 'stt', 0.0) or 0.0, 2),
+            "exchange_charges": round(getattr(t, 'exchange_charges', 0.0) or 0.0, 2),
+            "sebi_charges": round(getattr(t, 'sebi_charges', 0.0) or 0.0, 2),
+            "gst": round(getattr(t, 'gst', 0.0) or 0.0, 2),
+            "stamp_duty": round(getattr(t, 'stamp_duty', 0.0) or 0.0, 2),
+            "net_proceeds": round(getattr(t, 'net_total', 0.0) or (t.total - charges), 2),
             "realized_pnl": round(pnl, 2),
             "roi_pct": roi_pct,
             "is_win": pnl >= 0,
@@ -105,6 +125,7 @@ def get_closed_trades():
             "losses": losses,
             "win_rate": win_rate,
             "net_realized_pnl": round(total_pnl, 2),
+            "total_charges": round(total_charges, 2),
             "avg_trade_pnl": round(total_pnl / len(closed), 2) if closed else 0.0
         }
     })

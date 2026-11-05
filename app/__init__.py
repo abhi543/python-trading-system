@@ -21,7 +21,7 @@ def create_app(config_class=Config):
             from app.models import trading
             db.create_all()
 
-            # Safe SQLite migration helper for new position tracking columns
+            # Safe SQLite migration helper for new position and trade history tracking columns
             from sqlalchemy import text
             try:
                 with db.engine.connect() as conn:
@@ -33,6 +33,22 @@ def create_app(config_class=Config):
                     ]:
                         try:
                             conn.execute(text(f"ALTER TABLE positions ADD COLUMN {col_def}"))
+                            conn.commit()
+                        except Exception:
+                            pass
+
+                    for col_def in [
+                        "charges FLOAT DEFAULT 0.0",
+                        "brokerage FLOAT DEFAULT 0.0",
+                        "stt FLOAT DEFAULT 0.0",
+                        "exchange_charges FLOAT DEFAULT 0.0",
+                        "sebi_charges FLOAT DEFAULT 0.0",
+                        "gst FLOAT DEFAULT 0.0",
+                        "stamp_duty FLOAT DEFAULT 0.0",
+                        "net_total FLOAT DEFAULT 0.0"
+                    ]:
+                        try:
+                            conn.execute(text(f"ALTER TABLE trade_history ADD COLUMN {col_def}"))
                             conn.commit()
                         except Exception:
                             pass

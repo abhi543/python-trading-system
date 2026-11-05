@@ -59,6 +59,53 @@ class PaperTradingEngine:
         }
 
     @staticmethod
+    def calculate_transaction_charges(turnover: float, side: str) -> dict:
+        """
+        Computes realistic Indian equity transaction charges & statutory taxes:
+        - Brokerage: 0.03% or ₹20 per executed order, whichever is lower.
+        - STT: 0.025% on the sell side.
+        - Exchange transaction charges: 0.00307% on total buy and sell turnover.
+        - SEBI charges: ₹10 per crore (0.000001) on total buy and sell turnover.
+        - GST: 18% on (brokerage + exchange transaction charges + SEBI charges).
+        - Stamp duty: 0.003% on the buy side.
+        """
+        turnover = float(turnover)
+        side = side.strip().upper()
+
+        # 1. Brokerage: 0.03% or ₹20 per executed order, whichever is lower
+        brokerage = round(min(turnover * 0.0003, 20.0), 2)
+
+        # 2. STT: 0.025% on the sell side
+        stt = round(turnover * 0.00025, 2) if side == "SELL" else 0.0
+
+        # 3. Exchange transaction charges: 0.00307% on turnover
+        exchange_charges = round(turnover * 0.0000307, 2)
+
+        # 4. SEBI charges: ₹10 per crore (₹10 / 10,000,000)
+        sebi_charges = round(turnover * 0.000001, 2)
+
+        # 5. GST: 18% on (brokerage + exchange charges + SEBI charges)
+        gst_taxable = brokerage + exchange_charges + sebi_charges
+        gst = round(gst_taxable * 0.18, 2)
+
+        # 6. Stamp duty: 0.003% on the buy side
+        stamp_duty = round(turnover * 0.00003, 2) if side == "BUY" else 0.0
+
+        # Total statutory and brokerage charges
+        total_charges = round(brokerage + stt + exchange_charges + sebi_charges + gst + stamp_duty, 2)
+
+        return {
+            "turnover": round(turnover, 2),
+            "brokerage": brokerage,
+            "stt": stt,
+            "exchange_charges": exchange_charges,
+            "sebi_charges": sebi_charges,
+            "gst": gst,
+            "stamp_duty": stamp_duty,
+            "total_charges": total_charges
+        }
+
+    @staticmethod
     def execute_order(symbol: str, side: str, quantity: float, execution_price: float = None):
         symbol = symbol.strip().upper()
         side = side.strip().upper()
@@ -78,17 +125,23 @@ class PaperTradingEngine:
                 return {"success": False, "message": f"Could not fetch price: {quote['error']}"}
             price = quote["price"]
             
-        total_cost = round(quantity * price, 2)
+        turnover = round(quantity * price, 2)
         account = Account.query.first()
+        if not account:
+            return {"success": False, "message": "Account not initialized"}
+
+        charges_data = PaperTradingEngine.calculate_transaction_charges(turnover, side)
+        total_charges = charges_data["total_charges"]
         
         if side == "BUY":
-            if account.cash_balance < total_cost:
+            net_required = round(turnover + total_charges, 2)
+            if account.cash_balance < net_required:
                 return {
                     "success": False, 
-                    "message": f"Insufficient funds. Required: ${total_cost:,.2f}, Available: ${account.cash_balance:,.2f}"
+                    "message": f"Insufficient funds. Required: ₹{net_required:,.2f} (Turnover: ₹{turnover:,.2f} + Charges: ₹{total_charges:.2f}), Available: ₹{account.cash_balance:,.2f}"
                 }
             
-            account.cash_balance -= total_cost
+            account.cash_balance -= net_required
             position = Position.query.filter_by(symbol=symbol).first()
             if not position:
                 position = Position(
@@ -103,7 +156,7 @@ class PaperTradingEngine:
                 db.session.add(position)
             else:
                 new_qty = position.quantity + quantity
-                new_avg = ((position.quantity * position.average_price) + total_cost) / new_qty
+                new_avg = ((position.quantity * position.average_price) + turnover) / new_qty
                 position.quantity = new_qty
                 position.average_price = new_avg
                 if hasattr(position, 'peak_price'):
@@ -114,12 +167,25 @@ class PaperTradingEngine:
                 side="BUY",
                 quantity=quantity,
                 price=price,
-                total=total_cost,
-                realized_pnl=0.0
+                total=turnover,
+                realized_pnl=0.0,
+                charges=total_charges,
+                brokerage=charges_data["brokerage"],
+                stt=charges_data["stt"],
+                exchange_charges=charges_data["exchange_charges"],
+                sebi_charges=charges_data["sebi_charges"],
+                gst=charges_data["gst"],
+                stamp_duty=charges_data["stamp_duty"],
+                net_total=net_required
             )
             db.session.add(trade)
             db.session.commit()
-            return {"success": True, "message": f"Bought {quantity} {symbol} @ ${price:.2f}", "trade_id": trade.id}
+            return {
+                "success": True, 
+                "message": f"Bought {quantity} {symbol} @ ₹{price:.2f} (Charges: ₹{total_charges:.2f})", 
+                "trade_id": trade.id,
+                "charges": charges_data
+            }
             
         elif side == "SELL":
             position = Position.query.filter_by(symbol=symbol).first()
@@ -127,10 +193,12 @@ class PaperTradingEngine:
                 available = position.quantity if position else 0
                 return {"success": False, "message": f"Insufficient position. Available: {available}, Requested: {quantity}"}
             
-            cost_basis = quantity * position.average_price
-            realized_pnl = total_cost - cost_basis
+            net_proceeds = round(turnover - total_charges, 2)
+            cost_basis = round(quantity * position.average_price, 2)
+            gross_pnl = turnover - cost_basis
+            net_realized_pnl = round(gross_pnl - total_charges, 2)
             
-            account.cash_balance += total_cost
+            account.cash_balance += net_proceeds
             position.quantity -= quantity
             
             if position.quantity == 0:
@@ -141,10 +209,23 @@ class PaperTradingEngine:
                 side="SELL",
                 quantity=quantity,
                 price=price,
-                total=total_cost,
-                realized_pnl=round(realized_pnl, 2)
+                total=turnover,
+                realized_pnl=net_realized_pnl,
+                charges=total_charges,
+                brokerage=charges_data["brokerage"],
+                stt=charges_data["stt"],
+                exchange_charges=charges_data["exchange_charges"],
+                sebi_charges=charges_data["sebi_charges"],
+                gst=charges_data["gst"],
+                stamp_duty=charges_data["stamp_duty"],
+                net_total=net_proceeds
             )
             db.session.add(trade)
             db.session.commit()
-            return {"success": True, "message": f"Sold {quantity} {symbol} @ ${price:.2f}. Realized PnL: ${realized_pnl:,.2f}", "trade_id": trade.id}
+            return {
+                "success": True, 
+                "message": f"Sold {quantity} {symbol} @ ₹{price:.2f}. Net Realized P&L: ₹{net_realized_pnl:,.2f} (Charges: ₹{total_charges:.2f})", 
+                "trade_id": trade.id,
+                "charges": charges_data
+            }
 

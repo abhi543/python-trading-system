@@ -254,11 +254,12 @@
                     <th>Quantity</th>
                     <th>Fill Price</th>
                     <th>Notional Total</th>
-                    <th>Realized P&L</th>
+                    <th>Charges &amp; Taxes</th>
+                    <th>Net Realized P&amp;L</th>
                 </tr>
             </thead>
             <tbody id="trades-table-body">
-                <tr><td colspan="7" class="text-center" style="padding: 2rem; color: var(--text-muted);">No trades executed yet.</td></tr>
+                <tr><td colspan="8" class="text-center" style="padding: 2rem; color: var(--text-muted);">No trades executed yet.</td></tr>
             </tbody>
         </table>
     </div>
@@ -547,6 +548,8 @@ async function loadTrades() {
             const sideColor = t.side === 'BUY' ? 'text-green' : 'text-red';
             const pnlDisplay = t.side === 'SELL' ? `₹${t.realized_pnl.toFixed(2)}` : '--';
             const pnlClass = t.realized_pnl >= 0 ? 'text-green' : 'text-red';
+            const charges = t.charges || 0.0;
+            const chargeTooltip = `Brokerage: ₹${(t.brokerage||0).toFixed(2)} | STT: ₹${(t.stt||0).toFixed(2)} | Exch: ₹${(t.exchange_charges||0).toFixed(2)} | GST: ₹${(t.gst||0).toFixed(2)} | SEBI: ₹${(t.sebi_charges||0).toFixed(2)} | Stamp: ₹${(t.stamp_duty||0).toFixed(2)}`;
 
             tr.innerHTML = `
                 <td>${t.timestamp}</td>
@@ -555,6 +558,7 @@ async function loadTrades() {
                 <td>${t.quantity}</td>
                 <td>₹${t.price.toFixed(2)}</td>
                 <td>₹${t.total.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                <td style="color: #fca5a5; cursor: help;" title="${chargeTooltip}">-₹${charges.toFixed(2)}</td>
                 <td class="${t.side === 'SELL' ? pnlClass : ''}">${pnlDisplay}</td>
             `;
             tbody.appendChild(tr);

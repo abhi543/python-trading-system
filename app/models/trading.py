@@ -90,6 +90,14 @@ class TradeHistory(db.Model):
     price = db.Column(db.Float, nullable=False)
     total = db.Column(db.Float, nullable=False)
     realized_pnl = db.Column(db.Float, default=0.0)
+    charges = db.Column(db.Float, default=0.0)
+    brokerage = db.Column(db.Float, default=0.0)
+    stt = db.Column(db.Float, default=0.0)
+    exchange_charges = db.Column(db.Float, default=0.0)
+    sebi_charges = db.Column(db.Float, default=0.0)
+    gst = db.Column(db.Float, default=0.0)
+    stamp_duty = db.Column(db.Float, default=0.0)
+    net_total = db.Column(db.Float, default=0.0)
     timestamp = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
 class WatchlistItem(db.Model):

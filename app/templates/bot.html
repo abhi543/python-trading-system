@@ -336,6 +336,11 @@
                                 <span class="score-val text-green" id="closed-net-pnl">₹0.00</span>
                             </div>
                             <div class="score-card-item">
+                                <span class="score-label">TOTAL CHARGES &amp; TAXES</span>
+                                <span class="score-val" id="closed-total-charges" style="color: #fca5a5;">₹0.00</span>
+                                <span class="score-sub">Brokerage + STT + Exch + GST</span>
+                            </div>
+                            <div class="score-card-item">
                                 <span class="score-label">WIN RATE</span>
                                 <span class="score-val" id="closed-win-rate">0.0%</span>
                                 <span class="score-sub" id="closed-win-count">0 Wins / 0 Losses</span>
@@ -361,14 +366,15 @@
                                         <th>ENTRY (₹)</th>
                                         <th>EXIT (₹)</th>
                                         <th>NOTIONAL (₹)</th>
-                                        <th>REALIZED P&L (₹)</th>
+                                        <th>CHARGES (₹)</th>
+                                        <th>NET REALIZED P&L (₹)</th>
                                         <th>RETURN (%)</th>
                                         <th>STATUS</th>
                                     </tr>
                                 </thead>
                                 <tbody id="bot-closed-trades-tbody">
                                     <tr>
-                                        <td colspan="9" class="text-center" style="padding: 1.5rem; color: var(--text-muted);">No closed trades recorded yet. As your bot executes stop-losses or takes profit, closed trades will be logged here.</td>
+                                        <td colspan="10" class="text-center" style="padding: 1.5rem; color: var(--text-muted);">No closed trades recorded yet. As your bot executes stop-losses or takes profit, closed trades will be logged here.</td>
                                     </tr>
                                 </tbody>
                             </table>
@@ -2663,6 +2669,12 @@
                 pnlEl.className = netPnl >= 0 ? 'score-val text-green' : 'score-val text-red';
             }
 
+            const chargesEl = document.getElementById('closed-total-charges');
+            const totalCharges = summary.total_charges || 0.0;
+            if (chargesEl) {
+                chargesEl.innerText = `₹${totalCharges.toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+            }
+
             const winRateEl = document.getElementById('closed-win-rate');
             if (winRateEl) {
                 winRateEl.innerText = `${summary.win_rate || 0}%`;
@@ -2688,7 +2700,7 @@
             if (!tbody) return;
 
             if (trades.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="9" class="text-center" style="padding: 1.5rem; color: var(--text-muted);">No closed trades recorded yet. Stop-loss liquidations, trailing stop hits, and take-profit exits will be logged here.</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="10" class="text-center" style="padding: 1.5rem; color: var(--text-muted);">No closed trades recorded yet. Stop-loss liquidations, trailing stop hits, and take-profit exits will be logged here.</td></tr>';
                 return;
             }
 
@@ -2702,6 +2714,9 @@
                     ? '<span class="signal-badge signal-buy" style="font-size: 0.68rem;"><i class="fa-solid fa-trophy"></i> PROFIT</span>' 
                     : '<span class="signal-badge signal-sell" style="font-size: 0.68rem;"><i class="fa-solid fa-shield-halved"></i> STOPPED</span>';
 
+                const charges = t.charges || 0.0;
+                const chargeTooltip = `Brokerage: ₹${(t.brokerage||0).toFixed(2)} | STT: ₹${(t.stt||0).toFixed(2)} | Exch: ₹${(t.exchange_charges||0).toFixed(2)} | GST: ₹${(t.gst||0).toFixed(2)} | SEBI: ₹${(t.sebi_charges||0).toFixed(2)} | Stamp: ₹${(t.stamp_duty||0).toFixed(2)}`;
+
                 tr.innerHTML = `
                     <td style="font-size: 0.76rem; color: var(--text-muted); font-family: var(--font-code);">${t.timestamp}</td>
                     <td>
@@ -2712,6 +2727,7 @@
                     <td>₹${(t.entry_price || 0).toFixed(2)}</td>
                     <td style="font-weight: 700;">₹${(t.exit_price || 0).toFixed(2)}</td>
                     <td>₹${(t.total_value || 0).toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                    <td style="color: #fca5a5; font-family: var(--font-code); cursor: help;" title="${chargeTooltip}">-₹${charges.toFixed(2)}</td>
                     <td class="${pnlClass}" style="font-weight: 700;">${pnlSign}₹${(t.realized_pnl || 0).toFixed(2)}</td>
                     <td class="${pnlClass}" style="font-weight: 700;">${pnlSign}${(t.roi_pct || 0).toFixed(2)}%</td>
                     <td>${statusBadge}</td>
@@ -2726,10 +2742,10 @@
             showToast('No closed trades to export', 'warning');
             return;
         }
-        let csv = 'Timestamp,Stock,Quantity,EntryPrice,ExitPrice,NotionalTotal,RealizedPnL,ROIPct,Status\n';
+        let csv = 'Timestamp,Stock,Quantity,EntryPrice,ExitPrice,NotionalTotal,Charges,Brokerage,STT,ExchCharges,GST,SEBICharges,StampDuty,NetRealizedPnL,ROIPct,Status\n';
         cachedClosedTrades.forEach(t => {
             const status = (t.realized_pnl || 0) >= 0 ? 'PROFIT' : 'LOSS';
-            csv += `"${t.timestamp}","${t.displayName}",${t.quantity},${t.entry_price},${t.exit_price},${t.total_value},${t.realized_pnl},${t.roi_pct}%,"${status}"\n`;
+            csv += `"${t.timestamp}","${t.displayName}",${t.quantity},${t.entry_price},${t.exit_price},${t.total_value},${t.charges || 0},${t.brokerage || 0},${t.stt || 0},${t.exchange_charges || 0},${t.gst || 0},${t.sebi_charges || 0},${t.stamp_duty || 0},${t.realized_pnl},${t.roi_pct}%,"${status}"\n`;
         });
         const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
         const url = URL.createObjectURL(blob);

@@ -606,7 +606,8 @@ class AutoTradingBot:
                                     except Exception:
                                         pass
 
-                                self.add_log(f"⚡ AUTO-BOUGHT {trade_qty} shares of {display_name} @ ₹{price:.2f} (Total: ₹{total_cost:,.2f}) | {eval_res['reason']}", "SUCCESS")
+                                chg_str = f" (Charges: ₹{exec_res['charges']['total_charges']:.2f})" if "charges" in exec_res else ""
+                                self.add_log(f"⚡ AUTO-BOUGHT {trade_qty} shares of {display_name} @ ₹{price:.2f} (Total: ₹{total_cost:,.2f}{chg_str}) | {eval_res['reason']}", "SUCCESS")
                                 # Add to local held map to prevent double-buys
                                 held_map[symbol] = Position(symbol=symbol, quantity=trade_qty, average_price=price, peak_price=price, stop_loss=pos_rec.stop_loss if pos_rec else 0.0)
                         else:
@@ -624,7 +625,8 @@ class AutoTradingBot:
                         if exec_res.get("success"):
                             trades_executed += 1
                             eval_res["action_executed"] = f"SOLD {pos.quantity} SHARES"
-                            self.add_log(f"⚡ AUTO-SOLD {pos.quantity} shares of {display_name} @ ₹{price:.2f} | {eval_res['reason']}", "WARNING")
+                            chg_str = f" (Charges: ₹{exec_res['charges']['total_charges']:.2f})" if "charges" in exec_res else ""
+                            self.add_log(f"⚡ AUTO-SOLD {pos.quantity} shares of {display_name} @ ₹{price:.2f}{chg_str} | {eval_res['reason']}", "WARNING")
                             del held_map[symbol]
                 else:
                     eval_res["action_executed"] = "OFFLINE (Bot Stopped)"
