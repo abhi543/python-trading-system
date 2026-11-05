@@ -19,6 +19,17 @@ try:
     from app import create_app
     app = create_app()
 
+    @app.errorhandler(404)
+    def handle_404(e):
+        from flask import request
+        return {
+            "error": "Not Found",
+            "request_path": request.path,
+            "raw_uri": request.environ.get('RAW_URI'),
+            "x_forwarded_uri": request.environ.get('HTTP_X_FORWARDED_URI'),
+            "x_matched_path": request.environ.get('HTTP_X_MATCHED_PATH')
+        }, 404
+
     @app.errorhandler(Exception)
     def handle_error(e):
         if isinstance(e, HTTPException):
