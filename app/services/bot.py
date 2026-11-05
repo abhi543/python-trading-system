@@ -10,7 +10,7 @@ import numpy as np
 from app import db
 from app.services.market_data import MarketDataService
 from app.services.paper_trader import PaperTradingEngine
-from app.models.trading import Position, Account, NIFTY_50_DEFAULT
+from app.models.trading import Position, Account, NIFTY_50_DEFAULT, NIFTY_200_DEFAULT
 
 def _get_bot_state_file():
     tmp = os.environ.get('TMPDIR', '/tmp')
@@ -77,7 +77,7 @@ def get_after_hours_price(symbol: str, base_price: float, pos=None) -> float:
 class AutoTradingBot:
     def __init__(self):
         self.is_running = False
-        self.scan_mode = "ALL_NIFTY_50"  # "ALL_NIFTY_50" or "SINGLE"
+        self.scan_mode = "ALL_NIFTY_200"  # "ALL_NIFTY_200", "ALL_NIFTY_50", or "SINGLE"
         self.single_symbol = "RELIANCE.NS"
         self.strategy = "SMA_CROSSOVER"  # "SMA_CROSSOVER" or "RSI_MOMENTUM"
         self.allocation_per_trade = 50000.0  # ₹50,000 allocated per stock
@@ -485,11 +485,16 @@ class AutoTradingBot:
         account = Account.query.first()
         available_cash = account.cash_balance if account else 0.0
 
-        target_stocks = NIFTY_50_DEFAULT if self.scan_mode == "ALL_NIFTY_50" else [self.single_symbol]
+        if self.scan_mode == "ALL_NIFTY_200":
+            target_stocks = NIFTY_200_DEFAULT
+        elif self.scan_mode == "ALL_NIFTY_50":
+            target_stocks = NIFTY_50_DEFAULT
+        else:
+            target_stocks = [self.single_symbol]
         
-        # Parallel high-speed data fetch for all Nifty 50 stocks
+        # Parallel high-speed data fetch for stock universe
         stock_data_map = {}
-        with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=20) as executor:
             future_to_stock = {
                 executor.submit(MarketDataService.get_stock_analysis_data, sym): sym 
                 for sym in target_stocks

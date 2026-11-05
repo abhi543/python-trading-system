@@ -8,7 +8,7 @@
     <!-- TOP MODE SELECTOR BAR: LIVE BASKET SCANNER VS AFTER-HOURS TEST LAB VS 10x MARKET REPLAY -->
     <div class="bot-mode-bar">
         <button id="view-mode-scanner-btn" class="mode-tab-btn active" onclick="switchBotView('scanner')">
-            <i class="fa-solid fa-satellite-dish"></i> LIVE NIFTY 50 BASKET SCANNER
+            <i class="fa-solid fa-satellite-dish"></i> LIVE NIFTY 200 / 50 BASKET SCANNER
         </button>
         <button id="view-mode-simlab-btn" class="mode-tab-btn" onclick="switchBotView('simlab')">
             <i class="fa-solid fa-flask-vial" style="color: var(--green);"></i> AFTER-HOURS TEST LAB
@@ -21,7 +21,7 @@
     </div>
 
     <!-- ========================================== -->
-    <!-- VIEW 1: LIVE NIFTY 50 BASKET SCANNER (DAY) -->
+    <!-- VIEW 1: LIVE NIFTY 200 / 50 SCANNER (DAY) -->
     <!-- ========================================== -->
     <div id="scanner-view-container">
 
@@ -33,19 +33,19 @@
                         <span class="bot-dot"></span>
                         <span id="bot-status-text">OFFLINE / STOPPED</span>
                     </span>
-                    <span class="bot-badge-outline"><i class="fa-solid fa-bolt"></i> NIFTY 50 BASKET ENGINE</span>
+                    <span class="bot-badge-outline"><i class="fa-solid fa-bolt"></i> NIFTY 200 / 50 MULTI-BASKET ENGINE</span>
                     <span class="bot-badge-outline" id="bot-interval-badge"><i class="fa-solid fa-clock"></i> CYCLE: 20s</span>
                 </div>
                 <h1 class="bot-title">Algorithmic Auto-Trading Station</h1>
-                <p class="bot-subtitle">Autonomous multi-asset strategy scanner & execution engine running live across all 50 National Stock Exchange of India (NSE) constituents.</p>
+                <p class="bot-subtitle">Autonomous multi-asset strategy scanner & execution engine running live across NIFTY 200 & NIFTY 50 National Stock Exchange of India (NSE) constituents.</p>
             </div>
 
             <div class="bot-hero-actions">
                 <button id="bot-primary-btn" class="btn-bot-start" onclick="toggleBot()">
-                    <i class="fa-solid fa-play"></i> START NIFTY 50 BOT
+                    <i class="fa-solid fa-play"></i> START NIFTY BOT
                 </button>
                 <button id="bot-scan-btn" class="btn-bot-scan" onclick="tickBotNow()">
-                    <i class="fa-solid fa-arrows-rotate"></i> SCAN ALL 50 NOW
+                    <i class="fa-solid fa-arrows-rotate"></i> SCAN BASKET NOW
                 </button>
 
                 <!-- AFTER-HOURS SIMULATION DROPDOWN MENU -->
@@ -124,8 +124,9 @@
             <div class="config-grid">
                 <div class="config-item">
                     <label><i class="fa-solid fa-layer-group"></i> SCANNING UNIVERSE</label>
-                    <select id="bot-scan-mode" class="config-select" onchange="onScanModeChange()">
-                        <option value="ALL_NIFTY_50" selected>All NIFTY 50 Basket (50 Stocks)</option>
+                    <select id="bot-scan-mode" class="config-select" onchange="onScanModeChange(); onStrategyChange();">
+                        <option value="ALL_NIFTY_200" selected>All NIFTY 200 Basket (Top 200 Stocks)</option>
+                        <option value="ALL_NIFTY_50">All NIFTY 50 Basket (Top 50 Stocks)</option>
                         <option value="SINGLE">Single Stock Focus</option>
                     </select>
                 </div>
@@ -2051,6 +2052,11 @@
         const mode = document.getElementById('bot-scan-mode').value;
         const singleGroup = document.getElementById('single-symbol-group');
         singleGroup.style.display = (mode === 'SINGLE') ? 'flex' : 'none';
+        const scanBtn = document.getElementById('bot-scan-btn');
+        if (scanBtn) {
+            const label = (mode === 'ALL_NIFTY_200') ? 'ALL 200' : ((mode === 'SINGLE') ? 'TARGET' : 'ALL 50');
+            scanBtn.innerHTML = `<i class="fa-solid fa-arrows-rotate"></i> SCAN ${label} NOW`;
+        }
     }
 
     async function loadAccountMetrics() {
@@ -2112,7 +2118,8 @@
 
         const summary = data.scan_summary || {};
         const scannedCount = summary.total_scanned || (summary.scanner_results ? summary.scanner_results.length : 0);
-        document.getElementById('kpi-scanned').innerText = `${scannedCount} / 50`;
+        const totalUniverse = (data.scan_mode === 'ALL_NIFTY_200') ? 200 : ((data.scan_mode === 'SINGLE') ? 1 : 50);
+        document.getElementById('kpi-scanned').innerText = `${scannedCount} / ${totalUniverse}`;
         document.getElementById('kpi-buys').innerText = summary.buys_found || 0;
         document.getElementById('kpi-sells').innerText = summary.sells_found || 0;
         document.getElementById('kpi-trades').innerText = summary.trades_executed || 0;
@@ -2277,7 +2284,7 @@
 
     function getCurrentBotConfig() {
         return {
-            scan_mode: document.getElementById('bot-scan-mode')?.value || 'ALL_NIFTY_50',
+            scan_mode: document.getElementById('bot-scan-mode')?.value || 'ALL_NIFTY_200',
             single_symbol: document.getElementById('bot-symbol')?.value?.trim()?.toUpperCase() || 'RELIANCE.NS',
             strategy: document.getElementById('bot-strategy')?.value || '123_REVERSAL',
             allocation_per_trade: parseFloat(document.getElementById('bot-allocation')?.value) || 50000,
@@ -2298,7 +2305,7 @@
         const selectedStrat = stratSelect.value;
         const cfg = getCurrentBotConfig();
         cfg.strategy = selectedStrat;
-        showToast(`Switching strategy to: ${selectedStrat}...`, 'info');
+        showToast(`Updating strategy to: ${selectedStrat}...`, 'info');
         try {
             const res = await fetch('/api/bot/config', {
                 method: 'POST',
@@ -2318,9 +2325,11 @@
         if (isScanning) return;
         isScanning = true;
 
+        const scanMode = document.getElementById('bot-scan-mode')?.value || 'ALL_NIFTY_200';
+        const label = (scanMode === 'ALL_NIFTY_200') ? '200' : ((scanMode === 'SINGLE') ? '1' : '50');
         const btn = document.getElementById('bot-scan-btn');
         if (btn) {
-            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Scanning 50 Stocks...';
+            btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Scanning ${label} Stocks...`;
             btn.disabled = true;
         }
 
@@ -2339,12 +2348,14 @@
             loadBotHoldings();
             
             const summary = data.result || {};
-            showToast(`Sweep Done: ${summary.total_scanned || 50} stocks | 🟢 ${summary.buys_found || 0} BUY | 🔴 ${summary.sells_found || 0} SELL`, 'info');
+            showToast(`Sweep Done: ${summary.total_scanned || (scanMode === 'ALL_NIFTY_200' ? 200 : 50)} stocks | 🟢 ${summary.buys_found || 0} BUY | 🔴 ${summary.sells_found || 0} SELL`, 'info');
         } catch (err) {
             showToast('Scan sweep failed', 'error');
         } finally {
             if (btn) {
-                btn.innerHTML = '<i class="fa-solid fa-arrows-rotate"></i> SCAN ALL 50 NOW';
+                const currentMode = document.getElementById('bot-scan-mode')?.value || 'ALL_NIFTY_200';
+                const finalLabel = (currentMode === 'ALL_NIFTY_200') ? 'ALL 200' : ((currentMode === 'SINGLE') ? 'TARGET' : 'ALL 50');
+                btn.innerHTML = `<i class="fa-solid fa-arrows-rotate"></i> SCAN ${finalLabel} NOW`;
                 btn.disabled = false;
             }
             isScanning = false;
