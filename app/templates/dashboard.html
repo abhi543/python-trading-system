@@ -22,8 +22,8 @@
     <section class="panel chart-panel">
         <div class="chart-header">
             <div class="active-ticker-info">
-                <span class="symbol-display" id="active-symbol">AAPL</span>
-                <span class="price-display" id="active-price">$0.00</span>
+                <span class="symbol-display" id="active-symbol">RELIANCE.NS</span>
+                <span class="price-display" id="active-price">₹0.00</span>
                 <span class="change-display" id="active-change">+0.00 (+0.00%)</span>
             </div>
             <div class="timeframe-selectors">
@@ -44,8 +44,8 @@
         </div>
         <form id="order-form" class="order-form">
             <div class="form-group">
-                <label>Target Asset</label>
-                <input type="text" id="order-symbol" class="form-control mono" readonly value="AAPL">
+                <label>Target Asset (NSE / NIFTY 50)</label>
+                <input type="text" id="order-symbol" class="form-control mono" readonly value="RELIANCE.NS">
             </div>
 
             <div class="trade-side-selector">
@@ -65,16 +65,16 @@
             <div class="order-summary">
                 <div class="summary-row">
                     <span>Market Ask/Bid</span>
-                    <span id="order-summary-price" class="mono font-bold">$0.00</span>
+                    <span id="order-summary-price" class="mono font-bold">₹0.00</span>
                 </div>
                 <div class="summary-row font-bold">
                     <span>Estimated Total</span>
-                    <span id="order-summary-total" class="mono font-bold text-green">$0.00</span>
+                    <span id="order-summary-total" class="mono font-bold text-green">₹0.00</span>
                 </div>
             </div>
 
             <button type="submit" id="submit-order-btn" class="btn-submit btn-buy">
-                BUY AAPL
+                BUY RELIANCE.NS
             </button>
         </form>
     </aside>
@@ -133,7 +133,7 @@
         <form id="backtest-form" class="backtest-form">
             <div class="form-inline">
                 <label>Symbol:</label>
-                <input type="text" id="bt-symbol" class="sm-input" value="AAPL" required>
+                <input type="text" id="bt-symbol" class="sm-input" value="RELIANCE.NS" required style="width: 130px;">
             </div>
             <div class="form-inline">
                 <label>Fast SMA:</label>
@@ -144,8 +144,8 @@
                 <input type="number" id="bt-long" class="sm-input" value="50" min="20" max="200">
             </div>
             <div class="form-inline">
-                <label>Capital ($):</label>
-                <input type="number" id="bt-capital" class="sm-input" value="10000" style="width: 105px;">
+                <label>Capital (₹):</label>
+                <input type="number" id="bt-capital" class="sm-input" value="100000" style="width: 105px;">
             </div>
             <div class="form-inline">
                 <label>Period:</label>
@@ -183,7 +183,7 @@
 </div>
 
 <script>
-let activeSymbol = 'AAPL';
+let activeSymbol = 'RELIANCE.NS';
 let activePeriod = '1mo';
 let activeInterval = '1d';
 let chart = null;
@@ -293,14 +293,15 @@ async function refreshActiveQuote() {
         const data = await res.json();
         if (data.price) {
             currentQuotePrice = data.price;
-            document.getElementById('active-price').innerText = `$${data.price.toFixed(2)}`;
+            const curr = data.currency_symbol || '₹';
+            document.getElementById('active-price').innerText = `${curr}${data.price.toFixed(2)}`;
             
             const changeEl = document.getElementById('active-change');
             const sign = data.change >= 0 ? '+' : '';
-            changeEl.innerText = `${sign}${data.change.toFixed(2)} (${sign}${data.percent_change.toFixed(2)}%)`;
+            changeEl.innerText = `${sign}${curr}${data.change.toFixed(2)} (${sign}${data.percent_change.toFixed(2)}%)`;
             changeEl.className = `change-display ${data.change >= 0 ? 'text-green' : 'text-red'}`;
 
-            document.getElementById('order-summary-price').innerText = `$${data.price.toFixed(2)}`;
+            document.getElementById('order-summary-price').innerText = `${curr}${data.price.toFixed(2)}`;
             calculateOrderTotal();
         }
     } catch (err) {
@@ -311,7 +312,7 @@ async function refreshActiveQuote() {
 function calculateOrderTotal() {
     const qty = parseFloat(document.getElementById('order-qty').value) || 0;
     const total = qty * currentQuotePrice;
-    document.getElementById('order-summary-total').innerText = `$${total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    document.getElementById('order-summary-total').innerText = `₹${total.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
 async function loadWatchlist() {
@@ -326,12 +327,18 @@ async function loadWatchlist() {
             row.className = `watchlist-row ${item.symbol === activeSymbol ? 'active' : ''}`;
             row.dataset.symbol = item.symbol;
             
-            const priceText = item.price ? `$${item.price.toFixed(2)}` : 'N/A';
+            const curr = item.currency_symbol || '₹';
+            const priceText = item.price ? `${curr}${item.price.toFixed(2)}` : 'N/A';
             const changeText = item.percent_change !== undefined ? `${item.percent_change >= 0 ? '+' : ''}${item.percent_change.toFixed(2)}%` : '--';
             const colorClass = (item.percent_change || 0) >= 0 ? 'text-green' : 'text-red';
+            
+            const displayName = item.symbol.replace('.NS', '');
 
             row.innerHTML = `
-                <div class="wl-symbol">${item.symbol}</div>
+                <div>
+                    <div class="wl-symbol">${displayName}</div>
+                    <div style="font-size: 0.65rem; color: var(--text-muted); font-weight: 600;">NSE : NIFTY 50</div>
+                </div>
                 <div class="wl-quote">
                     <div class="wl-price">${priceText}</div>
                     <div class="wl-change ${colorClass}">${changeText}</div>
@@ -350,12 +357,12 @@ async function loadPortfolio() {
         const res = await fetch('/api/portfolio');
         const data = await res.json();
 
-        document.getElementById('nav-total-equity').innerText = `$${data.total_equity.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-        document.getElementById('nav-cash-balance').innerText = `$${data.cash_balance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+        document.getElementById('nav-total-equity').innerText = `₹${data.total_equity.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+        document.getElementById('nav-cash-balance').innerText = `₹${data.cash_balance.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
         
         const pnlEl = document.getElementById('nav-pnl');
         const sign = data.unrealized_pnl >= 0 ? '+' : '';
-        pnlEl.innerText = `${sign}$${data.unrealized_pnl.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+        pnlEl.innerText = `${sign}₹${data.unrealized_pnl.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
         pnlEl.className = `metric-value ${data.unrealized_pnl >= 0 ? 'text-green' : 'text-red'}`;
 
         const tbody = document.getElementById('positions-table-body');
@@ -373,10 +380,10 @@ async function loadPortfolio() {
             tr.innerHTML = `
                 <td><strong>${pos.symbol}</strong></td>
                 <td>${pos.quantity}</td>
-                <td>$${pos.average_price.toFixed(2)}</td>
-                <td>$${pos.current_price.toFixed(2)}</td>
-                <td>$${pos.market_value.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
-                <td class="${pnlColor}">${pnlSign}$${pos.unrealized_pnl.toFixed(2)} (${pnlSign}${pos.unrealized_pnl_pct.toFixed(2)}%)</td>
+                <td>₹${pos.average_price.toFixed(2)}</td>
+                <td>₹${pos.current_price.toFixed(2)}</td>
+                <td>₹${pos.market_value.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                <td class="${pnlColor}">${pnlSign}₹${pos.unrealized_pnl.toFixed(2)} (${pnlSign}${pos.unrealized_pnl_pct.toFixed(2)}%)</td>
                 <td>
                     <button class="btn-action-close" onclick="closePosition('${pos.symbol}', ${pos.quantity})">Close Position</button>
                 </td>
@@ -403,7 +410,7 @@ async function loadTrades() {
         trades.forEach(t => {
             const tr = document.createElement('tr');
             const sideColor = t.side === 'BUY' ? 'text-green' : 'text-red';
-            const pnlDisplay = t.side === 'SELL' ? `$${t.realized_pnl.toFixed(2)}` : '--';
+            const pnlDisplay = t.side === 'SELL' ? `₹${t.realized_pnl.toFixed(2)}` : '--';
             const pnlClass = t.realized_pnl >= 0 ? 'text-green' : 'text-red';
 
             tr.innerHTML = `
@@ -411,8 +418,8 @@ async function loadTrades() {
                 <td><strong>${t.symbol}</strong></td>
                 <td class="${sideColor}"><strong>${t.side}</strong></td>
                 <td>${t.quantity}</td>
-                <td>$${t.price.toFixed(2)}</td>
-                <td>$${t.total.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                <td>₹${t.price.toFixed(2)}</td>
+                <td>₹${t.total.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
                 <td class="${t.side === 'SELL' ? pnlClass : ''}">${pnlDisplay}</td>
             `;
             tbody.appendChild(tr);
@@ -523,14 +530,15 @@ function setupEventListeners() {
     });
 
     document.getElementById('reset-account-btn').addEventListener('click', async () => {
-        if (!confirm('Reset desk balance back to $100,000 and clear all positions?')) return;
+        if (!confirm('Reset desk balance back to ₹10,00,000 and restore NIFTY 50 watchlist?')) return;
         try {
             const res = await fetch('/api/reset-account', { method: 'POST' });
             const data = await res.json();
             if (data.success) {
-                showToast('Portfolio reset to $100,000', 'success');
+                showToast('Portfolio reset to ₹10,00,000', 'success');
                 loadPortfolio();
                 loadTrades();
+                loadWatchlist();
             }
         } catch (err) {
             showToast('Reset failed', 'error');
@@ -583,7 +591,7 @@ function renderBacktestResults(data) {
     mktRetEl.innerText = `${data.benchmark_return_pct >= 0 ? '+' : ''}${data.benchmark_return_pct}%`;
     mktRetEl.className = `stat-val ${data.benchmark_return_pct >= 0 ? 'text-green' : 'text-red'}`;
 
-    document.getElementById('bt-res-ending-equity').innerText = `$${data.final_strategy_equity.toLocaleString(undefined, { minimumFractionDigits: 2 })}`;
+    document.getElementById('bt-res-ending-equity').innerText = `₹${data.final_strategy_equity.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
     document.getElementById('bt-res-trades').innerText = data.total_trades;
 
     const container = document.getElementById('backtest-chart-container');
@@ -600,14 +608,14 @@ function renderBacktestResults(data) {
     const stratSeries = backtestChart.addLineSeries({
         color: '#00f090',
         lineWidth: 2,
-        title: 'Strategy Equity ($)'
+        title: 'Strategy Equity (₹)'
     });
 
     const benchSeries = backtestChart.addLineSeries({
         color: '#7e8ba6',
         lineWidth: 1,
         lineStyle: LightweightCharts.LineStyle.Dotted,
-        title: 'Buy & Hold ($)'
+        title: 'Buy & Hold (₹)'
     });
 
     const stratLineData = data.chart.dates.map((d, i) => ({ time: d, value: data.chart.strategy_equity[i] }));

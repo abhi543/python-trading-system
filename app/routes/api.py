@@ -106,9 +106,13 @@ def backtest():
 def reset_account():
     Position.query.delete()
     TradeHistory.query.delete()
+    WatchlistItem.query.delete()
+    from app.models.trading import NIFTY_50_DEFAULT
+    for s in NIFTY_50_DEFAULT:
+        db.session.add(WatchlistItem(symbol=s))
     account = Account.query.first()
     if account:
-        account.cash_balance = 100000.0
+        account.cash_balance = 1000000.0
     db.session.commit()
-    return jsonify({"success": True, "message": "Account reset to $100,000"})
+    return jsonify({"success": True, "message": "Account reset to ₹10,00,000 and NIFTY 50 watchlist restored"})
 
