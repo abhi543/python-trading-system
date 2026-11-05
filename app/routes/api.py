@@ -162,4 +162,15 @@ def tick_bot():
         "bot_state": bot_instance.get_status()
     })
 
+@api_bp.route('/replay/data', methods=['GET'])
+def get_replay_data():
+    symbol = request.args.get('symbol', 'RELIANCE.NS').strip().upper()
+    interval = request.args.get('interval', '5m')
+    range_val = request.args.get('range', '5d')
+    from app.services.market_data import MarketDataService
+    data = MarketDataService.get_replay_data(symbol, range_val, interval)
+    if "error" in data:
+        return jsonify(data), 404
+    return jsonify(data)
+
 

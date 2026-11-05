@@ -156,6 +156,56 @@ class MarketDataService:
         }
 
     @staticmethod
+    def get_replay_data(symbol: str, range_val: str = "5d", interval: str = "5m") -> dict:
+        """Fetches high-resolution intraday candles for market session replayer"""
+        chart_res, resolved_symbol = MarketDataService._fetch_chart_data(symbol, interval=interval, range_val=range_val)
+        if not chart_res:
+            return {"error": f"No intraday data for {symbol}"}
+
+        timestamps = chart_res.get('timestamp', [])
+        quote_data = chart_res.get('indicators', {}).get('quote', [{}])[0]
+        
+        opens = quote_data.get('open', [])
+        highs = quote_data.get('high', [])
+        lows = quote_data.get('low', [])
+        closes = quote_data.get('close', [])
+        volumes = quote_data.get('volume', [])
+        
+        bars = []
+        for i in range(len(timestamps)):
+            c = closes[i] if i < len(closes) else None
+            if c is not None:
+                ts = timestamps[i]
+                dt = datetime.fromtimestamp(ts)
+                bars.append({
+                    "time": int(ts),
+                    "datetime": dt.strftime("%Y-%m-%d %H:%M"),
+                    "date": dt.strftime("%Y-%m-%d"),
+                    "open": round(float(opens[i] if opens[i] is not None else c), 2),
+                    "high": round(float(highs[i] if highs[i] is not None else c), 2),
+                    "low": round(float(lows[i] if lows[i] is not None else c), 2),
+                    "close": round(float(c), 2),
+                    "volume": int(volumes[i] or 0)
+                })
+
+        dates = sorted(list(set(b['date'] for b in bars)))
+        
+        # Also compute daily 200 EMA to provide macro trend context during replay
+        daily_info = MarketDataService.get_stock_analysis_data(symbol)
+        ema_200 = daily_info.get("ema_200")
+
+        return {
+            "symbol": resolved_symbol,
+            "name": resolved_symbol.replace('.NS', ''),
+            "interval": interval,
+            "total_bars": len(bars),
+            "dates": dates,
+            "latest_date": dates[-1] if dates else None,
+            "ema_200": ema_200,
+            "bars": bars
+        }
+
+    @staticmethod
     def get_historical_candles(symbol: str, period: str = "1mo", interval: str = "1d") -> list:
         valid_ranges = ["1d", "5d", "1mo", "3mo", "6mo", "1y", "2y", "5y"]
         range_val = period if period in valid_ranges else "1mo"

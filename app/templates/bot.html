@@ -1,304 +1,545 @@
 {% extends "base.html" %}
 
-{% block title %}NIFTY 50 Auto-Trading Bot | ALGO-TRADE Pro{% endblock %}
+{% block title %}NIFTY 50 Auto-Trading Bot & Market Replay | ALGO-TRADE Pro{% endblock %}
 
 {% block content %}
 <div class="bot-page-container">
 
-    <!-- HERO / BOT CONTROL HEADER -->
-    <div class="bot-hero-card">
-        <div class="bot-hero-info">
-            <div class="bot-status-header">
-                <span class="bot-status-badge status-stopped" id="bot-status-indicator">
-                    <span class="bot-dot"></span>
-                    <span id="bot-status-text">OFFLINE / STOPPED</span>
-                </span>
-                <span class="bot-badge-outline"><i class="fa-solid fa-bolt"></i> NIFTY 50 BASKET ENGINE</span>
-                <span class="bot-badge-outline" id="bot-interval-badge"><i class="fa-solid fa-clock"></i> CYCLE: 20s</span>
-            </div>
-            <h1 class="bot-title">Algorithmic Auto-Trading Station</h1>
-            <p class="bot-subtitle">Autonomous multi-asset strategy scanner & execution engine running live across all 50 National Stock Exchange of India (NSE) constituents.</p>
-        </div>
-
-        <div class="bot-hero-actions">
-            <button id="bot-primary-btn" class="btn-bot-start" onclick="toggleBot()">
-                <i class="fa-solid fa-play"></i> START NIFTY 50 BOT
-            </button>
-            <button id="bot-scan-btn" class="btn-bot-scan" onclick="tickBotNow()">
-                <i class="fa-solid fa-arrows-rotate"></i> SCAN ALL 50 NOW
-            </button>
-        </div>
+    <!-- TOP MODE SELECTOR BAR: LIVE BASKET SCANNER VS 10x MARKET REPLAY -->
+    <div class="bot-mode-bar">
+        <button id="view-mode-scanner-btn" class="mode-tab-btn active" onclick="switchBotView('scanner')">
+            <i class="fa-solid fa-satellite-dish"></i> LIVE NIFTY 50 BASKET SCANNER
+        </button>
+        <button id="view-mode-replay-btn" class="mode-tab-btn" onclick="switchBotView('replay')">
+            <i class="fa-solid fa-backward-fast" style="color: #ffd166;"></i> 10× MARKET SESSION REPLAY (AFTER-HOURS SIMULATOR)
+            <span class="after-hours-badge"><i class="fa-solid fa-moon"></i> AFTER-HOURS MODE</span>
+        </button>
     </div>
 
-    <!-- STRATEGY & RISK PARAMETERS CONTROLS -->
-    <div class="bot-config-card">
-        <div class="config-header">
-            <h3><i class="fa-solid fa-sliders"></i> Strategy Configuration & Risk Guards</h3>
-            <span class="config-tip"><i class="fa-solid fa-shield-halved"></i> Automated Stop-Loss & Take-Profit guards trigger immediately on signal execution</span>
-        </div>
-        <div class="config-grid">
-            <div class="config-item">
-                <label><i class="fa-solid fa-layer-group"></i> SCANNING UNIVERSE</label>
-                <select id="bot-scan-mode" class="config-select" onchange="onScanModeChange()">
-                    <option value="ALL_NIFTY_50" selected>All NIFTY 50 Basket (50 Stocks)</option>
-                    <option value="SINGLE">Single Stock Focus</option>
-                </select>
+    <!-- ========================================== -->
+    <!-- VIEW 1: LIVE NIFTY 50 BASKET SCANNER (DAY) -->
+    <!-- ========================================== -->
+    <div id="scanner-view-container">
+
+        <!-- HERO / BOT CONTROL HEADER -->
+        <div class="bot-hero-card">
+            <div class="bot-hero-info">
+                <div class="bot-status-header">
+                    <span class="bot-status-badge status-stopped" id="bot-status-indicator">
+                        <span class="bot-dot"></span>
+                        <span id="bot-status-text">OFFLINE / STOPPED</span>
+                    </span>
+                    <span class="bot-badge-outline"><i class="fa-solid fa-bolt"></i> NIFTY 50 BASKET ENGINE</span>
+                    <span class="bot-badge-outline" id="bot-interval-badge"><i class="fa-solid fa-clock"></i> CYCLE: 20s</span>
+                </div>
+                <h1 class="bot-title">Algorithmic Auto-Trading Station</h1>
+                <p class="bot-subtitle">Autonomous multi-asset strategy scanner & execution engine running live across all 50 National Stock Exchange of India (NSE) constituents.</p>
             </div>
 
-            <div class="config-item" id="single-symbol-group" style="display: none;">
-                <label><i class="fa-solid fa-bullseye"></i> TARGET SYMBOL</label>
-                <input type="text" id="bot-symbol" class="config-input" value="RELIANCE.NS" placeholder="RELIANCE.NS">
-            </div>
-
-            <div class="config-item">
-                <label><i class="fa-solid fa-chart-line"></i> STRATEGY MODEL</label>
-                <select id="bot-strategy" class="config-select">
-                    <option value="SMA_CROSSOVER" selected>Dual SMA Golden/Death Cross (9 / 21)</option>
-                    <option value="RSI_MOMENTUM">RSI Mean Reversion (14-Period, 35/65)</option>
-                </select>
-            </div>
-
-            <div class="config-item">
-                <label><i class="fa-solid fa-indian-rupee-sign"></i> CAPITAL PER TRADE (₹)</label>
-                <input type="number" id="bot-allocation" class="config-input" value="50000" step="5000" min="5000">
-            </div>
-
-            <div class="config-item">
-                <label><i class="fa-solid fa-boxes-stacked"></i> MAX CONCURRENT POSITIONS</label>
-                <input type="number" id="bot-max-positions" class="config-input" value="10" min="1" max="50">
-            </div>
-
-            <div class="config-item">
-                <label><i class="fa-solid fa-arrow-down" style="color: var(--red);"></i> STOP-LOSS (%)</label>
-                <input type="number" id="bot-stop-loss" class="config-input" value="2.5" step="0.5" min="0.5">
-            </div>
-
-            <div class="config-item">
-                <label><i class="fa-solid fa-arrow-up" style="color: var(--green);"></i> TAKE-PROFIT (%)</label>
-                <input type="number" id="bot-take-profit" class="config-input" value="5.0" step="0.5" min="1.0">
-            </div>
-
-            <div class="config-item" style="display: flex; flex-direction: column; justify-content: center;">
-                <label style="cursor: pointer; display: flex; align-items: center; gap: 0.5rem;">
-                    <input type="checkbox" id="bot-use-ema200" checked style="accent-color: var(--green); width: 16px; height: 16px;">
-                    <span><i class="fa-solid fa-shield-halved" style="color: var(--green);"></i> 200 EMA Trend Filter</span>
-                </label>
-                <span style="font-size: 0.68rem; color: var(--text-muted); margin-top: 3px;">Only BUY if price &gt; 200 EMA</span>
-            </div>
-
-            <div class="config-item" style="display: flex; flex-direction: column; justify-content: center;">
-                <label style="cursor: pointer; display: flex; align-items: center; gap: 0.5rem;">
-                    <input type="checkbox" id="bot-use-trailing" checked style="accent-color: var(--blue); width: 16px; height: 16px;">
-                    <span><i class="fa-solid fa-shield-heart" style="color: var(--blue);"></i> Trailing Stop &amp; Breakeven</span>
-                </label>
-                <span style="font-size: 0.68rem; color: var(--text-muted); margin-top: 3px;">Ratchets to Breakeven at +2.0%</span>
-            </div>
-
-            <div class="config-item" style="display: flex; flex-direction: column; justify-content: center;">
-                <label style="cursor: pointer; display: flex; align-items: center; gap: 0.5rem;">
-                    <input type="checkbox" id="bot-use-atr" checked style="accent-color: #a78bfa; width: 16px; height: 16px;">
-                    <span><i class="fa-solid fa-arrows-split-up-and-left" style="color: #a78bfa;"></i> ATR Dynamic Exits</span>
-                </label>
-                <span style="font-size: 0.68rem; color: var(--text-muted); margin-top: 3px;">1.5x ATR Stop / 3.0x ATR Target</span>
-            </div>
-
-            <div class="config-item" style="display: flex; flex-direction: column; justify-content: center;">
-                <label style="cursor: pointer; display: flex; align-items: center; gap: 0.5rem;">
-                    <input type="checkbox" id="bot-use-vol" style="accent-color: #ffd166; width: 16px; height: 16px;">
-                    <span><i class="fa-solid fa-fire-flame-curved" style="color: #ffd166;"></i> Volume Surge Check</span>
-                </label>
-                <span style="font-size: 0.68rem; color: var(--text-muted); margin-top: 3px;">Trigger only on volume &gt; 20-day avg</span>
-            </div>
-        </div>
-    </div>
-
-    <!-- METRICS TELEMETRY CARDS -->
-    <div class="bot-kpi-grid">
-        <div class="kpi-card">
-            <div class="kpi-icon icon-blue"><i class="fa-solid fa-magnifying-glass-chart"></i></div>
-            <div class="kpi-body">
-                <span class="kpi-title">NIFTY 50 SCANNED</span>
-                <span class="kpi-value" id="kpi-scanned">0 / 50</span>
-                <span class="kpi-sub">Constituents monitored</span>
+            <div class="bot-hero-actions">
+                <button id="bot-primary-btn" class="btn-bot-start" onclick="toggleBot()">
+                    <i class="fa-solid fa-play"></i> START NIFTY 50 BOT
+                </button>
+                <button id="bot-scan-btn" class="btn-bot-scan" onclick="tickBotNow()">
+                    <i class="fa-solid fa-arrows-rotate"></i> SCAN ALL 50 NOW
+                </button>
             </div>
         </div>
 
-        <div class="kpi-card">
-            <div class="kpi-icon icon-green"><i class="fa-solid fa-arrow-trend-up"></i></div>
-            <div class="kpi-body">
-                <span class="kpi-title">BUY SIGNALS FOUND</span>
-                <span class="kpi-value text-green" id="kpi-buys">0</span>
-                <span class="kpi-sub" id="kpi-buys-sub">Golden Cross / Oversold</span>
+        <!-- STRATEGY & RISK PARAMETERS CONTROLS -->
+        <div class="bot-config-card">
+            <div class="config-header">
+                <h3><i class="fa-solid fa-sliders"></i> Strategy Configuration & Risk Guards</h3>
+                <span class="config-tip"><i class="fa-solid fa-shield-halved"></i> Automated Stop-Loss & Take-Profit guards trigger immediately on signal execution</span>
+            </div>
+            <div class="config-grid">
+                <div class="config-item">
+                    <label><i class="fa-solid fa-layer-group"></i> SCANNING UNIVERSE</label>
+                    <select id="bot-scan-mode" class="config-select" onchange="onScanModeChange()">
+                        <option value="ALL_NIFTY_50" selected>All NIFTY 50 Basket (50 Stocks)</option>
+                        <option value="SINGLE">Single Stock Focus</option>
+                    </select>
+                </div>
+
+                <div class="config-item" id="single-symbol-group" style="display: none;">
+                    <label><i class="fa-solid fa-bullseye"></i> TARGET SYMBOL</label>
+                    <input type="text" id="bot-symbol" class="config-input" value="RELIANCE.NS" placeholder="RELIANCE.NS">
+                </div>
+
+                <div class="config-item">
+                    <label><i class="fa-solid fa-chart-line"></i> STRATEGY MODEL</label>
+                    <select id="bot-strategy" class="config-select">
+                        <option value="SMA_CROSSOVER" selected>Dual SMA Golden/Death Cross (9 / 21)</option>
+                        <option value="RSI_MOMENTUM">RSI Mean Reversion (14-Period, 35/65)</option>
+                    </select>
+                </div>
+
+                <div class="config-item">
+                    <label><i class="fa-solid fa-indian-rupee-sign"></i> CAPITAL PER TRADE (₹)</label>
+                    <input type="number" id="bot-allocation" class="config-input" value="50000" step="5000" min="5000">
+                </div>
+
+                <div class="config-item">
+                    <label><i class="fa-solid fa-boxes-stacked"></i> MAX CONCURRENT POSITIONS</label>
+                    <input type="number" id="bot-max-positions" class="config-input" value="10" min="1" max="50">
+                </div>
+
+                <div class="config-item">
+                    <label><i class="fa-solid fa-arrow-down" style="color: var(--red);"></i> STOP-LOSS (%)</label>
+                    <input type="number" id="bot-stop-loss" class="config-input" value="2.5" step="0.5" min="0.5">
+                </div>
+
+                <div class="config-item">
+                    <label><i class="fa-solid fa-arrow-up" style="color: var(--green);"></i> TAKE-PROFIT (%)</label>
+                    <input type="number" id="bot-take-profit" class="config-input" value="5.0" step="0.5" min="1.0">
+                </div>
+
+                <div class="config-item" style="display: flex; flex-direction: column; justify-content: center;">
+                    <label style="cursor: pointer; display: flex; align-items: center; gap: 0.5rem;">
+                        <input type="checkbox" id="bot-use-ema200" checked style="accent-color: var(--green); width: 16px; height: 16px;">
+                        <span><i class="fa-solid fa-shield-halved" style="color: var(--green);"></i> 200 EMA Trend Filter</span>
+                    </label>
+                    <span style="font-size: 0.68rem; color: var(--text-muted); margin-top: 3px;">Only BUY if price &gt; 200 EMA</span>
+                </div>
+
+                <div class="config-item" style="display: flex; flex-direction: column; justify-content: center;">
+                    <label style="cursor: pointer; display: flex; align-items: center; gap: 0.5rem;">
+                        <input type="checkbox" id="bot-use-trailing" checked style="accent-color: var(--blue); width: 16px; height: 16px;">
+                        <span><i class="fa-solid fa-shield-heart" style="color: var(--blue);"></i> Trailing Stop &amp; Breakeven</span>
+                    </label>
+                    <span style="font-size: 0.68rem; color: var(--text-muted); margin-top: 3px;">Ratchets to Breakeven at +2.0%</span>
+                </div>
+
+                <div class="config-item" style="display: flex; flex-direction: column; justify-content: center;">
+                    <label style="cursor: pointer; display: flex; align-items: center; gap: 0.5rem;">
+                        <input type="checkbox" id="bot-use-atr" checked style="accent-color: #a78bfa; width: 16px; height: 16px;">
+                        <span><i class="fa-solid fa-arrows-split-up-and-left" style="color: #a78bfa;"></i> ATR Dynamic Exits</span>
+                    </label>
+                    <span style="font-size: 0.68rem; color: var(--text-muted); margin-top: 3px;">1.5x ATR Stop / 3.0x ATR Target</span>
+                </div>
+
+                <div class="config-item" style="display: flex; flex-direction: column; justify-content: center;">
+                    <label style="cursor: pointer; display: flex; align-items: center; gap: 0.5rem;">
+                        <input type="checkbox" id="bot-use-vol" style="accent-color: #ffd166; width: 16px; height: 16px;">
+                        <span><i class="fa-solid fa-fire-flame-curved" style="color: #ffd166;"></i> Volume Surge Check</span>
+                    </label>
+                    <span style="font-size: 0.68rem; color: var(--text-muted); margin-top: 3px;">Trigger only on volume &gt; 20-day avg</span>
+                </div>
             </div>
         </div>
 
-        <div class="kpi-card">
-            <div class="kpi-icon icon-red"><i class="fa-solid fa-arrow-trend-down"></i></div>
-            <div class="kpi-body">
-                <span class="kpi-title">SELL / EXIT SIGNALS</span>
-                <span class="kpi-value text-red" id="kpi-sells">0</span>
-                <span class="kpi-sub" id="kpi-sells-sub">Death Cross / Overbought</span>
+        <!-- METRICS TELEMETRY CARDS -->
+        <div class="bot-kpi-grid">
+            <div class="kpi-card">
+                <div class="kpi-icon icon-blue"><i class="fa-solid fa-magnifying-glass-chart"></i></div>
+                <div class="kpi-body">
+                    <span class="kpi-title">NIFTY 50 SCANNED</span>
+                    <span class="kpi-value" id="kpi-scanned">0 / 50</span>
+                    <span class="kpi-sub">Constituents monitored</span>
+                </div>
+            </div>
+
+            <div class="kpi-card">
+                <div class="kpi-icon icon-green"><i class="fa-solid fa-arrow-trend-up"></i></div>
+                <div class="kpi-body">
+                    <span class="kpi-title">BUY SIGNALS FOUND</span>
+                    <span class="kpi-value text-green" id="kpi-buys">0</span>
+                    <span class="kpi-sub" id="kpi-buys-sub">Golden Cross / Oversold</span>
+                </div>
+            </div>
+
+            <div class="kpi-card">
+                <div class="kpi-icon icon-red"><i class="fa-solid fa-arrow-trend-down"></i></div>
+                <div class="kpi-body">
+                    <span class="kpi-title">SELL / EXIT SIGNALS</span>
+                    <span class="kpi-value text-red" id="kpi-sells">0</span>
+                    <span class="kpi-sub" id="kpi-sells-sub">Death Cross / Overbought</span>
+                </div>
+            </div>
+
+            <div class="kpi-card">
+                <div class="kpi-icon icon-purple"><i class="fa-solid fa-robot"></i></div>
+                <div class="kpi-body">
+                    <span class="kpi-title">BOT TRADES EXECUTED</span>
+                    <span class="kpi-value" id="kpi-trades">0</span>
+                    <span class="kpi-sub" id="kpi-last-run">Last run: Waiting...</span>
+                </div>
             </div>
         </div>
 
-        <div class="kpi-card">
-            <div class="kpi-icon icon-purple"><i class="fa-solid fa-robot"></i></div>
-            <div class="kpi-body">
-                <span class="kpi-title">BOT TRADES EXECUTED</span>
-                <span class="kpi-value" id="kpi-trades">0</span>
-                <span class="kpi-sub" id="kpi-last-run">Last run: Waiting...</span>
-            </div>
-        </div>
-    </div>
-
-    <!-- MAIN TWO-COLUMN SPLIT: RADAR & HOLDINGS ON LEFT, TERMINAL ON RIGHT -->
-    <div class="bot-main-layout">
-        
-        <!-- LEFT COLUMN: SIGNAL RADAR & POSITIONS -->
-        <div class="bot-left-col">
+        <!-- MAIN TWO-COLUMN SPLIT: RADAR & HOLDINGS ON LEFT, TERMINAL ON RIGHT -->
+        <div class="bot-main-layout">
             
-            <!-- NIFTY 50 LIVE SIGNAL RADAR -->
-            <div class="bot-section-card">
-                <div class="section-card-header">
-                    <div>
-                        <h3><i class="fa-solid fa-satellite-dish" style="color: var(--blue);"></i> NIFTY 50 Live Signal Radar</h3>
-                        <span class="card-caption">Real-time technical indicator calculations and automated trade signals</span>
+            <!-- LEFT COLUMN: SIGNAL RADAR & POSITIONS -->
+            <div class="bot-left-col">
+                
+                <!-- NIFTY 50 LIVE SIGNAL RADAR -->
+                <div class="bot-section-card">
+                    <div class="section-card-header">
+                        <div>
+                            <h3><i class="fa-solid fa-satellite-dish" style="color: var(--blue);"></i> NIFTY 50 Live Signal Radar</h3>
+                            <span class="card-caption">Real-time technical indicator calculations and automated trade signals</span>
+                        </div>
+                        <div class="table-search-box">
+                            <i class="fa-solid fa-search"></i>
+                            <input type="text" id="radar-search" placeholder="Filter stock (e.g. INFY, RELIANCE)..." oninput="filterRadarTable()">
+                        </div>
                     </div>
-                    <div class="table-search-box">
-                        <i class="fa-solid fa-search"></i>
-                        <input type="text" id="radar-search" placeholder="Filter stock (e.g. INFY, RELIANCE)..." oninput="filterRadarTable()">
+
+                    <div class="table-wrapper">
+                        <table class="data-table" id="nifty-radar-table">
+                            <thead>
+                                <tr>
+                                    <th>STOCK</th>
+                                    <th>LTP</th>
+                                    <th>24H CHG</th>
+                                    <th>SIGNAL</th>
+                                    <th>INDICATOR METRICS</th>
+                                    <th>BOT ACTION</th>
+                                    <th>ACTION</th>
+                                </tr>
+                            </thead>
+                            <tbody id="bot-scanner-tbody">
+                                <tr>
+                                    <td colspan="7" class="text-center" style="padding: 2.5rem; color: var(--text-muted);">
+                                        <i class="fa-solid fa-satellite fa-spin" style="font-size: 1.5rem; margin-bottom: 0.75rem; color: var(--blue);"></i><br>
+                                        NIFTY 50 Scanner Ready. Click <strong>"SCAN ALL 50 NOW"</strong> or start the bot to sweep the entire basket.
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
                     </div>
                 </div>
 
-                <div class="table-wrapper">
-                    <table class="data-table" id="nifty-radar-table">
-                        <thead>
-                            <tr>
-                                <th>STOCK</th>
-                                <th>LTP</th>
-                                <th>24H CHG</th>
-                                <th>SIGNAL</th>
-                                <th>INDICATOR METRICS</th>
-                                <th>BOT ACTION</th>
-                                <th>ACTION</th>
-                            </tr>
-                        </thead>
-                        <tbody id="bot-scanner-tbody">
-                            <tr>
-                                <td colspan="7" class="text-center" style="padding: 2.5rem; color: var(--text-muted);">
-                                    <i class="fa-solid fa-satellite fa-spin" style="font-size: 1.5rem; margin-bottom: 0.75rem; color: var(--blue);"></i><br>
-                                    NIFTY 50 Scanner Ready. Click <strong>"SCAN ALL 50 NOW"</strong> or start the bot to sweep the entire basket.
-                                </td>
-                            </tr>
-                        </tbody>
-                    </table>
+                <!-- ACTIVE BOT HOLDINGS -->
+                <div class="bot-section-card" style="margin-top: 1.5rem;">
+                    <div class="section-card-header">
+                        <div>
+                            <h3><i class="fa-solid fa-briefcase" style="color: var(--green);"></i> Active Portfolio Positions</h3>
+                            <span class="card-caption">Live paper holdings managed under automated stop-loss and take-profit</span>
+                        </div>
+                        <button class="btn-sm btn-outline" onclick="loadBotHoldings()"><i class="fa-solid fa-rotate"></i> Refresh</button>
+                    </div>
+
+                    <div class="table-wrapper">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>SYMBOL</th>
+                                    <th>QTY</th>
+                                    <th>AVG PRICE</th>
+                                    <th>CURRENT</th>
+                                    <th>P&L (₹)</th>
+                                    <th>P&L (%)</th>
+                                    <th>STOP-LOSS (-2.5%)</th>
+                                    <th>TARGET (+5.0%)</th>
+                                    <th>MANUAL EXIT</th>
+                                </tr>
+                            </thead>
+                            <tbody id="bot-holdings-tbody">
+                                <tr>
+                                    <td colspan="9" class="text-center" style="padding: 1.5rem; color: var(--text-muted);">No open positions held.</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
+
             </div>
 
-            <!-- ACTIVE BOT HOLDINGS -->
-            <div class="bot-section-card" style="margin-top: 1.5rem;">
-                <div class="section-card-header">
-                    <div>
-                        <h3><i class="fa-solid fa-briefcase" style="color: var(--green);"></i> Active Portfolio Positions</h3>
-                        <span class="card-caption">Live paper holdings managed under automated stop-loss and take-profit</span>
+            <!-- RIGHT COLUMN: TERMINAL CONSOLE & STRATEGY RULES -->
+            <div class="bot-right-col">
+
+                <!-- REAL-TIME TERMINAL CONSOLE -->
+                <div class="bot-section-card terminal-card">
+                    <div class="section-card-header terminal-header">
+                        <div class="terminal-title">
+                            <span class="terminal-dot red"></span>
+                            <span class="terminal-dot yellow"></span>
+                            <span class="terminal-dot green"></span>
+                            <span style="margin-left: 0.5rem; font-family: var(--font-code); font-size: 0.8rem; font-weight: 700; color: #fff;">
+                                <i class="fa-solid fa-terminal"></i> BOT EXECUTION STREAM
+                            </span>
+                        </div>
+                        <button class="btn-terminal-clear" onclick="clearBotLogs()"><i class="fa-solid fa-trash-can"></i> Clear</button>
                     </div>
-                    <button class="btn-sm btn-outline" onclick="loadBotHoldings()"><i class="fa-solid fa-rotate"></i> Refresh</button>
+                    <div class="bot-terminal-window" id="bot-console-stream">
+                        <div class="terminal-line text-muted">[SYSTEM] Bot console initialized. Waiting for operator command...</div>
+                    </div>
                 </div>
 
-                <div class="table-wrapper">
-                    <table class="data-table">
-                        <thead>
-                            <tr>
-                                <th>SYMBOL</th>
-                                <th>QTY</th>
-                                <th>AVG PRICE</th>
-                                <th>CURRENT</th>
-                                <th>P&L (₹)</th>
-                                <th>P&L (%)</th>
-                                <th>STOP-LOSS (-2.5%)</th>
-                                <th>TARGET (+5.0%)</th>
-                                <th>MANUAL EXIT</th>
-                            </tr>
-                        </thead>
-                        <tbody id="bot-holdings-tbody">
-                            <tr>
-                                <td colspan="9" class="text-center" style="padding: 1.5rem; color: var(--text-muted);">No open positions held.</td>
-                            </tr>
-                        </tbody>
-                    </table>
+                <!-- STRATEGY BLUEPRINT & RULES -->
+                <div class="bot-section-card" style="margin-top: 1.5rem;">
+                    <div class="section-card-header">
+                        <h3><i class="fa-solid fa-book-bookmark" style="color: #ffd166;"></i> Strategy Blueprint & Rules</h3>
+                    </div>
+                    <div class="rules-body">
+                        <div class="rule-item">
+                            <div class="rule-icon"><i class="fa-solid fa-chart-line" style="color: var(--blue);"></i></div>
+                            <div>
+                                <h4>Dual SMA Crossover</h4>
+                                <p>Fast SMA (9-day) crosses above Slow SMA (21-day) generates a <strong>BUY</strong> signal. Crossing below generates a <strong>SELL</strong> signal.</p>
+                            </div>
+                        </div>
+
+                        <div class="rule-item">
+                            <div class="rule-icon"><i class="fa-solid fa-shield-halved" style="color: var(--green);"></i></div>
+                            <div>
+                                <h4>200 EMA Macro Filter (Option A)</h4>
+                                <p>Filters out counter-trend buys. Only permits a <strong>BUY</strong> order if the stock is trading strictly above its <strong>200-day EMA</strong>.</p>
+                            </div>
+                        </div>
+
+                        <div class="rule-item">
+                            <div class="rule-icon"><i class="fa-solid fa-shield-heart" style="color: var(--blue);"></i></div>
+                            <div>
+                                <h4>Breakeven Shield & Trailing Stop (Option B)</h4>
+                                <p>Once gain touches <strong>+2.0%</strong>, the stop loss ratchets up to entry price (100% Risk-Free). Trails higher peaks at $1.5 \times ATR$ distance.</p>
+                            </div>
+                        </div>
+
+                        <div class="rule-item">
+                            <div class="rule-icon"><i class="fa-solid fa-coins" style="color: #a78bfa;"></i></div>
+                            <div>
+                                <h4>₹10 Lakh Capital & Position Sizing</h4>
+                                <p>Allocates up to <strong>₹50,000</strong> per trade across up to <strong>10 concurrent positions</strong>, backed by ₹10,00,000 margin.</p>
+                            </div>
+                        </div>
+                    </div>
                 </div>
+
             </div>
 
         </div>
 
-        <!-- RIGHT COLUMN: TERMINAL CONSOLE & STRATEGY RULES -->
-        <div class="bot-right-col">
+    </div>
 
-            <!-- REAL-TIME TERMINAL CONSOLE -->
-            <div class="bot-section-card terminal-card">
-                <div class="section-card-header terminal-header">
-                    <div class="terminal-title">
-                        <span class="terminal-dot red"></span>
-                        <span class="terminal-dot yellow"></span>
-                        <span class="terminal-dot green"></span>
-                        <span style="margin-left: 0.5rem; font-family: var(--font-code); font-size: 0.8rem; font-weight: 700; color: #fff;">
-                            <i class="fa-solid fa-terminal"></i> BOT EXECUTION STREAM
-                        </span>
-                    </div>
-                    <button class="btn-terminal-clear" onclick="clearBotLogs()"><i class="fa-solid fa-trash-can"></i> Clear</button>
+    <!-- ============================================================== -->
+    <!-- VIEW 2: 10x HISTORICAL MARKET SESSION REPLAYER (AFTER-HOURS)    -->
+    <!-- ============================================================== -->
+    <div id="replay-view-container" style="display: none;">
+
+        <!-- REPLAY HERO CARD -->
+        <div class="bot-hero-card replay-hero">
+            <div class="bot-hero-info">
+                <div class="bot-status-header">
+                    <span class="bot-status-badge status-stopped" id="replay-status-indicator">
+                        <span class="bot-dot"></span>
+                        <span id="replay-status-text">REPLAY READY</span>
+                    </span>
+                    <span class="bot-badge-outline"><i class="fa-solid fa-forward-fast"></i> 10× HIGH-SPEED REPLAYER</span>
+                    <span class="bot-badge-outline" id="replay-session-badge"><i class="fa-solid fa-calendar-day"></i> SESSION: TODAY (5-MIN)</span>
                 </div>
-                <div class="bot-terminal-window" id="bot-console-stream">
-                    <div class="terminal-line text-muted">[SYSTEM] Bot console initialized. Waiting for operator command...</div>
+                <h1 class="bot-title">Market Session Replay &amp; Strategy Tester</h1>
+                <p class="bot-subtitle">Test and watch your bot trade past market sessions candle-by-candle at high speed. Calculates SMA 9/21, 200 EMA, arms the Breakeven Shield, and trails stops without waiting for tomorrow's market open.</p>
+            </div>
+
+            <div class="replay-hero-actions">
+                <div class="replay-ctrl-row">
+                    <button id="replay-play-btn" class="btn-bot-start" onclick="toggleReplayPlay()">
+                        <i class="fa-solid fa-play"></i> START REPLAY (10x)
+                    </button>
+                    <button class="btn-bot-scan" onclick="stepReplayNext()" title="Step 1 bar forward">
+                        <i class="fa-solid fa-forward-step"></i> Step
+                    </button>
+                    <button class="btn-bot-scan" onclick="restartReplaySession()" title="Restart session">
+                        <i class="fa-solid fa-rotate-left"></i> Reset
+                    </button>
+                </div>
+                <div class="replay-speed-pills">
+                    <span style="font-size: 0.72rem; color: var(--text-muted); font-weight: 800;">SPEED:</span>
+                    <button class="speed-pill" onclick="setReplaySpeed(1, this)">1x</button>
+                    <button class="speed-pill" onclick="setReplaySpeed(5, this)">5x</button>
+                    <button class="speed-pill active" onclick="setReplaySpeed(10, this)">10x</button>
+                    <button class="speed-pill" onclick="setReplaySpeed(25, this)">25x</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- REPLAY CONFIGURATION TOOLBAR -->
+        <div class="bot-config-card" style="margin-top: 1rem;">
+            <div class="config-grid">
+                <div class="config-item">
+                    <label><i class="fa-solid fa-building"></i> REPLAY STOCK</label>
+                    <select id="replay-stock-select" class="config-select" onchange="loadReplayStockData()">
+                        <option value="RELIANCE.NS" selected>RELIANCE (Reliance Industries)</option>
+                        <option value="TCS.NS">TCS (Tata Consultancy Services)</option>
+                        <option value="INFY.NS">INFY (Infosys)</option>
+                        <option value="HDFCBANK.NS">HDFCBANK (HDFC Bank)</option>
+                        <option value="TATAMOTORS.NS">TATAMOTORS (Tata Motors)</option>
+                        <option value="BAJFINANCE.NS">BAJFINANCE (Bajaj Finance)</option>
+                        <option value="ICICIBANK.NS">ICICIBANK (ICICI Bank)</option>
+                        <option value="SBIN.NS">SBIN (State Bank of India)</option>
+                        <option value="SUNPHARMA.NS">SUNPHARMA (Sun Pharma)</option>
+                        <option value="ASIANPAINT.NS">ASIANPAINT (Asian Paints)</option>
+                    </select>
+                </div>
+
+                <div class="config-item">
+                    <label><i class="fa-solid fa-calendar-day"></i> TRADING SESSION DATE</label>
+                    <select id="replay-date-select" class="config-select" onchange="filterReplaySessionDate()">
+                        <option value="latest" selected>Today's Complete Session (5m)</option>
+                    </select>
+                </div>
+
+                <div class="config-item">
+                    <label><i class="fa-solid fa-chart-line"></i> STRATEGY</label>
+                    <select id="replay-strategy-select" class="config-select">
+                        <option value="SMA_CROSSOVER" selected>Dual SMA Golden/Death Cross (9 / 21)</option>
+                        <option value="RSI_MOMENTUM">RSI Mean Reversion (14-period, 35/65)</option>
+                    </select>
+                </div>
+
+                <div class="config-item">
+                    <label><i class="fa-solid fa-shield-halved" style="color: var(--green);"></i> 200 EMA MACRO FILTER</label>
+                    <select id="replay-ema-toggle" class="config-select">
+                        <option value="true" selected>ENABLED (Only BUY when price &gt; 200 EMA)</option>
+                        <option value="false">DISABLED (Take all crossovers)</option>
+                    </select>
+                </div>
+
+                <div class="config-item">
+                    <label><i class="fa-solid fa-shield-heart" style="color: var(--blue);"></i> BREAKEVEN &amp; TRAILING STOP</label>
+                    <select id="replay-trailing-toggle" class="config-select">
+                        <option value="true" selected>ARMED (Breakeven @ +2.0% &amp; ATR Trail)</option>
+                        <option value="false">Fixed -2.5% Stop Loss</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+
+        <!-- REPLAY TIMELINE SCRUBBER -->
+        <div class="replay-timeline-card" style="margin-top: 1rem;">
+            <div class="timeline-meta-row">
+                <div class="time-readout">
+                    <i class="fa-solid fa-clock" style="color: var(--green);"></i>
+                    <span>SIMULATED MARKET CLOCK:</span>
+                    <strong id="replay-clock-text">09:15 AM IST</strong>
+                    <span class="bar-counter" id="replay-bar-text">(Bar 0 / 73)</span>
+                </div>
+                <div class="trade-callout" id="replay-live-callout">
+                    <span style="color: var(--text-muted); font-size: 0.8rem;">Session ready. Click <strong>START REPLAY</strong> to begin high-speed playback.</span>
+                </div>
+            </div>
+            <input type="range" id="replay-slider" min="0" max="73" value="0" class="timeline-slider" oninput="onScrubReplay(this.value)">
+        </div>
+
+        <!-- REPLAY SCORECARD TELEMETRY -->
+        <div class="bot-kpi-grid" style="margin-top: 1rem;">
+            <div class="kpi-card">
+                <div class="kpi-icon icon-blue"><i class="fa-solid fa-chart-line"></i></div>
+                <div class="kpi-body">
+                    <span class="kpi-title">SIMULATED PRICE (LTP)</span>
+                    <span class="kpi-value" id="rep-kpi-price">₹--</span>
+                    <span class="kpi-sub" id="rep-kpi-change">0.00%</span>
                 </div>
             </div>
 
-            <!-- STRATEGY BLUEPRINT & RULES -->
-            <div class="bot-section-card" style="margin-top: 1.5rem;">
-                <div class="section-card-header">
-                    <h3><i class="fa-solid fa-book-bookmark" style="color: #ffd166;"></i> Strategy Blueprint & Rules</h3>
+            <div class="kpi-card">
+                <div class="kpi-icon icon-purple"><i class="fa-solid fa-scale-balanced"></i></div>
+                <div class="kpi-body">
+                    <span class="kpi-title">REPLAY TRADES</span>
+                    <span class="kpi-value" id="rep-kpi-trades">0</span>
+                    <span class="kpi-sub" id="rep-kpi-winrate">Win Rate: 0.0%</span>
                 </div>
-                <div class="rules-body">
-                    <div class="rule-item">
-                        <div class="rule-icon"><i class="fa-solid fa-chart-line" style="color: var(--blue);"></i></div>
+            </div>
+
+            <div class="kpi-card">
+                <div class="kpi-icon icon-green"><i class="fa-solid fa-vault"></i></div>
+                <div class="kpi-body">
+                    <span class="kpi-title">SESSION REALIZED P&amp;L</span>
+                    <span class="kpi-value text-green" id="rep-kpi-pnl">₹0.00</span>
+                    <span class="kpi-sub" id="rep-kpi-return">+0.00% Return</span>
+                </div>
+            </div>
+
+            <div class="kpi-card">
+                <div class="kpi-icon icon-red"><i class="fa-solid fa-shield-virus"></i></div>
+                <div class="kpi-body">
+                    <span class="kpi-title">POSITION RISK SHIELD</span>
+                    <span class="kpi-value" id="rep-kpi-shield" style="font-size: 1.15rem; color: var(--text-muted);">FLAT (CASH)</span>
+                    <span class="kpi-sub" id="rep-kpi-stops">SL: -- | Target: --</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- REPLAY CHART & TERMINAL -->
+        <div class="bot-main-layout" style="margin-top: 1rem;">
+            <!-- LEFT: CANDLESTICK CHART & TRADE TICKET -->
+            <div class="bot-left-col">
+                <div class="bot-section-card">
+                    <div class="section-card-header">
                         <div>
-                            <h4>Dual SMA Crossover</h4>
-                            <p>Fast SMA (9-day) crosses above Slow SMA (21-day) generates a <strong>BUY</strong> signal. Crossing below generates a <strong>SELL</strong> signal.</p>
+                            <h3 id="replay-chart-title"><i class="fa-solid fa-chart-candlestick" style="color: var(--blue);"></i> Intraday 5-Min Price Action &amp; Strategy Overlays</h3>
+                            <span class="card-caption" id="replay-chart-caption">Paints candles dynamically in real-time with Fast SMA 9 (cyan) and Slow SMA 21 (gold)</span>
+                        </div>
+                        <div id="replay-indicator-hud" style="display: flex; gap: 0.85rem; font-family: var(--font-code); font-size: 0.75rem; align-items: center;">
+                            <span id="hud-sma" style="color: #93c5fd;">SMA9: -- | SMA21: --</span>
+                            <span id="hud-ema200" style="color: var(--green);">200 EMA: --</span>
+                            <span id="hud-signal" class="signal-badge signal-hold">HOLD</span>
                         </div>
                     </div>
+                    <div id="replay-chart-container" style="height: 440px; background: #07090e; position: relative;"></div>
+                </div>
 
-                    <div class="rule-item">
-                        <div class="rule-icon"><i class="fa-solid fa-wave-square" style="color: var(--green);"></i></div>
-                        <div>
-                            <h4>RSI Mean Reversion</h4>
-                            <p>14-period RSI falling below <strong>35</strong> triggers an oversold <strong>BUY</strong> bounce. Rising above <strong>65</strong> triggers an overbought <strong>SELL</strong>.</p>
-                        </div>
+                <!-- OPEN POSITION TICKET DURING REPLAY -->
+                <div class="bot-section-card" style="margin-top: 1.25rem;">
+                    <div class="section-card-header">
+                        <h3><i class="fa-solid fa-ticket" style="color: var(--green);"></i> Active Replay Trade Ticket</h3>
+                        <span id="replay-pos-badge" class="badge" style="background: rgba(126, 139, 166, 0.2); color: var(--text-muted); font-size: 0.75rem; padding: 3px 8px; border-radius: 6px;">FLAT / NO POSITION</span>
                     </div>
-
-                    <div class="rule-item">
-                        <div class="rule-icon"><i class="fa-solid fa-shield-virus" style="color: var(--red);"></i></div>
-                        <div>
-                            <h4>Automated Risk Guards</h4>
-                            <p>Every position has an active trailing stop-loss at <strong>-2.5%</strong> and take-profit target at <strong>+5.0%</strong>. Liquidations execute instantly without human intervention.</p>
-                        </div>
-                    </div>
-
-                    <div class="rule-item">
-                        <div class="rule-icon"><i class="fa-solid fa-coins" style="color: #a78bfa;"></i></div>
-                        <div>
-                            <h4>Sizing & Max Exposure</h4>
-                            <p>Allocates up to <strong>₹50,000</strong> per trade. Hard cap at <strong>10 concurrent positions</strong> to guarantee capital preservation and risk diversification.</p>
-                        </div>
+                    <div class="table-wrapper">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>STOCK</th>
+                                    <th>STATUS</th>
+                                    <th>ENTRY PRICE</th>
+                                    <th>CURRENT</th>
+                                    <th>UNREALIZED P&amp;L</th>
+                                    <th>ACTIVE STOP-LOSS</th>
+                                    <th>PROFIT TARGET</th>
+                                    <th>SHIELD STATE</th>
+                                </tr>
+                            </thead>
+                            <tbody id="replay-position-tbody">
+                                <tr>
+                                    <td colspan="8" class="text-center" style="padding: 1.5rem; color: var(--text-muted);">
+                                        Waiting for trade entry signal. Replay the session to observe automatic order executions.
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
                     </div>
                 </div>
             </div>
 
+            <!-- RIGHT: REPLAY TERMINAL STREAM -->
+            <div class="bot-right-col">
+                <div class="bot-section-card terminal-card" style="height: 580px;">
+                    <div class="section-card-header terminal-header">
+                        <div class="terminal-title">
+                            <span class="terminal-dot red"></span>
+                            <span class="terminal-dot yellow"></span>
+                            <span class="terminal-dot green"></span>
+                            <span style="margin-left: 0.5rem; font-family: var(--font-code); font-size: 0.8rem; font-weight: 700; color: #fff;">
+                                <i class="fa-solid fa-terminal"></i> REPLAY COMMENTARY STREAM
+                            </span>
+                        </div>
+                        <button class="btn-terminal-clear" onclick="clearReplayLogs()"><i class="fa-solid fa-trash-can"></i> Clear</button>
+                    </div>
+                    <div class="bot-terminal-window" id="replay-console-stream">
+                        <div class="terminal-line text-muted">[SIMULATOR] Replay engine initialized. Click START REPLAY to watch the session.</div>
+                    </div>
+                </div>
+            </div>
         </div>
 
     </div>
 
 </div>
 
-<!-- INLINE STYLES SPECIFIC TO BOT PAGE -->
+<!-- STYLES -->
 <style>
     .bot-page-container {
         padding: 1.5rem 2rem 3rem 2rem;
@@ -307,6 +548,56 @@
         display: flex;
         flex-direction: column;
         gap: 1.5rem;
+    }
+
+    /* MODE SELECTOR BAR */
+    .bot-mode-bar {
+        display: flex;
+        gap: 0.75rem;
+        background: var(--bg-card);
+        padding: 0.5rem;
+        border-radius: 12px;
+        border: 1px solid var(--border);
+    }
+
+    .mode-tab-btn {
+        flex: 1;
+        background: transparent;
+        border: 1px solid transparent;
+        color: var(--text-muted);
+        padding: 0.85rem 1.25rem;
+        border-radius: 8px;
+        font-size: 0.85rem;
+        font-weight: 800;
+        letter-spacing: 0.04em;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.65rem;
+        transition: all 0.2s;
+    }
+
+    .mode-tab-btn:hover {
+        color: #fff;
+        background: var(--bg-surface);
+    }
+
+    .mode-tab-btn.active {
+        color: #fff;
+        background: rgba(0, 163, 255, 0.15);
+        border-color: rgba(0, 163, 255, 0.35);
+        box-shadow: 0 0 15px rgba(0, 163, 255, 0.2);
+    }
+
+    .after-hours-badge {
+        font-size: 0.68rem;
+        font-weight: 800;
+        background: rgba(255, 209, 102, 0.15);
+        color: #ffd166;
+        border: 1px solid rgba(255, 209, 102, 0.35);
+        padding: 0.2rem 0.5rem;
+        border-radius: 999px;
     }
 
     /* HERO CARD */
@@ -462,6 +753,87 @@
         background: var(--bg-hover);
         border-color: var(--blue);
         color: var(--blue);
+    }
+
+    /* REPLAY CONTROLS */
+    .replay-hero-actions {
+        display: flex;
+        flex-direction: column;
+        gap: 0.85rem;
+        min-width: 320px;
+    }
+
+    .replay-ctrl-row {
+        display: flex;
+        gap: 0.5rem;
+    }
+
+    .replay-speed-pills {
+        display: flex;
+        align-items: center;
+        gap: 0.4rem;
+        background: var(--bg-body);
+        padding: 0.35rem 0.75rem;
+        border-radius: 8px;
+        border: 1px solid var(--border);
+    }
+
+    .speed-pill {
+        background: transparent;
+        border: 1px solid transparent;
+        color: var(--text-muted);
+        padding: 0.2rem 0.6rem;
+        border-radius: 6px;
+        font-size: 0.75rem;
+        font-weight: 800;
+        cursor: pointer;
+        transition: all 0.15s;
+    }
+
+    .speed-pill.active {
+        background: var(--blue);
+        color: #fff;
+    }
+
+    .replay-timeline-card {
+        background: var(--bg-card);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 1.15rem 1.5rem;
+    }
+
+    .timeline-meta-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 0.85rem;
+    }
+
+    .time-readout {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-size: 0.85rem;
+        font-weight: 700;
+    }
+
+    .time-readout strong {
+        color: #fff;
+        font-family: var(--font-code);
+        font-size: 1rem;
+    }
+
+    .bar-counter {
+        color: var(--text-muted);
+        font-size: 0.75rem;
+        font-family: var(--font-code);
+    }
+
+    .timeline-slider {
+        width: 100%;
+        accent-color: var(--green);
+        height: 6px;
+        cursor: pointer;
     }
 
     /* CONFIGURATION BAR */
@@ -768,7 +1140,7 @@
     }
 </style>
 
-<!-- CLIENT JAVASCRIPT FOR BOT PAGE -->
+<!-- CLIENT JAVASCRIPT FOR BOT PAGE & REPLAYER -->
 <script>
     let isBotActive = false;
     let botPoller = null;
@@ -778,24 +1150,69 @@
     let isScanning = false;
     let allScannerData = [];
 
+    // ==========================================
+    // REPLAY ENGINE STATE
+    // ==========================================
+    let replayData = null;
+    let replayBars = [];
+    let replayIndex = 0;
+    let replayTimer = null;
+    let replaySpeedMs = 150; // 10x speed default
+    let isReplayPlaying = false;
+    let replayChart = null;
+    let replayCandleSeries = null;
+    let replayFastSmaSeries = null;
+    let replaySlowSmaSeries = null;
+    let replayPosition = null; // { symbol, entryPrice, qty, stopLoss, takeProfit, peakPrice, trailingActive }
+    let replayTrades = [];
+    let replayRealizedPnl = 0;
+
     document.addEventListener('DOMContentLoaded', () => {
         fetchBotStatus();
         loadBotHoldings();
         loadAccountMetrics();
 
-        // Restore active state from localStorage if operator previously engaged bot
         const savedState = localStorage.getItem('nifty_bot_active') === 'true';
         if (savedState) {
             setBotActiveState(true, false);
         }
 
-        // Status polling loop every 4 seconds
         botPoller = setInterval(() => {
             fetchBotStatus(true);
             loadBotHoldings();
         }, 4000);
+
+        // Preload initial replay data
+        loadReplayStockData();
     });
 
+    // VIEW SWITCHER
+    function switchBotView(view) {
+        const scannerContainer = document.getElementById('scanner-view-container');
+        const replayContainer = document.getElementById('replay-view-container');
+        const scannerBtn = document.getElementById('view-mode-scanner-btn');
+        const replayBtn = document.getElementById('view-mode-replay-btn');
+
+        if (view === 'replay') {
+            scannerContainer.style.display = 'none';
+            replayContainer.style.display = 'block';
+            scannerBtn.classList.remove('active');
+            replayBtn.classList.add('active');
+
+            if (!replayChart) {
+                setTimeout(initReplayChart, 100);
+            }
+        } else {
+            replayContainer.style.display = 'none';
+            scannerContainer.style.display = 'block';
+            replayBtn.classList.remove('active');
+            scannerBtn.classList.add('active');
+        }
+    }
+
+    // ==========================================
+    // LIVE SCANNER CONTROLS
+    // ==========================================
     function setBotActiveState(active, notify = true) {
         isBotActive = active;
         localStorage.setItem('nifty_bot_active', active ? 'true' : 'false');
@@ -891,13 +1308,11 @@
     function updateBotUI(data) {
         if (!data) return;
 
-        // If backend reports running and local was off, sync it on
         const localActive = localStorage.getItem('nifty_bot_active') === 'true';
         if (data.is_running && !isBotActive && !localActive) {
             setBotActiveState(true, false);
         }
 
-        // Set inputs if user hasn't modified them
         if (data.scan_mode && !document.getElementById('bot-scan-mode').matches(':focus')) {
             document.getElementById('bot-scan-mode').value = data.scan_mode;
             onScanModeChange();
@@ -921,7 +1336,6 @@
             document.getElementById('bot-use-atr').checked = data.use_atr_exits;
         }
 
-        // Update KPIs
         const summary = data.scan_summary || {};
         const scannedCount = summary.total_scanned || (summary.scanner_results ? summary.scanner_results.length : 0);
         document.getElementById('kpi-scanned').innerText = `${scannedCount} / 50`;
@@ -933,13 +1347,11 @@
             document.getElementById('kpi-last-run').innerText = `Last sweep: ${data.last_run_time.split(' ')[1] || data.last_run_time}`;
         }
 
-        // Render Scanner Results Table
         if (summary.scanner_results && summary.scanner_results.length > 0) {
             allScannerData = summary.scanner_results;
             renderRadarTable(allScannerData);
         }
 
-        // Render logs
         renderLogs(data.logs || []);
     }
 
@@ -1137,7 +1549,6 @@
                 const pnlClass = p.unrealized_pnl >= 0 ? 'text-green' : 'text-red';
                 const pnlSign = p.unrealized_pnl >= 0 ? '+' : '';
                 
-                // Dynamic ATR / Trailing stop vs default %
                 let slDisplay = `₹${(p.stop_loss || p.average_price * 0.975).toFixed(2)}`;
                 if (p.trailing_active) {
                     slDisplay += ` <span style="font-size: 0.68rem; color: var(--green); font-weight: 700;">🛡️ Breakeven</span>`;
@@ -1191,6 +1602,479 @@
         }
     }
 
+    // ==========================================
+    // REPLAY ENGINE LOGIC
+    // ==========================================
+    async function loadReplayStockData() {
+        const symbol = document.getElementById('replay-stock-select').value;
+        try {
+            const res = await fetch(`/api/replay/data?symbol=${symbol}&interval=5m&range=5d`);
+            replayData = await res.json();
+            
+            // Populate dates dropdown
+            const dateSel = document.getElementById('replay-date-select');
+            dateSel.innerHTML = '';
+            (replayData.dates || []).slice().reverse().forEach((d, idx) => {
+                const opt = document.createElement('option');
+                opt.value = d;
+                opt.innerText = (idx === 0) ? `Today's Session (${d})` : `Session (${d})`;
+                dateSel.appendChild(opt);
+            });
+
+            filterReplaySessionDate();
+        } catch (e) {
+            showToast('Failed to load intraday session data', 'error');
+        }
+    }
+
+    function filterReplaySessionDate() {
+        if (!replayData || !replayData.bars) return;
+        const selectedDate = document.getElementById('replay-date-select').value;
+        replayBars = replayData.bars.filter(b => b.date === selectedDate);
+        if (replayBars.length === 0) replayBars = replayData.bars;
+
+        // Reset slider
+        const slider = document.getElementById('replay-slider');
+        slider.max = Math.max(0, replayBars.length - 1);
+        slider.value = 0;
+
+        resetReplaySession();
+    }
+
+    function initReplayChart() {
+        const container = document.getElementById('replay-chart-container');
+        if (!container || replayChart) return;
+
+        replayChart = LightweightCharts.createChart(container, {
+            width: container.clientWidth || 800,
+            height: 440,
+            layout: {
+                backgroundColor: '#07090e',
+                textColor: '#7e8ba6',
+                fontFamily: 'JetBrains Mono, monospace',
+                fontSize: 11
+            },
+            grid: {
+                vertLines: { color: 'rgba(31, 41, 61, 0.4)' },
+                horzLines: { color: 'rgba(31, 41, 61, 0.4)' }
+            },
+            crosshair: {
+                mode: LightweightCharts.CrosshairMode.Normal,
+            },
+            timeScale: {
+                borderColor: '#1f293d',
+                timeVisible: true,
+                secondsVisible: false
+            },
+            rightPriceScale: {
+                borderColor: '#1f293d'
+            }
+        });
+
+        replayCandleSeries = replayChart.addCandlestickSeries({
+            upColor: '#00f090',
+            downColor: '#ff3366',
+            borderUpColor: '#00f090',
+            borderDownColor: '#ff3366',
+            wickUpColor: '#00f090',
+            wickDownColor: '#ff3366'
+        });
+
+        replayFastSmaSeries = replayChart.addLineSeries({
+            color: '#00a3ff',
+            lineWidth: 2,
+            title: 'SMA 9'
+        });
+
+        replaySlowSmaSeries = replayChart.addLineSeries({
+            color: '#ffd166',
+            lineWidth: 2,
+            title: 'SMA 21'
+        });
+
+        window.addEventListener('resize', () => {
+            if (replayChart && container) {
+                replayChart.applyOptions({ width: container.clientWidth });
+            }
+        });
+    }
+
+    function resetReplaySession() {
+        if (replayTimer) {
+            clearInterval(replayTimer);
+            replayTimer = null;
+        }
+        isReplayPlaying = false;
+        replayIndex = 0;
+        replayPosition = null;
+        replayTrades = [];
+        replayRealizedPnl = 0;
+
+        document.getElementById('replay-play-btn').innerHTML = '<i class="fa-solid fa-play"></i> START REPLAY (10x)';
+        document.getElementById('replay-play-btn').className = 'btn-bot-start';
+        document.getElementById('replay-status-indicator').className = 'bot-status-badge status-stopped';
+        document.getElementById('replay-status-text').innerText = 'REPLAY READY';
+
+        document.getElementById('rep-kpi-trades').innerText = '0';
+        document.getElementById('rep-kpi-winrate').innerText = 'Win Rate: 0.0%';
+        document.getElementById('rep-kpi-pnl').innerText = '₹0.00';
+        document.getElementById('rep-kpi-return').innerText = '+0.00% Return';
+        document.getElementById('rep-kpi-shield').innerText = 'FLAT (CASH)';
+        document.getElementById('rep-kpi-stops').innerText = 'SL: -- | Target: --';
+
+        document.getElementById('replay-position-tbody').innerHTML = '<tr><td colspan="8" class="text-center" style="padding: 1.5rem; color: var(--text-muted);">Waiting for trade entry signal. Replay the session to observe automatic order executions.</td></tr>';
+        document.getElementById('replay-pos-badge').className = 'badge';
+        document.getElementById('replay-pos-badge').innerText = 'FLAT / NO POSITION';
+
+        clearReplayLogs();
+        addReplayLog('[SIMULATOR] Replay session reset to market open 09:15 AM.', 'INFO');
+
+        if (replayCandleSeries && replayBars.length > 0) {
+            replayCandleSeries.setData([]);
+            replayFastSmaSeries.setData([]);
+            replaySlowSmaSeries.setData([]);
+            replayCandleSeries.setMarkers([]);
+            
+            // Step to first bar
+            stepReplayNext();
+        }
+    }
+
+    function toggleReplayPlay() {
+        if (isReplayPlaying) {
+            pauseReplay();
+        } else {
+            playReplay();
+        }
+    }
+
+    function playReplay() {
+        if (replayIndex >= replayBars.length) {
+            resetReplaySession();
+        }
+        isReplayPlaying = true;
+        const btn = document.getElementById('replay-play-btn');
+        btn.innerHTML = '<i class="fa-solid fa-pause"></i> PAUSE REPLAY';
+        btn.className = 'btn-bot-stop';
+        document.getElementById('replay-status-indicator').className = 'bot-status-badge status-running';
+        document.getElementById('replay-status-text').innerText = 'REPLAYING SESSION';
+
+        if (replayTimer) clearInterval(replayTimer);
+        replayTimer = setInterval(() => {
+            if (replayIndex >= replayBars.length - 1) {
+                pauseReplay();
+                addReplayLog(`🏁 [SESSION CLOSE] Market Replay finished at 03:30 PM. Total P&L: ₹${replayRealizedPnl.toFixed(2)}`, 'SUCCESS');
+                showToast(`Session Replay complete! P&L: ₹${replayRealizedPnl.toFixed(2)}`, 'success');
+                return;
+            }
+            stepReplayNext();
+        }, replaySpeedMs);
+    }
+
+    function pauseReplay() {
+        isReplayPlaying = false;
+        if (replayTimer) {
+            clearInterval(replayTimer);
+            replayTimer = null;
+        }
+        const btn = document.getElementById('replay-play-btn');
+        btn.innerHTML = '<i class="fa-solid fa-play"></i> RESUME REPLAY';
+        btn.className = 'btn-bot-start';
+        document.getElementById('replay-status-indicator').className = 'bot-status-badge status-stopped';
+        document.getElementById('replay-status-text').innerText = 'PAUSED';
+    }
+
+    function setReplaySpeed(speed, el) {
+        document.querySelectorAll('.speed-pill').forEach(b => b.classList.remove('active'));
+        if (el) el.classList.add('active');
+
+        // Map speed multiplier to interval ms
+        if (speed === 1) replaySpeedMs = 1200;
+        else if (speed === 5) replaySpeedMs = 300;
+        else if (speed === 10) replaySpeedMs = 120;
+        else if (speed === 25) replaySpeedMs = 45;
+
+        if (isReplayPlaying) {
+            playReplay();
+        }
+    }
+
+    function onScrubReplay(val) {
+        pauseReplay();
+        const targetIdx = parseInt(val);
+        replayIndex = Math.max(0, Math.min(targetIdx, replayBars.length - 1));
+        renderReplaySlice();
+    }
+
+    function stepReplayNext() {
+        if (!replayBars || replayBars.length === 0) return;
+        if (replayIndex < replayBars.length) {
+            replayIndex++;
+            document.getElementById('replay-slider').value = replayIndex;
+            renderReplaySlice();
+        }
+    }
+
+    function renderReplaySlice() {
+        if (!replayBars || replayBars.length === 0) return;
+        const slice = replayBars.slice(0, replayIndex);
+        if (slice.length === 0) return;
+
+        const currentBar = slice[slice.length - 1];
+        const currentPrice = currentBar.close;
+        const openPrice = slice[0].open;
+        const changePct = ((currentPrice - openPrice) / openPrice) * 100;
+
+        // Update clock & UI
+        document.getElementById('replay-clock-text').innerText = `${currentBar.datetime.split(' ')[1] || currentBar.datetime} IST`;
+        document.getElementById('replay-bar-text').innerText = `(Bar ${slice.length} / ${replayBars.length})`;
+        document.getElementById('rep-kpi-price').innerText = `₹${currentPrice.toFixed(2)}`;
+        
+        const chgEl = document.getElementById('rep-kpi-change');
+        chgEl.innerText = `${changePct >= 0 ? '+' : ''}${changePct.toFixed(2)}% Session`;
+        chgEl.className = changePct >= 0 ? 'kpi-sub text-green' : 'kpi-sub text-red';
+
+        // Calculate technical indicators on slice
+        const closes = slice.map(b => b.close);
+        const fastSmaData = [];
+        const slowSmaData = [];
+        
+        // SMA 9 & 21 calculation
+        for (let i = 0; i < slice.length; i++) {
+            if (i >= 8) {
+                const sub = closes.slice(i - 8, i + 1);
+                const avg = sub.reduce((a, b) => a + b, 0) / 9;
+                fastSmaData.push({ time: slice[i].time, value: avg });
+            }
+            if (i >= 20) {
+                const sub = closes.slice(i - 20, i + 1);
+                const avg = sub.reduce((a, b) => a + b, 0) / 21;
+                slowSmaData.push({ time: slice[i].time, value: avg });
+            }
+        }
+
+        // Fast & Slow SMA current
+        const fastSmaCurr = fastSmaData.length > 0 ? fastSmaData[fastSmaData.length - 1].value : null;
+        const fastSmaPrev = fastSmaData.length > 1 ? fastSmaData[fastSmaData.length - 2].value : fastSmaCurr;
+        const slowSmaCurr = slowSmaData.length > 0 ? slowSmaData[slowSmaData.length - 1].value : null;
+        const slowSmaPrev = slowSmaData.length > 1 ? slowSmaData[slowSmaData.length - 2].value : slowSmaCurr;
+
+        // ATR 14 estimation
+        let atr = currentPrice * 0.025;
+        if (slice.length >= 14) {
+            const trs = [];
+            for (let i = slice.length - 14; i < slice.length; i++) {
+                const tr = Math.max(slice[i].high - slice[i].low, Math.abs(slice[i].high - slice[i - 1].close));
+                trs.push(tr);
+            }
+            atr = trs.reduce((a, b) => a + b, 0) / 14;
+        }
+
+        // Update Chart
+        if (replayCandleSeries) {
+            replayCandleSeries.setData(slice);
+            replayFastSmaSeries.setData(fastSmaData);
+            replaySlowSmaSeries.setData(slowSmaData);
+        }
+
+        // Update HUD
+        const hudSma = document.getElementById('hud-sma');
+        if (fastSmaCurr && slowSmaCurr) {
+            hudSma.innerText = `SMA9: ₹${fastSmaCurr.toFixed(2)} | SMA21: ₹${slowSmaCurr.toFixed(2)}`;
+        }
+        const hudEma = document.getElementById('hud-ema200');
+        const ema200 = replayData.ema_200;
+        if (ema200) {
+            const isBullish = currentPrice >= ema200;
+            hudEma.innerHTML = `<span style="color: ${isBullish ? 'var(--green)' : '#ffbd2e'};">${isBullish ? '📈 >' : '📉 <'} 200 EMA (₹${ema200})</span>`;
+        }
+
+        // ==========================================
+        // BOT STRATEGY EXECUTION ENGINE DURING REPLAY
+        // ==========================================
+        const useEmaFilter = document.getElementById('replay-ema-toggle').value === 'true';
+        const useTrailing = document.getElementById('replay-trailing-toggle').value === 'true';
+        const hudSig = document.getElementById('hud-signal');
+
+        // Check if currently holding position
+        if (replayPosition) {
+            const p = replayPosition;
+            p.peakPrice = Math.max(p.peakPrice, currentBar.high);
+            const unrealizedPnl = (currentPrice - p.entryPrice) * p.qty;
+            const pnlPct = ((currentPrice - p.entryPrice) / p.entryPrice) * 100;
+
+            // Breakeven Shield (+2.0%)
+            if (useTrailing && pnlPct >= 2.0 && !p.trailingActive) {
+                p.trailingActive = true;
+                p.stopLoss = Math.max(p.stopLoss, p.entryPrice);
+                addReplayLog(`🛡️ [BREAKEVEN SHIELD] ${currentBar.datetime.split(' ')[1]}: Gain hit +${pnlPct.toFixed(2)}%! Stop-Loss raised to Breakeven (₹${p.entryPrice.toFixed(2)}). 100% Risk-Free!`, 'SUCCESS');
+            }
+
+            // Trailing Stop Ratchet
+            if (useTrailing && p.trailingActive) {
+                const trailStop = p.peakPrice - (1.5 * atr);
+                if (trailStop > p.stopLoss && trailStop > p.entryPrice) {
+                    p.stopLoss = trailStop;
+                    addReplayLog(`📈 [TRAILING STOP TRAIL] ${currentBar.datetime.split(' ')[1]}: High ₹${p.peakPrice.toFixed(2)}! Stop trailed to ₹${trailStop.toFixed(2)}`, 'SUCCESS');
+                }
+            }
+
+            // Check Stop-Loss Hit
+            if (currentBar.low <= p.stopLoss) {
+                const exitPrice = Math.min(currentPrice, p.stopLoss);
+                const realized = (exitPrice - p.entryPrice) * p.qty;
+                replayRealizedPnl += realized;
+                replayTrades.push({ side: 'SELL', exit: exitPrice, pnl: realized, reason: 'STOP_LOSS' });
+
+                addReplayLog(`🛑 [STOP-LOSS EXECUTED] ${currentBar.datetime.split(' ')[1]}: Liquidated ${p.qty} shares @ ₹${exitPrice.toFixed(2)} (P&L: ₹${realized.toFixed(2)})`, realized >= 0 ? 'SUCCESS' : 'ERROR');
+                replayPosition = null;
+                updateReplayScorecard();
+            }
+            // Check Take-Profit Hit
+            else if (currentBar.high >= p.takeProfit) {
+                const exitPrice = p.takeProfit;
+                const realized = (exitPrice - p.entryPrice) * p.qty;
+                replayRealizedPnl += realized;
+                replayTrades.push({ side: 'SELL', exit: exitPrice, pnl: realized, reason: 'TAKE_PROFIT' });
+
+                addReplayLog(`🎯 [TAKE-PROFIT LOCKED] ${currentBar.datetime.split(' ')[1]}: Target hit @ ₹${exitPrice.toFixed(2)}! Profit: +₹${realized.toFixed(2)} (+${pnlPct.toFixed(2)}%)`, 'SUCCESS');
+                replayPosition = null;
+                updateReplayScorecard();
+            }
+            // Check Death Cross exit
+            else if (fastSmaCurr && slowSmaCurr && fastSmaCurr < slowSmaCurr && fastSmaPrev >= slowSmaPrev) {
+                const realized = (currentPrice - p.entryPrice) * p.qty;
+                replayRealizedPnl += realized;
+                replayTrades.push({ side: 'SELL', exit: currentPrice, pnl: realized, reason: 'DEATH_CROSS' });
+
+                addReplayLog(`⚠️ [DEATH CROSS EXIT] ${currentBar.datetime.split(' ')[1]}: SMA9 crossed below SMA21. Exited @ ₹${currentPrice.toFixed(2)} (P&L: ₹${realized.toFixed(2)})`, 'WARNING');
+                replayPosition = null;
+                updateReplayScorecard();
+            }
+        } 
+        // Not in position: Check for BUY entry
+        else {
+            let buySignal = false;
+            let reason = '';
+
+            if (fastSmaCurr && slowSmaCurr && fastSmaCurr > slowSmaCurr && fastSmaPrev <= slowSmaPrev) {
+                buySignal = true;
+                reason = `Golden Cross (SMA9: ₹${fastSmaCurr.toFixed(1)} > SMA21: ₹${slowSmaCurr.toFixed(1)})`;
+            }
+
+            if (buySignal) {
+                // Apply 200 EMA Filter
+                if (useEmaFilter && ema200 && currentPrice < ema200) {
+                    hudSig.className = 'signal-badge';
+                    hudSig.style = 'background: rgba(255, 189, 46, 0.2); color: #ffbd2e; border: 1px solid rgba(255, 189, 46, 0.4);';
+                    hudSig.innerHTML = '<i class="fa-solid fa-filter"></i> FILTERED (&lt; 200 EMA)';
+                    addReplayLog(`🛡️ [FILTER TRIGGERED] ${currentBar.datetime.split(' ')[1]}: Golden Cross detected, but stock (₹${currentPrice}) is below 200 EMA (₹${ema200}). BUY REJECTED to protect capital!`, 'WARNING');
+                } else {
+                    hudSig.className = 'signal-badge signal-buy';
+                    hudSig.innerHTML = '<i class="fa-solid fa-arrow-up"></i> BUY SIGNAL';
+
+                    const qty = Math.max(1, Math.floor(50000 / currentPrice));
+                    const sl = currentPrice - (1.5 * atr);
+                    const tp = currentPrice + (3.0 * atr);
+
+                    replayPosition = {
+                        symbol: replayData.symbol,
+                        entryPrice: currentPrice,
+                        qty: qty,
+                        stopLoss: sl,
+                        takeProfit: tp,
+                        peakPrice: currentPrice,
+                        trailingActive: false
+                    };
+
+                    addReplayLog(`⚡ [AUTO-BOUGHT] ${currentBar.datetime.split(' ')[1]}: Bought ${qty} shares @ ₹${currentPrice.toFixed(2)} | SL: ₹${sl.toFixed(2)} | TP: ₹${tp.toFixed(2)} | ${reason}`, 'SUCCESS');
+                    updateReplayScorecard();
+                }
+            } else {
+                hudSig.className = 'signal-badge signal-hold';
+                hudSig.innerHTML = 'HOLD';
+            }
+        }
+
+        renderReplayPositionTicket(currentPrice);
+    }
+
+    function renderReplayPositionTicket(currentPrice) {
+        const tbody = document.getElementById('replay-position-tbody');
+        const badge = document.getElementById('replay-pos-badge');
+        const shieldKpi = document.getElementById('rep-kpi-shield');
+        const stopsKpi = document.getElementById('rep-kpi-stops');
+
+        if (!replayPosition) {
+            tbody.innerHTML = '<tr><td colspan="8" class="text-center" style="padding: 1.5rem; color: var(--text-muted);">No open position. Scanning for Golden Cross setups...</td></tr>';
+            badge.className = 'badge';
+            badge.innerText = 'FLAT / NO POSITION';
+            shieldKpi.innerText = 'FLAT (CASH)';
+            shieldKpi.style.color = 'var(--text-muted)';
+            stopsKpi.innerText = 'SL: -- | Target: --';
+            return;
+        }
+
+        const p = replayPosition;
+        const unPnl = (currentPrice - p.entryPrice) * p.qty;
+        const unPct = ((currentPrice - p.entryPrice) / p.entryPrice) * 100;
+        const pnlColor = unPnl >= 0 ? 'text-green' : 'text-red';
+
+        badge.className = 'badge';
+        badge.style = 'background: rgba(0, 240, 144, 0.2); color: var(--green); padding: 3px 8px; border-radius: 6px; font-weight: 700;';
+        badge.innerText = `LONG ${p.qty} SHARES`;
+
+        shieldKpi.innerText = p.trailingActive ? '🛡️ BREAKEVEN SHIELD' : 'ACTIVE TRAILING';
+        shieldKpi.style.color = p.trailingActive ? 'var(--green)' : 'var(--blue)';
+        stopsKpi.innerText = `SL: ₹${p.stopLoss.toFixed(2)} | Target: ₹${p.takeProfit.toFixed(2)}`;
+
+        tbody.innerHTML = `
+            <tr>
+                <td><strong>${p.symbol.replace('.NS', '')}</strong></td>
+                <td><span style="color: var(--green); font-weight: 700;">LONG</span></td>
+                <td>₹${p.entryPrice.toFixed(2)}</td>
+                <td style="font-weight: 700;">₹${currentPrice.toFixed(2)}</td>
+                <td class="${pnlColor}" style="font-weight: 800;">${unPnl >= 0 ? '+' : ''}₹${unPnl.toFixed(2)} (${unPct >= 0 ? '+' : ''}${unPct.toFixed(2)}%)</td>
+                <td style="color: var(--red); font-weight: 700;">₹${p.stopLoss.toFixed(2)}</td>
+                <td style="color: var(--green); font-weight: 700;">₹${p.takeProfit.toFixed(2)}</td>
+                <td>${p.trailingActive ? '<span style="color: var(--green); font-weight: 800;">🛡️ 100% Risk Free</span>' : '<span style="color: var(--text-muted);">Guarded</span>'}</td>
+            </tr>
+        `;
+    }
+
+    function updateReplayScorecard() {
+        document.getElementById('rep-kpi-trades').innerText = replayTrades.length;
+        const wins = replayTrades.filter(t => t.pnl > 0).length;
+        const winRate = replayTrades.length > 0 ? (wins / replayTrades.length * 100).toFixed(1) : '0.0';
+        document.getElementById('rep-kpi-winrate').innerText = `Win Rate: ${winRate}% (${wins}/${replayTrades.length})`;
+
+        const pnlEl = document.getElementById('rep-kpi-pnl');
+        pnlEl.innerText = `${replayRealizedPnl >= 0 ? '+' : ''}₹${replayRealizedPnl.toFixed(2)}`;
+        pnlEl.className = replayRealizedPnl >= 0 ? 'kpi-value text-green' : 'kpi-value text-red';
+
+        const ret = ((replayRealizedPnl / 1000000) * 100).toFixed(2);
+        document.getElementById('rep-kpi-return').innerText = `${ret >= 0 ? '+' : ''}${ret}% On Margin`;
+    }
+
+    function addReplayLog(msg, level = 'INFO') {
+        const stream = document.getElementById('replay-console-stream');
+        if (!stream) return;
+        const line = document.createElement('div');
+        let colorClass = 'terminal-line';
+        if (level === 'SUCCESS') colorClass += ' log-success';
+        else if (level === 'ERROR') colorClass += ' log-error';
+        else if (level === 'WARNING') colorClass += ' log-warning';
+        else colorClass += ' log-info';
+        line.className = colorClass;
+        line.innerText = msg;
+        stream.appendChild(line);
+    }
+
+    function clearReplayLogs() {
+        const stream = document.getElementById('replay-console-stream');
+        if (stream) stream.innerHTML = '<div class="terminal-line text-muted">[SIMULATOR] Logs cleared.</div>';
+    }
+
     function showToast(msg, type = 'info') {
         const container = document.getElementById('toast-container');
         if (!container) return;
@@ -1202,4 +2086,3 @@
     }
 </script>
 {% endblock %}
-
