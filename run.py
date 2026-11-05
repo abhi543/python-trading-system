@@ -7,10 +7,14 @@ if any(k in os.environ for k in ('VERCEL', 'VERCEL_ENV', 'AWS_LAMBDA_FUNCTION_NA
     os.environ.setdefault('TMPDIR', '/tmp')
     os.environ.setdefault('YFINANCE_CACHE_DIR', '/tmp/py-yfinance')
 
+# Load local .env if available, but never crash in production/serverless if absent
 try:
     from dotenv import load_dotenv
     load_dotenv()
+except Exception:
+    pass
 
+try:
     from app import create_app
     app = create_app()
 

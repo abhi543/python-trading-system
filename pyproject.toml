@@ -4,3 +4,11 @@ version = "0.1.0"
 description = "Personal algorithmic trading desk and backtester"
 readme = "README.md"
 requires-python = ">=3.10"
+dependencies = [
+    "Flask>=3.0.0",
+    "Flask-SQLAlchemy>=3.1.0",
+    "pandas>=2.2.0",
+    "numpy>=1.26.0",
+    "python-dotenv>=1.0.0",
+    "requests>=2.31.0"
+]
