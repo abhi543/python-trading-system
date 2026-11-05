@@ -1,6 +1,7 @@
 import os
 import sys
 import traceback
+from werkzeug.exceptions import HTTPException
 
 # Configure cache directories to /tmp for serverless environments
 if any(k in os.environ for k in ('VERCEL', 'VERCEL_ENV', 'AWS_LAMBDA_FUNCTION_NAME', 'LAMBDA_TASK_ROOT')):
@@ -19,7 +20,9 @@ try:
     app = create_app()
 
     @app.errorhandler(Exception)
-    def handle_500(e):
+    def handle_error(e):
+        if isinstance(e, HTTPException):
+            return e
         tb = traceback.format_exc()
         from flask import Response
         return Response(f"Internal Server Error:\n\n{tb}", status=500, mimetype="text/plain")
