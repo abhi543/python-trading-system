@@ -1,17 +1,18 @@
-import yfinance as yf
 import pandas as pd
 import numpy as np
+from app.services.market_data import MarketDataService
 
 class StrategyBacktester:
     @staticmethod
     def sma_crossover(symbol: str, short_window: int = 20, long_window: int = 50, period: str = "1y", initial_capital: float = 10000.0):
         symbol = symbol.strip().upper()
-        ticker = yf.Ticker(symbol)
-        df = ticker.history(period=period, interval="1d")
+        candles = MarketDataService.get_historical_candles(symbol, period=period, interval="1d")
         
-        if df.empty or len(df) < long_window:
+        if not candles or len(candles) < long_window:
             return {"error": "Not enough historical data for the chosen parameters"}
             
+        df = pd.DataFrame(candles)
+        df['Close'] = df['close']
         df['SMA_Fast'] = df['Close'].rolling(window=short_window).mean()
         df['SMA_Slow'] = df['Close'].rolling(window=long_window).mean()
         
@@ -33,8 +34,7 @@ class StrategyBacktester:
         
         total_trades = int((df['Position'] != 0).sum())
         
-        # Format chart data
-        dates = [d.strftime("%Y-%m-%d") for d in df.index]
+        dates = [str(d) for d in df['time']]
         
         return {
             "symbol": symbol,
@@ -55,4 +55,3 @@ class StrategyBacktester:
                 "benchmark_equity": [round(float(initial_capital * val), 2) for val in df['Cum_Market_Return']]
             }
         }
-
