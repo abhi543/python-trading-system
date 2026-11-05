@@ -1370,17 +1370,17 @@
 
         if (active) {
             ind.className = 'bot-status-badge status-running';
-            text.innerText = 'ONLINE / AUTONOMOUS SCANNING';
+            text.innerHTML = '<i class="fa-solid fa-moon"></i> AFTER-MARKET AUTONOMOUS TRADER (24/7 ACTIVE)';
             btn.className = 'btn-bot-stop';
             btn.innerHTML = '<i class="fa-solid fa-stop"></i> STOP AUTO-BOT';
 
             if (!botTickTimer) {
-                startCountdown(20);
+                startCountdown(12);
                 botTickTimer = setInterval(async () => {
                     if (!isBotActive) return;
                     await tickBotNow();
-                    startCountdown(20);
-                }, 20000);
+                    startCountdown(12);
+                }, 12000);
             }
         } else {
             ind.className = 'bot-status-badge status-stopped';
@@ -1396,7 +1396,7 @@
                 clearInterval(countdownTimer);
                 countdownTimer = null;
             }
-            document.getElementById('bot-interval-badge').innerHTML = '<i class="fa-solid fa-clock"></i> CYCLE: 20s';
+            document.getElementById('bot-interval-badge').innerHTML = '<i class="fa-solid fa-clock"></i> CYCLE: 12s';
         }
     }
 
@@ -1656,7 +1656,11 @@
         }
 
         try {
-            const res = await fetch('/api/bot/tick', { method: 'POST' });
+            const res = await fetch('/api/bot/tick', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ event: 'AFTER_HOURS_WALK' })
+            });
             const data = await res.json();
             if (data.bot_state) {
                 updateBotUI(data.bot_state);

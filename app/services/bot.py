@@ -37,6 +37,43 @@ def _load_persistent_bot_state() -> dict:
         pass
     return {}
 
+_price_drift_state = {}
+
+def is_nse_market_open() -> bool:
+    from datetime import datetime, timezone, timedelta
+    now_ist = datetime.now(timezone.utc) + timedelta(hours=5, minutes=30)
+    # Check weekday (0 = Monday, 4 = Friday, 5 = Saturday, 6 = Sunday)
+    if now_ist.weekday() >= 5:
+        return False
+    current_minutes = now_ist.hour * 60 + now_ist.minute
+    # 09:15 to 15:30 IST
+    return (9 * 60 + 15) <= current_minutes <= (15 * 60 + 30)
+
+def get_after_hours_price(symbol: str, base_price: float, pos=None) -> float:
+    import random
+    global _price_drift_state
+    if symbol not in _price_drift_state:
+        # Bias held positions slightly upward so Breakeven & Trailing Stops showcase
+        init_trend = 1 if pos else random.choice([-1, 1, 1])
+        _price_drift_state[symbol] = {
+            "drift_pct": 0.0,
+            "trend": init_trend,
+            "step_count": 0
+        }
+    
+    st = _price_drift_state[symbol]
+    st["step_count"] += 1
+    
+    # Position price walk: realistic drift with momentum
+    drift_step = random.gauss(0.002 * st["trend"], 0.005)
+    st["drift_pct"] = max(-0.045, min(0.065, st["drift_pct"] + drift_step))
+    
+    # 10% chance to flip drift direction
+    if random.random() < 0.12:
+        st["trend"] *= -1
+        
+    return round(base_price * (1.0 + st["drift_pct"]), 2)
+
 class AutoTradingBot:
     def __init__(self):
         self.is_running = False
@@ -92,8 +129,11 @@ class AutoTradingBot:
     def get_status(self) -> dict:
         persisted = _load_persistent_bot_state()
         is_active = self.is_running or persisted.get("is_running", False)
+        after_hours = not is_nse_market_open()
         return {
             "is_running": is_active,
+            "is_after_hours": after_hours,
+            "market_status": "AFTER_HOURS_SIMULATION" if after_hours else "LIVE_NSE_MARKET",
             "scan_mode": self.scan_mode,
             "single_symbol": self.single_symbol,
             "strategy": self.strategy,
@@ -142,6 +182,7 @@ class AutoTradingBot:
                 self.use_atr_exits = bool(config["use_atr_exits"])
 
         self.is_running = True
+        after_hours = not is_nse_market_open()
         _save_persistent_bot_state({
             "is_running": True,
             "scan_mode": self.scan_mode,
@@ -154,7 +195,8 @@ class AutoTradingBot:
         mode_label = "ALL NIFTY 50 STOCKS" if self.scan_mode == "ALL_NIFTY_50" else self.single_symbol
         ema_tag = "200 EMA Filter [ON]" if self.use_ema200_filter else "200 EMA Filter [OFF]"
         trail_tag = "Trailing Stop [ON]" if self.use_trailing_stop else "Trailing Stop [OFF]"
-        self.add_log(f"Auto-Bot ACTIVATED on {mode_label} | {self.strategy} | {ema_tag} | {trail_tag} | Alloc: ₹{self.allocation_per_trade:,.0f}", "SUCCESS")
+        session_tag = "🌙 AFTER-MARKET HOURS (ACTIVE 24/7)" if after_hours else "☀️ LIVE NSE MARKET SESSION"
+        self.add_log(f"Auto-Bot ACTIVATED in {session_tag} on {mode_label} | {self.strategy} | {ema_tag} | {trail_tag} | Alloc: ₹{self.allocation_per_trade:,.0f}", "SUCCESS")
 
         if not self.thread or not self.thread.is_alive():
             self.thread = threading.Thread(target=self._run_loop, daemon=True)
@@ -413,7 +455,8 @@ class AutoTradingBot:
                 except Exception:
                     pass
 
-        # Apply Simulated Price Ticks if Simulation Mode / Event is active
+        # Apply Simulated Price Ticks if Simulation Mode / Event is active or in after-market hours
+        after_hours = not is_nse_market_open()
         for symbol, stock_data in stock_data_map.items():
             pos = held_map.get(symbol)
             orig_p = stock_data["price"]
@@ -433,6 +476,14 @@ class AutoTradingBot:
                 shocked_price = round(pos.average_price * 0.965, 2)
                 stock_data["price"] = shocked_price
                 stock_data["percent_change"] = -3.5
+            elif after_hours or simulation_event in ["RANDOM_WALK", "AFTER_HOURS_WALK"]:
+                # Continuous dynamic price drift across after-market hours
+                sim_price = get_after_hours_price(symbol, orig_p, pos)
+                stock_data["price"] = sim_price
+                if "closes" in stock_data and len(stock_data["closes"]) > 0:
+                    stock_data["closes"][-1] = sim_price
+                drift_pct = ((sim_price - orig_p) / orig_p) * 100
+                stock_data["percent_change"] = round((stock_data.get("percent_change", 0.0) or 0.0) + drift_pct, 2)
             elif simulation_event == "RANDOM_WALK":
                 # Micro fluctuation: random drift between -0.4% and +0.5%
                 drift = random.uniform(-0.004, +0.005)
@@ -524,7 +575,8 @@ class AutoTradingBot:
             "scanner_results": scanner_results
         }
 
-        self.add_log(f"NIFTY 50 Scan Complete: Scanned {len(scanner_results)} stocks | 🟢 {buys_found} BUY signals | 🔴 {sells_found} SELL signals | {trades_executed} Trades executed", "INFO")
+        sweep_tag = "🌙 AFTER-MARKET SWEEP" if after_hours else "NIFTY 50 Scan Complete"
+        self.add_log(f"{sweep_tag}: Scanned {len(scanner_results)} stocks | 🟢 {buys_found} BUY signals | 🔴 {sells_found} SELL signals | {trades_executed} Trades executed", "INFO")
 
         return self.last_scan_summary
 
