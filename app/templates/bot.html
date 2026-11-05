@@ -772,6 +772,10 @@
 <script>
     let isBotActive = false;
     let botPoller = null;
+    let botTickTimer = null;
+    let countdownTimer = null;
+    let secondsRemaining = 20;
+    let isScanning = false;
     let allScannerData = [];
 
     document.addEventListener('DOMContentLoaded', () => {
@@ -779,12 +783,78 @@
         loadBotHoldings();
         loadAccountMetrics();
 
-        // Status polling loop every 3 seconds
+        // Restore active state from localStorage if operator previously engaged bot
+        const savedState = localStorage.getItem('nifty_bot_active') === 'true';
+        if (savedState) {
+            setBotActiveState(true, false);
+        }
+
+        // Status polling loop every 4 seconds
         botPoller = setInterval(() => {
             fetchBotStatus(true);
             loadBotHoldings();
-        }, 3000);
+        }, 4000);
     });
+
+    function setBotActiveState(active, notify = true) {
+        isBotActive = active;
+        localStorage.setItem('nifty_bot_active', active ? 'true' : 'false');
+
+        const ind = document.getElementById('bot-status-indicator');
+        const text = document.getElementById('bot-status-text');
+        const btn = document.getElementById('bot-primary-btn');
+
+        if (active) {
+            ind.className = 'bot-status-badge status-running';
+            text.innerText = 'ONLINE / AUTONOMOUS SCANNING';
+            btn.className = 'btn-bot-stop';
+            btn.innerHTML = '<i class="fa-solid fa-stop"></i> STOP AUTO-BOT';
+
+            if (!botTickTimer) {
+                startCountdown(20);
+                botTickTimer = setInterval(async () => {
+                    if (!isBotActive) return;
+                    await tickBotNow();
+                    startCountdown(20);
+                }, 20000);
+            }
+        } else {
+            ind.className = 'bot-status-badge status-stopped';
+            text.innerText = 'OFFLINE / PAUSED';
+            btn.className = 'btn-bot-start';
+            btn.innerHTML = '<i class="fa-solid fa-play"></i> START NIFTY 50 BOT';
+
+            if (botTickTimer) {
+                clearInterval(botTickTimer);
+                botTickTimer = null;
+            }
+            if (countdownTimer) {
+                clearInterval(countdownTimer);
+                countdownTimer = null;
+            }
+            document.getElementById('bot-interval-badge').innerHTML = '<i class="fa-solid fa-clock"></i> CYCLE: 20s';
+        }
+    }
+
+    function startCountdown(seconds) {
+        if (countdownTimer) clearInterval(countdownTimer);
+        secondsRemaining = seconds;
+        const badge = document.getElementById('bot-interval-badge');
+
+        countdownTimer = setInterval(() => {
+            if (!isBotActive) {
+                clearInterval(countdownTimer);
+                return;
+            }
+            secondsRemaining--;
+            if (secondsRemaining <= 0) {
+                badge.innerHTML = '<i class="fa-solid fa-satellite-dish fa-spin" style="color: var(--green);"></i> SWEEPING BASKET NOW...';
+                clearInterval(countdownTimer);
+            } else {
+                badge.innerHTML = `<i class="fa-solid fa-clock" style="color: var(--green);"></i> NEXT SWEEP: ${secondsRemaining}s`;
+            }
+        }, 1000);
+    }
 
     function onScanModeChange() {
         const mode = document.getElementById('bot-scan-mode').value;
@@ -820,22 +890,11 @@
 
     function updateBotUI(data) {
         if (!data) return;
-        isBotActive = data.is_running;
 
-        const ind = document.getElementById('bot-status-indicator');
-        const text = document.getElementById('bot-status-text');
-        const btn = document.getElementById('bot-primary-btn');
-
-        if (isBotActive) {
-            ind.className = 'bot-status-badge status-running';
-            text.innerText = 'ONLINE / AUTONOMOUS SCANNING';
-            btn.className = 'btn-bot-stop';
-            btn.innerHTML = '<i class="fa-solid fa-stop"></i> STOP AUTO-BOT';
-        } else {
-            ind.className = 'bot-status-badge status-stopped';
-            text.innerText = 'OFFLINE / PAUSED';
-            btn.className = 'btn-bot-start';
-            btn.innerHTML = '<i class="fa-solid fa-play"></i> START NIFTY 50 BOT';
+        // If backend reports running and local was off, sync it on
+        const localActive = localStorage.getItem('nifty_bot_active') === 'true';
+        if (data.is_running && !isBotActive && !localActive) {
+            setBotActiveState(true, false);
         }
 
         // Set inputs if user hasn't modified them
@@ -858,6 +917,31 @@
         if (data.use_trailing_stop !== undefined) {
             document.getElementById('bot-use-trailing').checked = data.use_trailing_stop;
         }
+        if (data.use_atr_exits !== undefined) {
+            document.getElementById('bot-use-atr').checked = data.use_atr_exits;
+        }
+
+        // Update KPIs
+        const summary = data.scan_summary || {};
+        const scannedCount = summary.total_scanned || (summary.scanner_results ? summary.scanner_results.length : 0);
+        document.getElementById('kpi-scanned').innerText = `${scannedCount} / 50`;
+        document.getElementById('kpi-buys').innerText = summary.buys_found || 0;
+        document.getElementById('kpi-sells').innerText = summary.sells_found || 0;
+        document.getElementById('kpi-trades').innerText = summary.trades_executed || 0;
+        
+        if (data.last_run_time) {
+            document.getElementById('kpi-last-run').innerText = `Last sweep: ${data.last_run_time.split(' ')[1] || data.last_run_time}`;
+        }
+
+        // Render Scanner Results Table
+        if (summary.scanner_results && summary.scanner_results.length > 0) {
+            allScannerData = summary.scanner_results;
+            renderRadarTable(allScannerData);
+        }
+
+        // Render logs
+        renderLogs(data.logs || []);
+    }
         if (data.use_atr_exits !== undefined) {
             document.getElementById('bot-use-atr').checked = data.use_atr_exits;
         }
@@ -989,15 +1073,15 @@
 
     async function toggleBot() {
         if (isBotActive) {
+            setBotActiveState(false);
             try {
                 const res = await fetch('/api/bot/stop', { method: 'POST' });
                 const data = await res.json();
-                showToast('NIFTY 50 Auto-Bot paused', 'success');
-                updateBotUI(data.status);
-            } catch (err) {
-                showToast('Failed to stop bot', 'error');
-            }
+                if (data.status) updateBotUI(data.status);
+            } catch (err) {}
+            showToast('NIFTY 50 Auto-Bot paused', 'warning');
         } else {
+            setBotActiveState(true);
             const config = {
                 scan_mode: document.getElementById('bot-scan-mode').value,
                 single_symbol: document.getElementById('bot-symbol').value.trim().toUpperCase(),
@@ -1020,25 +1104,23 @@
                     body: JSON.stringify(config)
                 });
                 const data = await res.json();
-                if (data.success) {
-                    showToast('NIFTY 50 Auto-Bot Activated!', 'success');
-                    updateBotUI(data.status);
-                    tickBotNow();
-                } else {
-                    showToast('Failed to start bot', 'error');
-                }
-            } catch (err) {
-                showToast('Network error starting bot', 'error');
-            }
+                if (data.status) updateBotUI(data.status);
+            } catch (err) {}
+            showToast('NIFTY 50 Auto-Bot Activated!', 'success');
+            tickBotNow();
         }
     }
 
     async function tickBotNow() {
-        const btn = document.getElementById('bot-scan-btn');
-        btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Scanning 50 Stocks...';
-        btn.disabled = true;
+        if (isScanning) return;
+        isScanning = true;
 
-        showToast('Scanning all NIFTY 50 stocks for trading signals...', 'success');
+        const btn = document.getElementById('bot-scan-btn');
+        if (btn) {
+            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Scanning 50 Stocks...';
+            btn.disabled = true;
+        }
+
         try {
             const res = await fetch('/api/bot/tick', { method: 'POST' });
             const data = await res.json();
@@ -1049,12 +1131,15 @@
             loadBotHoldings();
             
             const summary = data.result || {};
-            showToast(`Scan Complete: Scanned ${summary.total_scanned || 50} stocks | 🟢 ${summary.buys_found || 0} BUY signals | 🔴 ${summary.sells_found || 0} SELL signals`, 'success');
+            showToast(`Sweep Done: ${summary.total_scanned || 50} stocks | 🟢 ${summary.buys_found || 0} BUY | 🔴 ${summary.sells_found || 0} SELL`, 'info');
         } catch (err) {
-            showToast('Scanning cycle failed', 'error');
+            showToast('Scan sweep failed', 'error');
         } finally {
-            btn.innerHTML = '<i class="fa-solid fa-arrows-rotate"></i> SCAN ALL 50 NOW';
-            btn.disabled = false;
+            if (btn) {
+                btn.innerHTML = '<i class="fa-solid fa-arrows-rotate"></i> SCAN ALL 50 NOW';
+                btn.disabled = false;
+            }
+            isScanning = false;
         }
     }
 

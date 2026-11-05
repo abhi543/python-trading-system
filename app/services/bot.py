@@ -1,3 +1,5 @@
+import os
+import json
 import threading
 import time
 import concurrent.futures
@@ -9,6 +11,31 @@ from app import db
 from app.services.market_data import MarketDataService
 from app.services.paper_trader import PaperTradingEngine
 from app.models.trading import Position, Account, NIFTY_50_DEFAULT
+
+def _get_bot_state_file():
+    tmp = os.environ.get('TMPDIR', '/tmp')
+    if os.path.exists(tmp) and os.access(tmp, os.W_OK):
+        return os.path.join(tmp, 'trading_bot_state.json')
+    base = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
+    return os.path.join(base, 'trading_bot_state.json')
+
+def _save_persistent_bot_state(data: dict):
+    try:
+        path = _get_bot_state_file()
+        with open(path, 'w') as f:
+            json.dump(data, f)
+    except Exception:
+        pass
+
+def _load_persistent_bot_state() -> dict:
+    try:
+        path = _get_bot_state_file()
+        if os.path.exists(path):
+            with open(path, 'r') as f:
+                return json.load(f)
+    except Exception:
+        pass
+    return {}
 
 class AutoTradingBot:
     def __init__(self):
@@ -63,8 +90,10 @@ class AutoTradingBot:
                 self.logs.pop()
 
     def get_status(self) -> dict:
+        persisted = _load_persistent_bot_state()
+        is_active = self.is_running or persisted.get("is_running", False)
         return {
-            "is_running": self.is_running,
+            "is_running": is_active,
             "scan_mode": self.scan_mode,
             "single_symbol": self.single_symbol,
             "strategy": self.strategy,
@@ -113,6 +142,15 @@ class AutoTradingBot:
                 self.use_atr_exits = bool(config["use_atr_exits"])
 
         self.is_running = True
+        _save_persistent_bot_state({
+            "is_running": True,
+            "scan_mode": self.scan_mode,
+            "strategy": self.strategy,
+            "allocation_per_trade": self.allocation_per_trade,
+            "use_ema200_filter": self.use_ema200_filter,
+            "use_trailing_stop": self.use_trailing_stop,
+            "use_atr_exits": self.use_atr_exits
+        })
         mode_label = "ALL NIFTY 50 STOCKS" if self.scan_mode == "ALL_NIFTY_50" else self.single_symbol
         ema_tag = "200 EMA Filter [ON]" if self.use_ema200_filter else "200 EMA Filter [OFF]"
         trail_tag = "Trailing Stop [ON]" if self.use_trailing_stop else "Trailing Stop [OFF]"
@@ -126,6 +164,7 @@ class AutoTradingBot:
 
     def stop(self):
         self.is_running = False
+        _save_persistent_bot_state({"is_running": False})
         self.add_log("Auto-Bot paused by operator", "WARNING")
         return {"success": True, "message": "Bot stopped", "status": self.get_status()}
 
