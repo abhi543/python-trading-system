@@ -243,9 +243,17 @@ def update_bot_config():
 def tick_bot():
     from app.services.bot import bot_instance
     body = request.get_json(silent=True) or {}
-    if "strategy" in body or "config" in body:
-        cfg = body.get("config") or body
+    cfg = body.get("config") or body
+    if cfg and isinstance(cfg, dict):
         bot_instance.update_config(cfg)
+
+    # Honor client's active status so serverless instances know the bot is active
+    client_running = body.get('is_running')
+    if client_running is None and isinstance(cfg, dict):
+        client_running = cfg.get('is_running')
+    if client_running is not None:
+        bot_instance.is_running = bool(client_running)
+
     event = body.get('event')
     symbol = body.get('symbol')
     res = bot_instance.evaluate_signals(simulation_event=event, target_symbol=symbol)

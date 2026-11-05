@@ -2117,10 +2117,11 @@
     function updateBotUI(data) {
         if (!data) return;
 
-        // Strictly synchronize bot active state with backend
-        if (data.is_running && !isBotActive) {
+        // Honor user's explicit local activation state so serverless restarts do not prematurely pause the bot
+        const localActive = localStorage.getItem('nifty_bot_active') === 'true';
+        if (localActive && !isBotActive) {
             setBotActiveState(true, false);
-        } else if (!data.is_running && isBotActive) {
+        } else if (!localActive && isBotActive) {
             setBotActiveState(false, false);
         }
 
@@ -2327,6 +2328,7 @@
 
     function getCurrentBotConfig() {
         return {
+            is_running: isBotActive,
             scan_mode: document.getElementById('bot-scan-mode')?.value || 'ALL_NIFTY_200',
             single_symbol: document.getElementById('bot-symbol')?.value?.trim()?.toUpperCase() || 'RELIANCE.NS',
             strategy: document.getElementById('bot-strategy')?.value || '123_REVERSAL',
@@ -2381,10 +2383,11 @@
 
         try {
             const cfg = getCurrentBotConfig();
+            cfg.is_running = isBotActive;
             const res = await fetch('/api/bot/tick', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ event: 'AFTER_HOURS_WALK', config: cfg })
+                body: JSON.stringify({ event: 'AFTER_HOURS_WALK', config: cfg, is_running: isBotActive })
             });
             const data = await res.json();
             if (data.bot_state) {

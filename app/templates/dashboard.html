@@ -797,7 +797,12 @@ async function fetchBotStatus() {
 }
 
 function updateBotUI(data) {
-    isBotActive = data.is_running;
+    const localActive = localStorage.getItem('nifty_bot_active') === 'true';
+    if (localActive !== null && localActive !== undefined) {
+        isBotActive = localActive;
+    } else {
+        isBotActive = !!data.is_running;
+    }
     
     // Update badge & pills
     const badge = document.getElementById('bot-tab-badge');

@@ -127,7 +127,8 @@ class AutoTradingBot:
                 self.logs.pop()
 
     def get_status(self) -> dict:
-        is_active = bool(self.is_running)
+        persisted = _load_persistent_bot_state()
+        is_active = self.is_running or persisted.get("is_running", False)
         after_hours = not is_nse_market_open()
         return {
             "is_running": is_active,
