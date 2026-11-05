@@ -59,7 +59,7 @@ class PaperTradingEngine:
         }
 
     @staticmethod
-    def execute_order(symbol: str, side: str, quantity: float):
+    def execute_order(symbol: str, side: str, quantity: float, execution_price: float = None):
         symbol = symbol.strip().upper()
         side = side.strip().upper()
         quantity = float(quantity)
@@ -70,11 +70,14 @@ class PaperTradingEngine:
         if side not in ["BUY", "SELL"]:
             return {"success": False, "message": "Side must be BUY or SELL"}
             
-        quote = MarketDataService.get_quote(symbol)
-        if "error" in quote:
-            return {"success": False, "message": f"Could not fetch price: {quote['error']}"}
+        if execution_price is not None and execution_price > 0:
+            price = round(float(execution_price), 2)
+        else:
+            quote = MarketDataService.get_quote(symbol)
+            if "error" in quote:
+                return {"success": False, "message": f"Could not fetch price: {quote['error']}"}
+            price = quote["price"]
             
-        price = quote["price"]
         total_cost = round(quantity * price, 2)
         account = Account.query.first()
         

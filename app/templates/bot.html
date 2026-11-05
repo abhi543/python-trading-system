@@ -46,6 +46,39 @@
             </div>
         </div>
 
+        <!-- AFTER-HOURS MARKET FEED & RISK SIMULATION LAB -->
+        <div class="bot-sim-lab-card">
+            <div class="sim-lab-header">
+                <div class="sim-lab-info">
+                    <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.35rem;">
+                        <span class="sim-lab-pill"><i class="fa-solid fa-flask-vial"></i> AFTER-HOURS TEST LAB</span>
+                        <span style="font-size: 0.72rem; color: #ffd166; font-weight: 700;"><i class="fa-solid fa-clock"></i> Market Closed (15:30 IST)</span>
+                    </div>
+                    <h3 style="margin: 0; font-size: 1.05rem; font-weight: 800; color: #fff;">Simulate Live Market Feed &amp; Test Risk Guards</h3>
+                    <p style="margin: 0.25rem 0 0 0; font-size: 0.8rem; color: var(--text-muted);">
+                        Market hours are over, but you can test your live bot right now. Inject simulated price ticks into your ₹10 Lakh portfolio to verify the <strong>Breakeven Shield</strong>, <strong>Trailing Stop</strong>, and <strong>Stop-Loss Liquidation</strong> live!
+                    </p>
+                </div>
+                <div class="sim-lab-actions">
+                    <button class="sim-action-btn sim-btn-surge" onclick="runSimulationEvent('BULL_SURGE')">
+                        <i class="fa-solid fa-shield-halved"></i> Test Bull Surge (+2.5% Breakeven Shield)
+                    </button>
+                    <button class="sim-action-btn sim-btn-trail" onclick="runSimulationEvent('TRAIL_PUSH')">
+                        <i class="fa-solid fa-arrow-trend-up"></i> Test Trail Stop (+4.5% Profit Lock)
+                    </button>
+                    <button class="sim-action-btn sim-btn-stop" onclick="runSimulationEvent('STOP_SHOCK')">
+                        <i class="fa-solid fa-circle-exclamation"></i> Test Stop-Loss Shock (-3.5% Exit)
+                    </button>
+                    <button class="sim-action-btn sim-btn-buy" onclick="runSimulationEvent('FORCE_BUY')">
+                        <i class="fa-solid fa-bolt"></i> Test Instant Buy
+                    </button>
+                    <button id="sim-continuous-toggle-btn" class="sim-action-btn sim-btn-loop" onclick="toggleContinuousSimulation()">
+                        <i class="fa-solid fa-play"></i> Continuous Live Ticks (Every 5s)
+                    </button>
+                </div>
+            </div>
+        </div>
+
         <!-- STRATEGY & RISK PARAMETERS CONTROLS -->
         <div class="bot-config-card">
             <div class="config-header">
@@ -558,6 +591,120 @@
         padding: 0.5rem;
         border-radius: 12px;
         border: 1px solid var(--border);
+    }
+
+    /* AFTER-HOURS SIMULATION LAB */
+    .bot-sim-lab-card {
+        background: linear-gradient(135deg, rgba(20, 27, 45, 0.95), rgba(13, 20, 36, 0.95));
+        border: 1px solid rgba(0, 240, 144, 0.25);
+        border-radius: 14px;
+        padding: 1.25rem 1.5rem;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35);
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+    }
+
+    .sim-lab-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 1.5rem;
+        flex-wrap: wrap;
+    }
+
+    .sim-lab-info {
+        flex: 1;
+        min-width: 280px;
+    }
+
+    .sim-lab-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        background: rgba(0, 240, 144, 0.15);
+        color: var(--green);
+        border: 1px solid rgba(0, 240, 144, 0.3);
+        padding: 2px 10px;
+        border-radius: 20px;
+        font-size: 0.68rem;
+        font-weight: 800;
+        letter-spacing: 0.05em;
+    }
+
+    .sim-lab-actions {
+        display: flex;
+        align-items: center;
+        gap: 0.65rem;
+        flex-wrap: wrap;
+    }
+
+    .sim-action-btn {
+        padding: 0.65rem 1rem;
+        border-radius: 8px;
+        font-size: 0.78rem;
+        font-weight: 700;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        transition: all 0.2s;
+        border: 1px solid transparent;
+    }
+
+    .sim-btn-surge {
+        background: rgba(0, 240, 144, 0.12);
+        color: var(--green);
+        border-color: rgba(0, 240, 144, 0.3);
+    }
+    .sim-btn-surge:hover {
+        background: var(--green);
+        color: #000;
+        transform: translateY(-2px);
+    }
+
+    .sim-btn-trail {
+        background: rgba(0, 212, 255, 0.12);
+        color: var(--blue);
+        border-color: rgba(0, 212, 255, 0.3);
+    }
+    .sim-btn-trail:hover {
+        background: var(--blue);
+        color: #000;
+        transform: translateY(-2px);
+    }
+
+    .sim-btn-stop {
+        background: rgba(255, 51, 102, 0.12);
+        color: var(--red);
+        border-color: rgba(255, 51, 102, 0.3);
+    }
+    .sim-btn-stop:hover {
+        background: var(--red);
+        color: #fff;
+        transform: translateY(-2px);
+    }
+
+    .sim-btn-buy {
+        background: rgba(255, 209, 102, 0.12);
+        color: #ffd166;
+        border-color: rgba(255, 209, 102, 0.3);
+    }
+    .sim-btn-buy:hover {
+        background: #ffd166;
+        color: #000;
+        transform: translateY(-2px);
+    }
+
+    .sim-btn-loop {
+        background: rgba(167, 139, 250, 0.15);
+        color: #a78bfa;
+        border-color: rgba(167, 139, 250, 0.35);
+    }
+    .sim-btn-loop:hover, .sim-btn-loop.active {
+        background: #a78bfa;
+        color: #000;
+        box-shadow: 0 0 15px rgba(167, 139, 250, 0.5);
     }
 
     .mode-tab-btn {
@@ -1527,6 +1674,64 @@
                 btn.disabled = false;
             }
             isScanning = false;
+        }
+    }
+
+    let continuousSimTimer = null;
+    let isContinuousSim = false;
+
+    async function runSimulationEvent(eventType, symbol = null) {
+        showToast(`Injecting test event: ${eventType}...`, 'info');
+        try {
+            const res = await fetch('/api/bot/simulate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ event: eventType, symbol: symbol })
+            });
+            const data = await res.json();
+            if (data.bot_state) {
+                updateBotUI(data.bot_state);
+            }
+            loadAccountMetrics();
+            loadBotHoldings();
+            
+            if (eventType === 'BULL_SURGE') {
+                showToast('🚀 Bull surge (+2.5%) injected! Breakeven Shield activated on open positions.', 'success');
+            } else if (eventType === 'TRAIL_PUSH') {
+                showToast('📈 Trail push (+4.5%) injected! Stop-loss raised higher to lock profits.', 'success');
+            } else if (eventType === 'STOP_SHOCK') {
+                showToast('🛑 Stop shock (-3.5%) injected! Defensive liquidation executed.', 'warning');
+            } else if (eventType === 'FORCE_BUY') {
+                showToast('⚡ Instant Golden Cross BUY executed into portfolio.', 'success');
+            }
+        } catch (err) {
+            showToast('Simulation event failed: ' + err.message, 'error');
+        }
+    }
+
+    function toggleContinuousSimulation() {
+        isContinuousSim = !isContinuousSim;
+        const btn = document.getElementById('sim-continuous-toggle-btn');
+        if (isContinuousSim) {
+            if (btn) {
+                btn.classList.add('active');
+                btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Live Mock Feed: ACTIVE (Every 5s)';
+            }
+            showToast('Continuous Live Feed Simulator started! Bot scanning every 5s with micro-ticks.', 'success');
+            runSimulationEvent('RANDOM_WALK');
+            continuousSimTimer = setInterval(() => {
+                runSimulationEvent('RANDOM_WALK');
+            }, 5000);
+        } else {
+            if (continuousSimTimer) {
+                clearInterval(continuousSimTimer);
+                continuousSimTimer = null;
+            }
+            if (btn) {
+                btn.classList.remove('active');
+                btn.innerHTML = '<i class="fa-solid fa-play"></i> Continuous Live Ticks (Every 5s)';
+            }
+            showToast('Continuous Live Feed paused.', 'info');
         }
     }
 

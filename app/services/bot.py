@@ -229,7 +229,7 @@ class AutoTradingBot:
             if sl_level > 0 and current_price <= sl_level:
                 lock_pnl = ((current_price - avg_price) / avg_price) * 100
                 self.add_log(f"🛑 [STOP HIT] {display_name}: Liquidated @ ₹{current_price:.2f} (Stop was ₹{sl_level:.2f}, Result: {lock_pnl:+.2f}%)", "ERROR" if lock_pnl < 0 else "SUCCESS")
-                exec_res = PaperTradingEngine.execute_order(symbol, "SELL", pos.quantity)
+                exec_res = PaperTradingEngine.execute_order(symbol, "SELL", pos.quantity, execution_price=current_price)
                 return {
                     "symbol": symbol, "displayName": display_name, "price": current_price,
                     "change_pct": change_pct, "signal": "STOP_LOSS", "reason": f"Trailing Stop hit @ ₹{current_price:.2f} ({lock_pnl:+.2f}%)",
@@ -239,7 +239,7 @@ class AutoTradingBot:
             # Check if Fixed % Stop-Loss triggered
             if pnl_pct <= -abs(self.stop_loss_pct):
                 self.add_log(f"[STOP-LOSS] {display_name}: Hit -{abs(pnl_pct):.2f}% <= -{self.stop_loss_pct}%. Liquidating {pos.quantity} shares @ ₹{current_price:.2f}", "ERROR")
-                exec_res = PaperTradingEngine.execute_order(symbol, "SELL", pos.quantity)
+                exec_res = PaperTradingEngine.execute_order(symbol, "SELL", pos.quantity, execution_price=current_price)
                 return {
                     "symbol": symbol, "displayName": display_name, "price": current_price,
                     "change_pct": change_pct, "signal": "STOP_LOSS", "reason": f"Stop-Loss triggered at {pnl_pct:.2f}%",
@@ -250,7 +250,7 @@ class AutoTradingBot:
             tp_level = getattr(pos, 'take_profit', 0.0) or 0.0
             if (tp_level > 0 and current_price >= tp_level) or (pnl_pct >= abs(self.take_profit_pct)):
                 self.add_log(f"🎯 [TAKE-PROFIT] {display_name}: Hit +{pnl_pct:.2f}%. Selling {pos.quantity} shares @ ₹{current_price:.2f} to lock gains!", "SUCCESS")
-                exec_res = PaperTradingEngine.execute_order(symbol, "SELL", pos.quantity)
+                exec_res = PaperTradingEngine.execute_order(symbol, "SELL", pos.quantity, execution_price=current_price)
                 return {
                     "symbol": symbol, "displayName": display_name, "price": current_price,
                     "change_pct": change_pct, "signal": "TAKE_PROFIT", "reason": f"Take-Profit target achieved at +{pnl_pct:.2f}%",
@@ -344,9 +344,50 @@ class AutoTradingBot:
             "action_executed": None
         }
 
-    def evaluate_signals(self) -> dict:
+    def evaluate_signals(self, simulation_event: str = None, target_symbol: str = None) -> dict:
         """Runs the scanner across all Nifty 50 constituents (or single stock) and auto-trades"""
+        import random
         self.last_run_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+        # 1. Handle After-Hours Instant Test Triggers
+        if simulation_event == "FORCE_BUY":
+            force_sym = (target_symbol or "RELIANCE.NS").strip().upper()
+            quote = MarketDataService.get_quote(force_sym)
+            p = quote.get("price", 1500.0) if "error" not in quote else 1500.0
+            trade_qty = max(1, int(self.allocation_per_trade / p))
+            PaperTradingEngine.execute_order(force_sym, "BUY", trade_qty, execution_price=p)
+            pos_rec = Position.query.filter_by(symbol=force_sym).first()
+            if pos_rec:
+                pos_rec.stop_loss = round(p * 0.975, 2)
+                pos_rec.take_profit = round(p * 1.05, 2)
+                pos_rec.peak_price = p
+                pos_rec.trailing_active = False
+                try:
+                    db.session.commit()
+                except Exception:
+                    pass
+            self.add_log(f"⚡ [TEST SIGNAL] Instant BUY executed: {trade_qty} shares of {force_sym.replace('.NS', '')} @ ₹{p:.2f} (Total: ₹{trade_qty*p:,.2f})", "SUCCESS")
+
+        elif simulation_event in ["BULL_SURGE", "TRAIL_PUSH", "STOP_SHOCK"]:
+            # If no open positions exist, automatically seed one so the user can immediately observe the risk exit!
+            held_positions = Position.query.filter(Position.quantity > 0).all()
+            if not held_positions:
+                seed_sym = "RELIANCE.NS"
+                quote = MarketDataService.get_quote(seed_sym)
+                p = quote.get("price", 1500.0) if "error" not in quote else 1500.0
+                trade_qty = max(1, int(self.allocation_per_trade / p))
+                PaperTradingEngine.execute_order(seed_sym, "BUY", trade_qty, execution_price=p)
+                pos_rec = Position.query.filter_by(symbol=seed_sym).first()
+                if pos_rec:
+                    pos_rec.stop_loss = round(p * 0.975, 2)
+                    pos_rec.take_profit = round(p * 1.05, 2)
+                    pos_rec.peak_price = p
+                    pos_rec.trailing_active = False
+                    try:
+                        db.session.commit()
+                    except Exception:
+                        pass
+                self.add_log(f"💡 [SIMULATOR] Auto-seeded 1 test position ({seed_sym.replace('.NS','')}) for instant guard verification.", "INFO")
 
         # Get existing positions & cash balance
         held_positions = Position.query.filter(Position.quantity > 0).all()
@@ -371,6 +412,33 @@ class AutoTradingBot:
                         stock_data_map[sym] = data
                 except Exception:
                     pass
+
+        # Apply Simulated Price Ticks if Simulation Mode / Event is active
+        for symbol, stock_data in stock_data_map.items():
+            pos = held_map.get(symbol)
+            orig_p = stock_data["price"]
+            
+            if simulation_event == "BULL_SURGE" and pos:
+                # Force price up to +2.5% above entry to trigger Breakeven Shield
+                surged_price = round(pos.average_price * 1.025, 2)
+                stock_data["price"] = surged_price
+                stock_data["percent_change"] = round(((surged_price - pos.average_price) / pos.average_price) * 100, 2)
+            elif simulation_event == "TRAIL_PUSH" and pos:
+                # Force price up to +4.5% to trail stop upward
+                trailed_price = round(pos.average_price * 1.045, 2)
+                stock_data["price"] = trailed_price
+                stock_data["percent_change"] = round(((trailed_price - pos.average_price) / pos.average_price) * 100, 2)
+            elif simulation_event == "STOP_SHOCK" and pos:
+                # Drop price to -3.5% below stop loss level to trigger liquidation
+                shocked_price = round(pos.average_price * 0.965, 2)
+                stock_data["price"] = shocked_price
+                stock_data["percent_change"] = -3.5
+            elif simulation_event == "RANDOM_WALK":
+                # Micro fluctuation: random drift between -0.4% and +0.5%
+                drift = random.uniform(-0.004, +0.005)
+                walk_price = round(orig_p * (1.0 + drift), 2)
+                stock_data["price"] = walk_price
+                stock_data["percent_change"] = round((stock_data.get("percent_change", 0.0) or 0.0) + (drift * 100), 2)
 
         scanner_results = []
         buys_found = 0
@@ -400,7 +468,7 @@ class AutoTradingBot:
                     total_cost = trade_qty * price
 
                     if available_cash >= total_cost:
-                        exec_res = PaperTradingEngine.execute_order(symbol, "BUY", trade_qty)
+                        exec_res = PaperTradingEngine.execute_order(symbol, "BUY", trade_qty, execution_price=price)
                         if exec_res.get("success"):
                             trades_executed += 1
                             available_cash -= total_cost
@@ -434,7 +502,7 @@ class AutoTradingBot:
                 # If we hold this stock, exit position
                 if symbol in held_map:
                     pos = held_map[symbol]
-                    exec_res = PaperTradingEngine.execute_order(symbol, "SELL", pos.quantity)
+                    exec_res = PaperTradingEngine.execute_order(symbol, "SELL", pos.quantity, execution_price=price)
                     if exec_res.get("success"):
                         trades_executed += 1
                         eval_res["action_executed"] = f"SOLD {pos.quantity} SHARES"

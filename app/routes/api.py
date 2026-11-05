@@ -155,9 +155,26 @@ def stop_bot():
 @api_bp.route('/bot/tick', methods=['POST'])
 def tick_bot():
     from app.services.bot import bot_instance
-    res = bot_instance.evaluate_signals()
+    body = request.get_json(silent=True) or {}
+    event = body.get('event')
+    symbol = body.get('symbol')
+    res = bot_instance.evaluate_signals(simulation_event=event, target_symbol=symbol)
     return jsonify({
         "status": "evaluated",
+        "result": res,
+        "bot_state": bot_instance.get_status()
+    })
+
+@api_bp.route('/bot/simulate', methods=['POST'])
+def simulate_bot():
+    from app.services.bot import bot_instance
+    body = request.get_json(silent=True) or {}
+    event = body.get('event', 'RANDOM_WALK')
+    symbol = body.get('symbol')
+    res = bot_instance.evaluate_signals(simulation_event=event, target_symbol=symbol)
+    return jsonify({
+        "status": "simulated",
+        "event": event,
         "result": res,
         "bot_state": bot_instance.get_status()
     })
