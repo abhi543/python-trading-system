@@ -47,6 +47,9 @@
                 <button id="bot-scan-btn" class="btn-bot-scan" onclick="tickBotNow()">
                     <i class="fa-solid fa-arrows-rotate"></i> SCAN BASKET NOW
                 </button>
+                <button id="bot-reset-portfolio-btn" class="btn-bot-scan" style="border-color: rgba(255, 75, 75, 0.4); color: #ff7575;" onclick="resetPortfolioTo10Lakh()" title="Liquidate all positions and reset portfolio back to ₹10 Lakh">
+                    <i class="fa-solid fa-rotate-left"></i> RESET PORTFOLIO (₹10L)
+                </button>
 
                 <!-- AFTER-HOURS SIMULATION DROPDOWN MENU -->
                 <div class="bot-dropdown-wrapper" id="sim-dropdown-wrapper">
@@ -299,6 +302,9 @@
                             </button>
                             <button class="btn-sm btn-outline" onclick="refreshCurrentLedgerTab()">
                                 <i class="fa-solid fa-rotate"></i> Refresh
+                            </button>
+                            <button class="btn-sm btn-outline" style="color: #ff7575; border-color: rgba(255, 75, 75, 0.4); font-weight: 700;" onclick="resetPortfolioTo10Lakh()" title="Reset portfolio cash to ₹10,00,000 and clear holdings">
+                                <i class="fa-solid fa-rotate-left"></i> Reset to ₹10L
                             </button>
                         </div>
                     </div>
@@ -2780,6 +2786,26 @@
             }
         } catch (e) {
             showToast('Failed to submit order', 'error');
+        }
+    }
+
+    async function resetPortfolioTo10Lakh() {
+        if (!confirm('Are you sure you want to reset your portfolio back to ₹10,00,000?\n\n• Cash balance will be restored to ₹10,00,000\n• All open positions will be cleared\n• Trade history and closed trades report will be reset')) return;
+
+        try {
+            const res = await fetch('/api/reset-account', { method: 'POST' });
+            const data = await res.json();
+            if (data.success) {
+                showToast('Portfolio successfully reset back to ₹10,00,000 cash!', 'success');
+                loadAccountMetrics();
+                loadBotHoldings();
+                loadClosedTradesReport();
+                fetchBotStatus();
+            } else {
+                showToast('Reset failed: ' + (data.message || 'Error'), 'error');
+            }
+        } catch (e) {
+            showToast('Reset request failed: ' + e.message, 'error');
         }
     }
 

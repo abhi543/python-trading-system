@@ -775,8 +775,8 @@
                 <span class="metric-title">UNREALIZED P&L</span>
                 <span class="metric-value" id="nav-pnl">₹0.00</span>
             </div>
-            <button id="reset-account-btn" class="btn-reset" title="Reset portfolio to ₹10,00,000 (NIFTY 50)">
-                <i class="fa-solid fa-rotate-left"></i> Reset Desk
+            <button id="reset-account-btn" class="btn-reset" style="background: rgba(255, 75, 75, 0.15); color: #ff7575; border: 1px solid rgba(255, 75, 75, 0.4); font-weight: 700; padding: 0.45rem 0.85rem;" title="Reset portfolio balance back to ₹10 Lakh (₹10,00,000)">
+                <i class="fa-solid fa-rotate-left"></i> Reset to ₹10 Lakh
             </button>
         </div>
     </header>
@@ -804,6 +804,7 @@
                             
                             if (typeof loadPortfolio === 'function') loadPortfolio();
                             if (typeof loadBotHoldings === 'function') loadBotHoldings();
+                            if (typeof loadClosedTradesReport === 'function') loadClosedTradesReport();
                             if (typeof fetchBotStatus === 'function') fetchBotStatus();
                             if (typeof loadWatchlist === 'function') loadWatchlist();
                             
