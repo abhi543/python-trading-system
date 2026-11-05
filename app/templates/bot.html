@@ -102,7 +102,8 @@
                 <div class="config-item">
                     <label><i class="fa-solid fa-chart-line"></i> STRATEGY MODEL</label>
                     <select id="bot-strategy" class="config-select">
-                        <option value="SMA_CROSSOVER" selected>Dual SMA Golden/Death Cross (9 / 21)</option>
+                        <option value="123_REVERSAL" selected>1-2-3 Reversal Map [AGPro Series v2.1] (Neckline Break &amp; Target)</option>
+                        <option value="SMA_CROSSOVER">Dual SMA Golden/Death Cross (9 / 21)</option>
                         <option value="RSI_MOMENTUM">RSI Mean Reversion (14-Period, 35/65)</option>
                     </select>
                 </div>
@@ -368,6 +369,14 @@
                         <h3><i class="fa-solid fa-book-bookmark" style="color: #ffd166;"></i> Strategy Blueprint & Rules</h3>
                     </div>
                     <div class="rules-body">
+                        <div class="rule-item">
+                            <div class="rule-icon"><i class="fa-solid fa-draw-polygon" style="color: #ffd166;"></i></div>
+                            <div>
+                                <h4>1-2-3 Reversal Map [AGPro Series v2.1]</h4>
+                                <p>Maps confirmed Point 1 (Swing Low/High), Point 2 (Neckline), and Point 3 (Higher Low / Lower High). Confirms on Neckline break with 0-100 Reversal Score, <strong>Measured Move Target</strong> ($P1 \to P2$ height), and <strong>Point 3 Stop Loss Buffer</strong>.</p>
+                            </div>
+                        </div>
+
                         <div class="rule-item">
                             <div class="rule-icon"><i class="fa-solid fa-chart-line" style="color: var(--blue);"></i></div>
                             <div>
@@ -1642,7 +1651,10 @@
             const changeSign = (s.change_pct || 0) >= 0 ? '+' : '';
             
             let indText = s.reason || '--';
-            if (s.fast_sma && s.slow_sma) {
+            if (s.reversal_score !== undefined && s.reversal_score !== null) {
+                const gradeColor = (s.reversal_grade === 'A+' || s.reversal_grade === 'A') ? 'var(--green)' : '#ffd166';
+                indText = `<span style="color: ${gradeColor}; font-weight: 700;"><i class="fa-solid fa-draw-polygon"></i> 1-2-3 [${s.reversal_score} ${s.reversal_grade || ''}]</span> <span style="font-size: 0.72rem; color: var(--text-muted);">${s.reason}</span>`;
+            } else if (s.fast_sma && s.slow_sma) {
                 indText = `SMA9: ₹${s.fast_sma} | SMA21: ₹${s.slow_sma}`;
             } else if (s.rsi !== undefined && s.rsi !== null) {
                 indText = `RSI: ${s.rsi}`;

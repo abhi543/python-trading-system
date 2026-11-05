@@ -88,6 +88,7 @@ class MarketDataService:
         raw_closes = quotes.get('close', [])
         raw_highs = quotes.get('high', [])
         raw_lows = quotes.get('low', [])
+        raw_opens = quotes.get('open', [])
         raw_vols = quotes.get('volume', [])
 
         valid_data = []
@@ -96,8 +97,9 @@ class MarketDataService:
             if c is not None:
                 h = raw_highs[i] if i < len(raw_highs) and raw_highs[i] is not None else c
                 l = raw_lows[i] if i < len(raw_lows) and raw_lows[i] is not None else c
+                o = raw_opens[i] if i < len(raw_opens) and raw_opens[i] is not None else c
                 v = raw_vols[i] if i < len(raw_vols) and raw_vols[i] is not None else 0
-                valid_data.append({'close': float(c), 'high': float(h), 'low': float(l), 'volume': float(v)})
+                valid_data.append({'close': float(c), 'high': float(h), 'low': float(l), 'open': float(o), 'volume': float(v)})
 
         if not valid_data:
             return {"error": f"No valid price series for {symbol}"}
@@ -105,6 +107,10 @@ class MarketDataService:
         import pandas as pd
         df = pd.DataFrame(valid_data)
         valid_closes = df['close'].tolist()
+        valid_highs = df['high'].tolist()
+        valid_lows = df['low'].tolist()
+        valid_opens = df['open'].tolist()
+        valid_volumes = df['volume'].tolist()
 
         if current_price is None:
             current_price = valid_closes[-1]
@@ -149,6 +155,10 @@ class MarketDataService:
             "price": round(float(current_price), 2),
             "percent_change": round(float(percent_change), 2),
             "closes": valid_closes,
+            "highs": valid_highs,
+            "lows": valid_lows,
+            "opens": valid_opens,
+            "volumes": valid_volumes,
             "ema_200": ema_200,
             "trend_200": trend_200,
             "vol_ratio": vol_ratio,

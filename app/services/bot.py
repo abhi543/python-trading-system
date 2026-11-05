@@ -315,8 +315,34 @@ class AutoTradingBot:
         fast_sma = None
         slow_sma = None
         rsi_val = None
+        suggested_sl = None
+        suggested_tp = None
+        reversal_score = None
+        reversal_grade = None
 
-        if self.strategy == "SMA_CROSSOVER":
+        if self.strategy == "123_REVERSAL":
+            from app.services.reversal_123 import Reversal123Engine
+            highs = stock_data.get("highs") or closes
+            lows = stock_data.get("lows") or closes
+            opens = stock_data.get("opens") or closes
+            vols = stock_data.get("volumes") or [1.0] * len(closes)
+
+            df_pat = pd.DataFrame({
+                "high": highs,
+                "low": lows,
+                "close": closes,
+                "open": opens,
+                "volume": vols
+            })
+            pat_res = Reversal123Engine.evaluate_123_reversal(df_pat)
+            signal = pat_res.get("signal", "HOLD")
+            reason = pat_res.get("reason", "1-2-3 Scanning")
+            reversal_score = pat_res.get("score")
+            reversal_grade = pat_res.get("grade")
+            suggested_sl = pat_res.get("stop_loss_price")
+            suggested_tp = pat_res.get("target_price")
+
+        elif self.strategy == "SMA_CROSSOVER":
             sma_fast = s_closes.rolling(window=self.fast_period).mean()
             sma_slow = s_closes.rolling(window=self.slow_period).mean()
             
@@ -378,6 +404,10 @@ class AutoTradingBot:
             "fast_sma": fast_sma,
             "slow_sma": slow_sma,
             "rsi": rsi_val,
+            "reversal_score": reversal_score,
+            "reversal_grade": reversal_grade,
+            "suggested_sl": suggested_sl,
+            "suggested_tp": suggested_tp,
             "ema_200": ema_200,
             "trend_200": trend_200,
             "vol_ratio": vol_ratio,
@@ -529,7 +559,10 @@ class AutoTradingBot:
                             pos_rec = Position.query.filter_by(symbol=symbol).first()
                             if pos_rec:
                                 atr_val = eval_res.get("atr_14") or (price * 0.025)
-                                if self.use_atr_exits:
+                                if eval_res.get("suggested_sl") and eval_res.get("suggested_tp"):
+                                    pos_rec.stop_loss = eval_res["suggested_sl"]
+                                    pos_rec.take_profit = eval_res["suggested_tp"]
+                                elif self.use_atr_exits:
                                     pos_rec.stop_loss = round(price - (self.atr_multiplier_sl * atr_val), 2)
                                     pos_rec.take_profit = round(price + (self.atr_multiplier_tp * atr_val), 2)
                                 else:
