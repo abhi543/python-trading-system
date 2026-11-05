@@ -942,8 +942,8 @@ async function toggleBot() {
             allocation_per_trade: parseFloat(document.getElementById('bot-allocation').value) || 50000,
             max_positions: parseInt(document.getElementById('bot-max-positions').value) || 10,
             interval_seconds: 20,
-            stop_loss_pct: parseFloat(document.getElementById('bot-stop-loss').value) || 2.5,
-            take_profit_pct: parseFloat(document.getElementById('bot-take-profit').value) || 5.0
+            stop_loss_pct: parseFloat(document.getElementById('bot-stop-loss').value) || 1.0,
+            take_profit_pct: parseFloat(document.getElementById('bot-take-profit').value) || 1.0
         };
 
         try {

@@ -88,8 +88,8 @@ class AutoTradingBot:
         self.rsi_period = 14
         self.rsi_oversold = 35
         self.rsi_overbought = 65
-        self.stop_loss_pct = 2.5             # 2.5% Stop loss
-        self.take_profit_pct = 5.0           # 5.0% Take profit
+        self.stop_loss_pct = 1.0             # 1.0% Stop loss
+        self.take_profit_pct = 1.0           # 1.0% Take profit
         
         # Option A: Macro Trend & Volume Confirmation
         self.use_ema200_filter = True        # Only BUY if price >= 200 EMA
@@ -97,8 +97,8 @@ class AutoTradingBot:
         
         # Option B: Trailing Stop-Loss & Dynamic ATR Exits
         self.use_trailing_stop = True        # Breakeven & Trailing stop
-        self.trailing_trigger_pct = 2.0      # Breakeven ratchet triggered at +2.0%
-        self.use_atr_exits = True            # Dynamic ATR-based exits
+        self.trailing_trigger_pct = 1.0      # Breakeven ratchet triggered at +1.0%
+        self.use_atr_exits = False           # Dynamic ATR-based exits
         self.atr_multiplier_sl = 1.5         # 1.5x ATR initial stop
         self.atr_multiplier_tp = 3.0         # 3.0x ATR profit target
         
@@ -448,8 +448,8 @@ class AutoTradingBot:
             PaperTradingEngine.execute_order(force_sym, "BUY", trade_qty, execution_price=p)
             pos_rec = Position.query.filter_by(symbol=force_sym).first()
             if pos_rec:
-                pos_rec.stop_loss = round(p * 0.975, 2)
-                pos_rec.take_profit = round(p * 1.05, 2)
+                pos_rec.stop_loss = round(p * (1 - self.stop_loss_pct / 100), 2)
+                pos_rec.take_profit = round(p * (1 + self.take_profit_pct / 100), 2)
                 pos_rec.peak_price = p
                 pos_rec.trailing_active = False
                 try:
@@ -469,8 +469,8 @@ class AutoTradingBot:
                 PaperTradingEngine.execute_order(seed_sym, "BUY", trade_qty, execution_price=p)
                 pos_rec = Position.query.filter_by(symbol=seed_sym).first()
                 if pos_rec:
-                    pos_rec.stop_loss = round(p * 0.975, 2)
-                    pos_rec.take_profit = round(p * 1.05, 2)
+                    pos_rec.stop_loss = round(p * (1 - self.stop_loss_pct / 100), 2)
+                    pos_rec.take_profit = round(p * (1 + self.take_profit_pct / 100), 2)
                     pos_rec.peak_price = p
                     pos_rec.trailing_active = False
                     try:

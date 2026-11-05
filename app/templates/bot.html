@@ -156,17 +156,17 @@
 
                 <div class="config-item">
                     <label><i class="fa-solid fa-arrow-down" style="color: var(--red);"></i> STOP-LOSS (%)</label>
-                    <input type="number" id="bot-stop-loss" class="config-input" value="2.5" step="0.5" min="0.5">
+                    <input type="number" id="bot-stop-loss" class="config-input" value="1.0" step="0.1" min="0.1" onchange="onStrategyChange()">
                 </div>
 
                 <div class="config-item">
                     <label><i class="fa-solid fa-arrow-up" style="color: var(--green);"></i> TAKE-PROFIT (%)</label>
-                    <input type="number" id="bot-take-profit" class="config-input" value="5.0" step="0.5" min="1.0">
+                    <input type="number" id="bot-take-profit" class="config-input" value="1.0" step="0.1" min="0.1" onchange="onStrategyChange()">
                 </div>
 
                 <div class="config-item" style="display: flex; flex-direction: column; justify-content: center;">
                     <label style="cursor: pointer; display: flex; align-items: center; gap: 0.5rem;">
-                        <input type="checkbox" id="bot-use-ema200" checked style="accent-color: var(--green); width: 16px; height: 16px;">
+                        <input type="checkbox" id="bot-use-ema200" checked style="accent-color: var(--green); width: 16px; height: 16px;" onchange="onStrategyChange()">
                         <span><i class="fa-solid fa-shield-halved" style="color: var(--green);"></i> 200 EMA Trend Filter</span>
                     </label>
                     <span style="font-size: 0.68rem; color: var(--text-muted); margin-top: 3px;">Only BUY if price &gt; 200 EMA</span>
@@ -174,15 +174,15 @@
 
                 <div class="config-item" style="display: flex; flex-direction: column; justify-content: center;">
                     <label style="cursor: pointer; display: flex; align-items: center; gap: 0.5rem;">
-                        <input type="checkbox" id="bot-use-trailing" checked style="accent-color: var(--blue); width: 16px; height: 16px;">
+                        <input type="checkbox" id="bot-use-trailing" checked style="accent-color: var(--blue); width: 16px; height: 16px;" onchange="onStrategyChange()">
                         <span><i class="fa-solid fa-shield-heart" style="color: var(--blue);"></i> Trailing Stop &amp; Breakeven</span>
                     </label>
-                    <span style="font-size: 0.68rem; color: var(--text-muted); margin-top: 3px;">Ratchets to Breakeven at +2.0%</span>
+                    <span style="font-size: 0.68rem; color: var(--text-muted); margin-top: 3px;">Ratchets to Breakeven at +1.0%</span>
                 </div>
 
                 <div class="config-item" style="display: flex; flex-direction: column; justify-content: center;">
                     <label style="cursor: pointer; display: flex; align-items: center; gap: 0.5rem;">
-                        <input type="checkbox" id="bot-use-atr" checked style="accent-color: #a78bfa; width: 16px; height: 16px;">
+                        <input type="checkbox" id="bot-use-atr" style="accent-color: #a78bfa; width: 16px; height: 16px;" onchange="onStrategyChange()">
                         <span><i class="fa-solid fa-arrows-split-up-and-left" style="color: #a78bfa;"></i> ATR Dynamic Exits</span>
                     </label>
                     <span style="font-size: 0.68rem; color: var(--text-muted); margin-top: 3px;">1.5x ATR Stop / 3.0x ATR Target</span>
@@ -313,8 +313,8 @@
                                     <th>CURRENT</th>
                                     <th>P&L (₹)</th>
                                     <th>P&L (%)</th>
-                                    <th>STOP-LOSS (-2.5%)</th>
-                                    <th>TARGET (+5.0%)</th>
+                                    <th>STOP-LOSS (-1.0%)</th>
+                                    <th>TARGET (+1.0%)</th>
                                     <th>MANUAL EXIT</th>
                                 </tr>
                             </thead>
@@ -701,7 +701,7 @@
                     <label><i class="fa-solid fa-shield-heart" style="color: var(--blue);"></i> BREAKEVEN &amp; TRAILING STOP</label>
                     <select id="replay-trailing-toggle" class="config-select">
                         <option value="true" selected>ARMED (Breakeven @ +2.0% &amp; ATR Trail)</option>
-                        <option value="false">Fixed -2.5% Stop Loss</option>
+                        <option value="false">Fixed -1.0% Stop Loss</option>
                     </select>
                 </div>
             </div>
@@ -2253,8 +2253,8 @@
                 allocation_per_trade: parseFloat(document.getElementById('bot-allocation').value) || 50000,
                 max_positions: parseInt(document.getElementById('bot-max-positions').value) || 10,
                 interval_seconds: 20,
-                stop_loss_pct: parseFloat(document.getElementById('bot-stop-loss').value) || 2.5,
-                take_profit_pct: parseFloat(document.getElementById('bot-take-profit').value) || 5.0,
+                stop_loss_pct: parseFloat(document.getElementById('bot-stop-loss').value) || 1.0,
+                take_profit_pct: parseFloat(document.getElementById('bot-take-profit').value) || 1.0,
                 use_ema200_filter: document.getElementById('bot-use-ema200').checked,
                 use_volume_filter: document.getElementById('bot-use-vol').checked,
                 use_trailing_stop: document.getElementById('bot-use-trailing').checked,
@@ -2283,12 +2283,12 @@
             allocation_per_trade: parseFloat(document.getElementById('bot-allocation')?.value) || 50000,
             max_positions: parseInt(document.getElementById('bot-max-positions')?.value) || 10,
             interval_seconds: 20,
-            stop_loss_pct: parseFloat(document.getElementById('bot-stop-loss')?.value) || 2.5,
-            take_profit_pct: parseFloat(document.getElementById('bot-take-profit')?.value) || 5.0,
+            stop_loss_pct: parseFloat(document.getElementById('bot-stop-loss')?.value) || 1.0,
+            take_profit_pct: parseFloat(document.getElementById('bot-take-profit')?.value) || 1.0,
             use_ema200_filter: document.getElementById('bot-use-ema200')?.checked ?? true,
             use_volume_filter: document.getElementById('bot-use-vol')?.checked ?? true,
             use_trailing_stop: document.getElementById('bot-use-trailing')?.checked ?? true,
-            use_atr_exits: document.getElementById('bot-use-atr')?.checked ?? true
+            use_atr_exits: document.getElementById('bot-use-atr')?.checked ?? false
         };
     }
 
