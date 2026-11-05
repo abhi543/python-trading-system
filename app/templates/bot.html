@@ -244,17 +244,29 @@
                     </div>
                 </div>
 
-                <!-- ACTIVE BOT HOLDINGS -->
+                <!-- PORTFOLIO LEDGER: ACTIVE HOLDINGS & CLOSED TRADES REPORT -->
                 <div class="bot-section-card" style="margin-top: 1.5rem;">
-                    <div class="section-card-header">
-                        <div>
-                            <h3><i class="fa-solid fa-briefcase" style="color: var(--green);"></i> Active Portfolio Positions</h3>
-                            <span class="card-caption">Live paper holdings managed under automated stop-loss and take-profit</span>
+                    <div class="section-card-header" style="flex-wrap: wrap; gap: 0.75rem;">
+                        <div class="ledger-tab-buttons" style="display: flex; gap: 0.5rem;">
+                            <button id="tab-btn-active-holdings" class="ledger-tab-btn active" onclick="switchLedgerTab('active')">
+                                <i class="fa-solid fa-briefcase" style="color: var(--green);"></i> Active Holdings (<span id="holdings-badge-count">0</span>)
+                            </button>
+                            <button id="tab-btn-closed-trades" class="ledger-tab-btn" onclick="switchLedgerTab('closed')">
+                                <i class="fa-solid fa-receipt" style="color: #ffd166;"></i> Closed Trades Report (<span id="closed-trades-badge-count">0</span>)
+                            </button>
                         </div>
-                        <button class="btn-sm btn-outline" onclick="loadBotHoldings()"><i class="fa-solid fa-rotate"></i> Refresh</button>
+                        <div style="display: flex; gap: 0.5rem; align-items: center;">
+                            <button id="btn-export-csv" class="btn-sm btn-outline" onclick="exportClosedTradesCSV()" style="display: none;">
+                                <i class="fa-solid fa-file-csv" style="color: var(--green);"></i> Export CSV
+                            </button>
+                            <button class="btn-sm btn-outline" onclick="refreshCurrentLedgerTab()">
+                                <i class="fa-solid fa-rotate"></i> Refresh
+                            </button>
+                        </div>
                     </div>
 
-                    <div class="table-wrapper">
+                    <!-- TAB 1: ACTIVE HOLDINGS -->
+                    <div id="view-active-holdings" class="table-wrapper">
                         <table class="data-table">
                             <thead>
                                 <tr>
@@ -276,6 +288,55 @@
                             </tbody>
                         </table>
                     </div>
+
+                    <!-- TAB 2: CLOSED TRADES REPORT & PERFORMANCE SCORECARD -->
+                    <div id="view-closed-trades" style="display: none; padding: 1rem 1.25rem;">
+                        <!-- SCORECARD METRICS STRIP -->
+                        <div class="closed-trades-scorecard">
+                            <div class="score-card-item">
+                                <span class="score-label">NET REALIZED P&L</span>
+                                <span class="score-val text-green" id="closed-net-pnl">₹0.00</span>
+                            </div>
+                            <div class="score-card-item">
+                                <span class="score-label">WIN RATE</span>
+                                <span class="score-val" id="closed-win-rate">0.0%</span>
+                                <span class="score-sub" id="closed-win-count">0 Wins / 0 Losses</span>
+                            </div>
+                            <div class="score-card-item">
+                                <span class="score-label">TOTAL CLOSED TRADES</span>
+                                <span class="score-val" id="closed-total-count">0</span>
+                            </div>
+                            <div class="score-card-item">
+                                <span class="score-label">AVG P&L / TRADE</span>
+                                <span class="score-val" id="closed-avg-pnl">₹0.00</span>
+                            </div>
+                        </div>
+
+                        <!-- CLOSED TRADES TABLE -->
+                        <div class="table-wrapper" style="margin-top: 1rem;">
+                            <table class="data-table">
+                                <thead>
+                                    <tr>
+                                        <th>EXIT TIME</th>
+                                        <th>STOCK</th>
+                                        <th>QUANTITY</th>
+                                        <th>ENTRY (₹)</th>
+                                        <th>EXIT (₹)</th>
+                                        <th>NOTIONAL (₹)</th>
+                                        <th>REALIZED P&L (₹)</th>
+                                        <th>RETURN (%)</th>
+                                        <th>STATUS</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="bot-closed-trades-tbody">
+                                    <tr>
+                                        <td colspan="9" class="text-center" style="padding: 1.5rem; color: var(--text-muted);">No closed trades recorded yet. As your bot executes stop-losses or takes profit, closed trades will be logged here.</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
                 </div>
 
             </div>
@@ -705,6 +766,61 @@
         background: #a78bfa;
         color: #000;
         box-shadow: 0 0 15px rgba(167, 139, 250, 0.5);
+    }
+
+    /* PORTFOLIO LEDGER TABS & SCORECARD */
+    .ledger-tab-btn {
+        background: transparent;
+        border: 1px solid var(--border);
+        color: var(--text-muted);
+        padding: 6px 14px;
+        border-radius: 6px;
+        font-size: 0.78rem;
+        font-weight: 700;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        transition: all 0.2s;
+    }
+    .ledger-tab-btn:hover {
+        color: #fff;
+        border-color: var(--border-hover);
+    }
+    .ledger-tab-btn.active {
+        background: rgba(255, 255, 255, 0.08);
+        border-color: var(--green);
+        color: #fff;
+    }
+    .closed-trades-scorecard {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+        gap: 0.75rem;
+        background: rgba(13, 20, 36, 0.6);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: 0.85rem 1.25rem;
+    }
+    .score-card-item {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+    }
+    .score-label {
+        font-size: 0.65rem;
+        font-weight: 800;
+        color: var(--text-muted);
+        letter-spacing: 0.05em;
+    }
+    .score-val {
+        font-size: 1.15rem;
+        font-weight: 800;
+        font-family: var(--font-code);
+        color: #fff;
+    }
+    .score-sub {
+        font-size: 0.68rem;
+        color: var(--text-muted);
     }
 
     .mode-tab-btn {
@@ -1747,47 +1863,185 @@
             if (!tbody) return;
 
             const positions = data.positions || [];
+            const badge = document.getElementById('holdings-badge-count');
+            if (badge) badge.innerText = positions.length;
+
             if (positions.length === 0) {
                 tbody.innerHTML = '<tr><td colspan="9" class="text-center" style="padding: 1.5rem; color: var(--text-muted);">No open positions held. Bot will execute buys when signals trigger.</td></tr>';
+            } else {
+                tbody.innerHTML = '';
+                positions.forEach(p => {
+                    const tr = document.createElement('tr');
+                    const pnlClass = p.unrealized_pnl >= 0 ? 'text-green' : 'text-red';
+                    const pnlSign = p.unrealized_pnl >= 0 ? '+' : '';
+                    
+                    let slDisplay = `₹${(p.stop_loss || p.average_price * 0.975).toFixed(2)}`;
+                    if (p.trailing_active) {
+                        slDisplay += ` <span style="font-size: 0.68rem; color: var(--green); font-weight: 700;">🛡️ Breakeven</span>`;
+                    }
+                    let tpDisplay = `₹${(p.take_profit || p.average_price * 1.05).toFixed(2)}`;
+                    if (p.take_profit) {
+                        tpDisplay += ` <span style="font-size: 0.68rem; color: #a78bfa;">🎯 Target</span>`;
+                    }
+
+                    tr.innerHTML = `
+                        <td>
+                            <strong>${p.symbol.replace('.NS', '')}</strong> 
+                            <span style="font-size:0.7rem; color:var(--text-muted); display: block;">${p.symbol}</span>
+                        </td>
+                        <td style="font-weight: 700;">${p.quantity}</td>
+                        <td>₹${p.average_price.toFixed(2)}</td>
+                        <td style="font-weight: 700;">₹${p.current_price.toFixed(2)}</td>
+                        <td class="${pnlClass}" style="font-weight: 700;">${pnlSign}₹${p.unrealized_pnl.toFixed(2)}</td>
+                        <td class="${pnlClass}" style="font-weight: 700;">${pnlSign}${p.unrealized_pnl_pct.toFixed(2)}%</td>
+                        <td style="color: var(--red); font-weight: 700;">${slDisplay}</td>
+                        <td style="color: var(--green); font-weight: 700;">${tpDisplay}</td>
+                        <td>
+                            <button class="btn-action-close" onclick="exitBotPosition('${p.symbol}', ${p.quantity})">
+                                <i class="fa-solid fa-xmark"></i> Exit
+                            </button>
+                        </td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+            }
+            // Background sync closed trades badge
+            loadClosedTrades();
+        } catch (e) {}
+    }
+
+    let currentLedgerTab = 'active';
+    let cachedClosedTrades = [];
+
+    function switchLedgerTab(tab) {
+        currentLedgerTab = tab;
+        const btnActive = document.getElementById('tab-btn-active-holdings');
+        const btnClosed = document.getElementById('tab-btn-closed-trades');
+        const viewActive = document.getElementById('view-active-holdings');
+        const viewClosed = document.getElementById('view-closed-trades');
+        const btnCsv = document.getElementById('btn-export-csv');
+
+        if (tab === 'active') {
+            btnActive.classList.add('active');
+            btnClosed.classList.remove('active');
+            viewActive.style.display = 'block';
+            viewClosed.style.display = 'none';
+            if (btnCsv) btnCsv.style.display = 'none';
+            loadBotHoldings();
+        } else {
+            btnActive.classList.remove('active');
+            btnClosed.classList.add('active');
+            viewActive.style.display = 'none';
+            viewClosed.style.display = 'block';
+            if (btnCsv) btnCsv.style.display = 'inline-flex';
+            loadClosedTrades();
+        }
+    }
+
+    function refreshCurrentLedgerTab() {
+        if (currentLedgerTab === 'active') {
+            loadBotHoldings();
+        } else {
+            loadClosedTrades();
+        }
+    }
+
+    async function loadClosedTrades() {
+        try {
+            const res = await fetch('/api/trades/closed');
+            const data = await res.json();
+            const trades = data.trades || [];
+            cachedClosedTrades = trades;
+            const summary = data.summary || {};
+
+            const countBadge = document.getElementById('closed-trades-badge-count');
+            if (countBadge) countBadge.innerText = summary.total_closed || 0;
+
+            const pnlEl = document.getElementById('closed-net-pnl');
+            const netPnl = summary.net_realized_pnl || 0.0;
+            if (pnlEl) {
+                pnlEl.innerText = `${netPnl >= 0 ? '+' : ''}₹${netPnl.toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+                pnlEl.className = netPnl >= 0 ? 'score-val text-green' : 'score-val text-red';
+            }
+
+            const winRateEl = document.getElementById('closed-win-rate');
+            if (winRateEl) {
+                winRateEl.innerText = `${summary.win_rate || 0}%`;
+                winRateEl.className = (summary.win_rate || 0) >= 50 ? 'score-val text-green' : 'score-val text-red';
+            }
+
+            const winCountEl = document.getElementById('closed-win-count');
+            if (winCountEl) {
+                winCountEl.innerText = `${summary.wins || 0} Wins / ${summary.losses || 0} Losses`;
+            }
+
+            const totalCountEl = document.getElementById('closed-total-count');
+            if (totalCountEl) totalCountEl.innerText = summary.total_closed || 0;
+
+            const avgPnlEl = document.getElementById('closed-avg-pnl');
+            if (avgPnlEl) {
+                const avgPnl = summary.avg_trade_pnl || 0.0;
+                avgPnlEl.innerText = `${avgPnl >= 0 ? '+' : ''}₹${avgPnl.toFixed(2)}`;
+                avgPnlEl.className = avgPnl >= 0 ? 'score-val text-green' : 'score-val text-red';
+            }
+
+            const tbody = document.getElementById('bot-closed-trades-tbody');
+            if (!tbody) return;
+
+            if (trades.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="9" class="text-center" style="padding: 1.5rem; color: var(--text-muted);">No closed trades recorded yet. Stop-loss liquidations, trailing stop hits, and take-profit exits will be logged here.</td></tr>';
                 return;
             }
 
             tbody.innerHTML = '';
-            positions.forEach(p => {
+            trades.forEach(t => {
                 const tr = document.createElement('tr');
-                const pnlClass = p.unrealized_pnl >= 0 ? 'text-green' : 'text-red';
-                const pnlSign = p.unrealized_pnl >= 0 ? '+' : '';
-                
-                let slDisplay = `₹${(p.stop_loss || p.average_price * 0.975).toFixed(2)}`;
-                if (p.trailing_active) {
-                    slDisplay += ` <span style="font-size: 0.68rem; color: var(--green); font-weight: 700;">🛡️ Breakeven</span>`;
-                }
-                let tpDisplay = `₹${(p.take_profit || p.average_price * 1.05).toFixed(2)}`;
-                if (p.take_profit) {
-                    tpDisplay += ` <span style="font-size: 0.68rem; color: #a78bfa;">🎯 Target</span>`;
-                }
+                const isWin = (t.realized_pnl || 0) >= 0;
+                const pnlClass = isWin ? 'text-green' : 'text-red';
+                const pnlSign = isWin ? '+' : '';
+                const statusBadge = isWin 
+                    ? '<span class="signal-badge signal-buy" style="font-size: 0.68rem;"><i class="fa-solid fa-trophy"></i> PROFIT</span>' 
+                    : '<span class="signal-badge signal-sell" style="font-size: 0.68rem;"><i class="fa-solid fa-shield-halved"></i> STOPPED</span>';
 
                 tr.innerHTML = `
+                    <td style="font-size: 0.76rem; color: var(--text-muted); font-family: var(--font-code);">${t.timestamp}</td>
                     <td>
-                        <strong>${p.symbol.replace('.NS', '')}</strong> 
-                        <span style="font-size:0.7rem; color:var(--text-muted); display: block;">${p.symbol}</span>
+                        <strong style="font-family: var(--font-code); color: #fff;">${t.displayName}</strong>
+                        <span style="font-size: 0.68rem; color: var(--text-muted); display: block;">${t.symbol}</span>
                     </td>
-                    <td style="font-weight: 700;">${p.quantity}</td>
-                    <td>₹${p.average_price.toFixed(2)}</td>
-                    <td style="font-weight: 700;">₹${p.current_price.toFixed(2)}</td>
-                    <td class="${pnlClass}" style="font-weight: 700;">${pnlSign}₹${p.unrealized_pnl.toFixed(2)}</td>
-                    <td class="${pnlClass}" style="font-weight: 700;">${pnlSign}${p.unrealized_pnl_pct.toFixed(2)}%</td>
-                    <td style="color: var(--red); font-weight: 700;">${slDisplay}</td>
-                    <td style="color: var(--green); font-weight: 700;">${tpDisplay}</td>
-                    <td>
-                        <button class="btn-action-close" onclick="exitBotPosition('${p.symbol}', ${p.quantity})">
-                            <i class="fa-solid fa-xmark"></i> Exit
-                        </button>
-                    </td>
+                    <td style="font-weight: 700;">${t.quantity}</td>
+                    <td>₹${(t.entry_price || 0).toFixed(2)}</td>
+                    <td style="font-weight: 700;">₹${(t.exit_price || 0).toFixed(2)}</td>
+                    <td>₹${(t.total_value || 0).toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                    <td class="${pnlClass}" style="font-weight: 700;">${pnlSign}₹${(t.realized_pnl || 0).toFixed(2)}</td>
+                    <td class="${pnlClass}" style="font-weight: 700;">${pnlSign}${(t.roi_pct || 0).toFixed(2)}%</td>
+                    <td>${statusBadge}</td>
                 `;
                 tbody.appendChild(tr);
             });
         } catch (e) {}
+    }
+
+    function exportClosedTradesCSV() {
+        if (!cachedClosedTrades || cachedClosedTrades.length === 0) {
+            showToast('No closed trades to export', 'warning');
+            return;
+        }
+        let csv = 'Timestamp,Stock,Quantity,EntryPrice,ExitPrice,NotionalTotal,RealizedPnL,ROIPct,Status\n';
+        cachedClosedTrades.forEach(t => {
+            const status = (t.realized_pnl || 0) >= 0 ? 'PROFIT' : 'LOSS';
+            csv += `"${t.timestamp}","${t.displayName}",${t.quantity},${t.entry_price},${t.exit_price},${t.total_value},${t.realized_pnl},${t.roi_pct}%,"${status}"\n`;
+        });
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `closed_trades_report_${new Date().toISOString().slice(0, 10)}.csv`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        showToast('Closed trades CSV report downloaded', 'success');
     }
 
     async function exitBotPosition(symbol, quantity) {

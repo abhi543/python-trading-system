@@ -40,18 +40,74 @@ def place_order():
 
 @api_bp.route('/trades', methods=['GET'])
 def get_trades():
-    trades = TradeHistory.query.order_by(TradeHistory.timestamp.desc()).limit(50).all()
-    res = [{
-        "id": t.id,
-        "symbol": t.symbol,
-        "side": t.side,
-        "quantity": t.quantity,
-        "price": t.price,
-        "total": t.total,
-        "realized_pnl": t.realized_pnl,
-        "timestamp": t.timestamp.strftime("%Y-%m-%d %H:%M:%S")
-    } for t in trades]
+    trades = TradeHistory.query.order_by(TradeHistory.timestamp.desc()).limit(100).all()
+    res = []
+    for t in trades:
+        cost_basis = t.total - (t.realized_pnl or 0.0)
+        roi_pct = round(((t.realized_pnl or 0.0) / cost_basis) * 100, 2) if (cost_basis > 0 and t.side == "SELL") else 0.0
+        entry_p = round(cost_basis / t.quantity, 2) if (t.quantity > 0 and cost_basis > 0) else t.price
+        res.append({
+            "id": t.id,
+            "symbol": t.symbol,
+            "displayName": t.symbol.replace('.NS', ''),
+            "side": t.side,
+            "quantity": t.quantity,
+            "price": t.price,
+            "entry_price": entry_p,
+            "total": t.total,
+            "realized_pnl": t.realized_pnl or 0.0,
+            "roi_pct": roi_pct,
+            "timestamp": t.timestamp.strftime("%Y-%m-%d %H:%M:%S")
+        })
     return jsonify(res)
+
+@api_bp.route('/trades/closed', methods=['GET'])
+def get_closed_trades():
+    trades = TradeHistory.query.filter_by(side="SELL").order_by(TradeHistory.timestamp.desc()).all()
+    closed = []
+    total_pnl = 0.0
+    wins = 0
+    losses = 0
+
+    for t in trades:
+        pnl = t.realized_pnl or 0.0
+        total_pnl += pnl
+        if pnl > 0:
+            wins += 1
+        elif pnl < 0:
+            losses += 1
+
+        cost_basis = t.total - pnl
+        roi_pct = round((pnl / cost_basis) * 100, 2) if cost_basis > 0 else 0.0
+        entry_p = round(cost_basis / t.quantity, 2) if (t.quantity > 0 and cost_basis > 0) else t.price
+
+        closed.append({
+            "id": t.id,
+            "symbol": t.symbol,
+            "displayName": t.symbol.replace('.NS', ''),
+            "quantity": t.quantity,
+            "entry_price": entry_p,
+            "exit_price": t.price,
+            "total_value": t.total,
+            "realized_pnl": round(pnl, 2),
+            "roi_pct": roi_pct,
+            "is_win": pnl >= 0,
+            "timestamp": t.timestamp.strftime("%Y-%m-%d %H:%M:%S")
+        })
+
+    win_rate = round((wins / len(closed)) * 100, 1) if closed else 0.0
+
+    return jsonify({
+        "trades": closed,
+        "summary": {
+            "total_closed": len(closed),
+            "wins": wins,
+            "losses": losses,
+            "win_rate": win_rate,
+            "net_realized_pnl": round(total_pnl, 2),
+            "avg_trade_pnl": round(total_pnl / len(closed), 2) if closed else 0.0
+        }
+    })
 
 @api_bp.route('/watchlist', methods=['GET'])
 def get_watchlist():
