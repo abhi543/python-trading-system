@@ -8,6 +8,10 @@ views_bp = Blueprint('views', __name__)
 def dashboard():
     return render_template('dashboard.html')
 
+@views_bp.route('/bot')
+def bot_page():
+    return render_template('bot.html')
+
 @views_bp.route('/debug-env')
 def debug_env():
     from flask import request

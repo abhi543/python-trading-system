@@ -1,0 +1,1071 @@
+{% extends "base.html" %}
+
+{% block title %}NIFTY 50 Auto-Trading Bot | ALGO-TRADE Pro{% endblock %}
+
+{% block content %}
+<div class="bot-page-container">
+
+    <!-- HERO / BOT CONTROL HEADER -->
+    <div class="bot-hero-card">
+        <div class="bot-hero-info">
+            <div class="bot-status-header">
+                <span class="bot-status-badge status-stopped" id="bot-status-indicator">
+                    <span class="bot-dot"></span>
+                    <span id="bot-status-text">OFFLINE / STOPPED</span>
+                </span>
+                <span class="bot-badge-outline"><i class="fa-solid fa-bolt"></i> NIFTY 50 BASKET ENGINE</span>
+                <span class="bot-badge-outline" id="bot-interval-badge"><i class="fa-solid fa-clock"></i> CYCLE: 20s</span>
+            </div>
+            <h1 class="bot-title">Algorithmic Auto-Trading Station</h1>
+            <p class="bot-subtitle">Autonomous multi-asset strategy scanner & execution engine running live across all 50 National Stock Exchange of India (NSE) constituents.</p>
+        </div>
+
+        <div class="bot-hero-actions">
+            <button id="bot-primary-btn" class="btn-bot-start" onclick="toggleBot()">
+                <i class="fa-solid fa-play"></i> START NIFTY 50 BOT
+            </button>
+            <button id="bot-scan-btn" class="btn-bot-scan" onclick="tickBotNow()">
+                <i class="fa-solid fa-arrows-rotate"></i> SCAN ALL 50 NOW
+            </button>
+        </div>
+    </div>
+
+    <!-- STRATEGY & RISK PARAMETERS CONTROLS -->
+    <div class="bot-config-card">
+        <div class="config-header">
+            <h3><i class="fa-solid fa-sliders"></i> Strategy Configuration & Risk Guards</h3>
+            <span class="config-tip"><i class="fa-solid fa-shield-halved"></i> Automated Stop-Loss & Take-Profit guards trigger immediately on signal execution</span>
+        </div>
+        <div class="config-grid">
+            <div class="config-item">
+                <label><i class="fa-solid fa-layer-group"></i> SCANNING UNIVERSE</label>
+                <select id="bot-scan-mode" class="config-select" onchange="onScanModeChange()">
+                    <option value="ALL_NIFTY_50" selected>All NIFTY 50 Basket (50 Stocks)</option>
+                    <option value="SINGLE">Single Stock Focus</option>
+                </select>
+            </div>
+
+            <div class="config-item" id="single-symbol-group" style="display: none;">
+                <label><i class="fa-solid fa-bullseye"></i> TARGET SYMBOL</label>
+                <input type="text" id="bot-symbol" class="config-input" value="RELIANCE.NS" placeholder="RELIANCE.NS">
+            </div>
+
+            <div class="config-item">
+                <label><i class="fa-solid fa-chart-line"></i> STRATEGY MODEL</label>
+                <select id="bot-strategy" class="config-select">
+                    <option value="SMA_CROSSOVER" selected>Dual SMA Golden/Death Cross (9 / 21)</option>
+                    <option value="RSI_MOMENTUM">RSI Mean Reversion (14-Period, 35/65)</option>
+                </select>
+            </div>
+
+            <div class="config-item">
+                <label><i class="fa-solid fa-indian-rupee-sign"></i> CAPITAL PER TRADE (₹)</label>
+                <input type="number" id="bot-allocation" class="config-input" value="50000" step="5000" min="5000">
+            </div>
+
+            <div class="config-item">
+                <label><i class="fa-solid fa-boxes-stacked"></i> MAX CONCURRENT POSITIONS</label>
+                <input type="number" id="bot-max-positions" class="config-input" value="10" min="1" max="50">
+            </div>
+
+            <div class="config-item">
+                <label><i class="fa-solid fa-arrow-down" style="color: var(--red);"></i> STOP-LOSS (%)</label>
+                <input type="number" id="bot-stop-loss" class="config-input" value="2.5" step="0.5" min="0.5">
+            </div>
+
+            <div class="config-item">
+                <label><i class="fa-solid fa-arrow-up" style="color: var(--green);"></i> TAKE-PROFIT (%)</label>
+                <input type="number" id="bot-take-profit" class="config-input" value="5.0" step="0.5" min="1.0">
+            </div>
+        </div>
+    </div>
+
+    <!-- METRICS TELEMETRY CARDS -->
+    <div class="bot-kpi-grid">
+        <div class="kpi-card">
+            <div class="kpi-icon icon-blue"><i class="fa-solid fa-magnifying-glass-chart"></i></div>
+            <div class="kpi-body">
+                <span class="kpi-title">NIFTY 50 SCANNED</span>
+                <span class="kpi-value" id="kpi-scanned">0 / 50</span>
+                <span class="kpi-sub">Constituents monitored</span>
+            </div>
+        </div>
+
+        <div class="kpi-card">
+            <div class="kpi-icon icon-green"><i class="fa-solid fa-arrow-trend-up"></i></div>
+            <div class="kpi-body">
+                <span class="kpi-title">BUY SIGNALS FOUND</span>
+                <span class="kpi-value text-green" id="kpi-buys">0</span>
+                <span class="kpi-sub" id="kpi-buys-sub">Golden Cross / Oversold</span>
+            </div>
+        </div>
+
+        <div class="kpi-card">
+            <div class="kpi-icon icon-red"><i class="fa-solid fa-arrow-trend-down"></i></div>
+            <div class="kpi-body">
+                <span class="kpi-title">SELL / EXIT SIGNALS</span>
+                <span class="kpi-value text-red" id="kpi-sells">0</span>
+                <span class="kpi-sub" id="kpi-sells-sub">Death Cross / Overbought</span>
+            </div>
+        </div>
+
+        <div class="kpi-card">
+            <div class="kpi-icon icon-purple"><i class="fa-solid fa-robot"></i></div>
+            <div class="kpi-body">
+                <span class="kpi-title">BOT TRADES EXECUTED</span>
+                <span class="kpi-value" id="kpi-trades">0</span>
+                <span class="kpi-sub" id="kpi-last-run">Last run: Waiting...</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- MAIN TWO-COLUMN SPLIT: RADAR & HOLDINGS ON LEFT, TERMINAL ON RIGHT -->
+    <div class="bot-main-layout">
+        
+        <!-- LEFT COLUMN: SIGNAL RADAR & POSITIONS -->
+        <div class="bot-left-col">
+            
+            <!-- NIFTY 50 LIVE SIGNAL RADAR -->
+            <div class="bot-section-card">
+                <div class="section-card-header">
+                    <div>
+                        <h3><i class="fa-solid fa-satellite-dish" style="color: var(--blue);"></i> NIFTY 50 Live Signal Radar</h3>
+                        <span class="card-caption">Real-time technical indicator calculations and automated trade signals</span>
+                    </div>
+                    <div class="table-search-box">
+                        <i class="fa-solid fa-search"></i>
+                        <input type="text" id="radar-search" placeholder="Filter stock (e.g. INFY, RELIANCE)..." oninput="filterRadarTable()">
+                    </div>
+                </div>
+
+                <div class="table-wrapper">
+                    <table class="data-table" id="nifty-radar-table">
+                        <thead>
+                            <tr>
+                                <th>STOCK</th>
+                                <th>LTP</th>
+                                <th>24H CHG</th>
+                                <th>SIGNAL</th>
+                                <th>INDICATOR METRICS</th>
+                                <th>BOT ACTION</th>
+                                <th>ACTION</th>
+                            </tr>
+                        </thead>
+                        <tbody id="bot-scanner-tbody">
+                            <tr>
+                                <td colspan="7" class="text-center" style="padding: 2.5rem; color: var(--text-muted);">
+                                    <i class="fa-solid fa-satellite fa-spin" style="font-size: 1.5rem; margin-bottom: 0.75rem; color: var(--blue);"></i><br>
+                                    NIFTY 50 Scanner Ready. Click <strong>"SCAN ALL 50 NOW"</strong> or start the bot to sweep the entire basket.
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- ACTIVE BOT HOLDINGS -->
+            <div class="bot-section-card" style="margin-top: 1.5rem;">
+                <div class="section-card-header">
+                    <div>
+                        <h3><i class="fa-solid fa-briefcase" style="color: var(--green);"></i> Active Portfolio Positions</h3>
+                        <span class="card-caption">Live paper holdings managed under automated stop-loss and take-profit</span>
+                    </div>
+                    <button class="btn-sm btn-outline" onclick="loadBotHoldings()"><i class="fa-solid fa-rotate"></i> Refresh</button>
+                </div>
+
+                <div class="table-wrapper">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>SYMBOL</th>
+                                <th>QTY</th>
+                                <th>AVG PRICE</th>
+                                <th>CURRENT</th>
+                                <th>P&L (₹)</th>
+                                <th>P&L (%)</th>
+                                <th>STOP-LOSS (-2.5%)</th>
+                                <th>TARGET (+5.0%)</th>
+                                <th>MANUAL EXIT</th>
+                            </tr>
+                        </thead>
+                        <tbody id="bot-holdings-tbody">
+                            <tr>
+                                <td colspan="9" class="text-center" style="padding: 1.5rem; color: var(--text-muted);">No open positions held.</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- RIGHT COLUMN: TERMINAL CONSOLE & STRATEGY RULES -->
+        <div class="bot-right-col">
+
+            <!-- REAL-TIME TERMINAL CONSOLE -->
+            <div class="bot-section-card terminal-card">
+                <div class="section-card-header terminal-header">
+                    <div class="terminal-title">
+                        <span class="terminal-dot red"></span>
+                        <span class="terminal-dot yellow"></span>
+                        <span class="terminal-dot green"></span>
+                        <span style="margin-left: 0.5rem; font-family: var(--font-code); font-size: 0.8rem; font-weight: 700; color: #fff;">
+                            <i class="fa-solid fa-terminal"></i> BOT EXECUTION STREAM
+                        </span>
+                    </div>
+                    <button class="btn-terminal-clear" onclick="clearBotLogs()"><i class="fa-solid fa-trash-can"></i> Clear</button>
+                </div>
+                <div class="bot-terminal-window" id="bot-console-stream">
+                    <div class="terminal-line text-muted">[SYSTEM] Bot console initialized. Waiting for operator command...</div>
+                </div>
+            </div>
+
+            <!-- STRATEGY BLUEPRINT & RULES -->
+            <div class="bot-section-card" style="margin-top: 1.5rem;">
+                <div class="section-card-header">
+                    <h3><i class="fa-solid fa-book-bookmark" style="color: #ffd166;"></i> Strategy Blueprint & Rules</h3>
+                </div>
+                <div class="rules-body">
+                    <div class="rule-item">
+                        <div class="rule-icon"><i class="fa-solid fa-chart-line" style="color: var(--blue);"></i></div>
+                        <div>
+                            <h4>Dual SMA Crossover</h4>
+                            <p>Fast SMA (9-day) crosses above Slow SMA (21-day) generates a <strong>BUY</strong> signal. Crossing below generates a <strong>SELL</strong> signal.</p>
+                        </div>
+                    </div>
+
+                    <div class="rule-item">
+                        <div class="rule-icon"><i class="fa-solid fa-wave-square" style="color: var(--green);"></i></div>
+                        <div>
+                            <h4>RSI Mean Reversion</h4>
+                            <p>14-period RSI falling below <strong>35</strong> triggers an oversold <strong>BUY</strong> bounce. Rising above <strong>65</strong> triggers an overbought <strong>SELL</strong>.</p>
+                        </div>
+                    </div>
+
+                    <div class="rule-item">
+                        <div class="rule-icon"><i class="fa-solid fa-shield-virus" style="color: var(--red);"></i></div>
+                        <div>
+                            <h4>Automated Risk Guards</h4>
+                            <p>Every position has an active trailing stop-loss at <strong>-2.5%</strong> and take-profit target at <strong>+5.0%</strong>. Liquidations execute instantly without human intervention.</p>
+                        </div>
+                    </div>
+
+                    <div class="rule-item">
+                        <div class="rule-icon"><i class="fa-solid fa-coins" style="color: #a78bfa;"></i></div>
+                        <div>
+                            <h4>Sizing & Max Exposure</h4>
+                            <p>Allocates up to <strong>₹50,000</strong> per trade. Hard cap at <strong>10 concurrent positions</strong> to guarantee capital preservation and risk diversification.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+    </div>
+
+</div>
+
+<!-- INLINE STYLES SPECIFIC TO BOT PAGE -->
+<style>
+    .bot-page-container {
+        padding: 1.5rem 2rem 3rem 2rem;
+        max-width: 1680px;
+        margin: 0 auto;
+        display: flex;
+        flex-direction: column;
+        gap: 1.5rem;
+    }
+
+    /* HERO CARD */
+    .bot-hero-card {
+        background: linear-gradient(135deg, rgba(16, 21, 36, 0.95) 0%, rgba(10, 14, 25, 0.95) 100%);
+        border: 1px solid var(--border-highlight);
+        border-radius: 14px;
+        padding: 1.75rem 2rem;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 2rem;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+    }
+
+    .bot-status-header {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        margin-bottom: 0.65rem;
+        flex-wrap: wrap;
+    }
+
+    .bot-status-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.35rem 0.85rem;
+        border-radius: 999px;
+        font-size: 0.75rem;
+        font-weight: 800;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+    }
+
+    .status-stopped {
+        background: rgba(126, 139, 166, 0.15);
+        color: var(--text-muted);
+        border: 1px solid rgba(126, 139, 166, 0.3);
+    }
+
+    .status-running {
+        background: rgba(0, 240, 144, 0.15);
+        color: var(--green);
+        border: 1px solid rgba(0, 240, 144, 0.4);
+        box-shadow: 0 0 15px rgba(0, 240, 144, 0.25);
+    }
+
+    .bot-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background-color: currentColor;
+    }
+
+    .status-running .bot-dot {
+        animation: pulse 1.2s infinite;
+    }
+
+    .bot-badge-outline {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+        padding: 0.35rem 0.75rem;
+        border-radius: 999px;
+        font-size: 0.7rem;
+        font-weight: 700;
+        letter-spacing: 0.05em;
+        background: rgba(0, 163, 255, 0.1);
+        border: 1px solid rgba(0, 163, 255, 0.25);
+        color: var(--blue);
+    }
+
+    .bot-title {
+        font-size: 1.85rem;
+        font-weight: 800;
+        letter-spacing: -0.02em;
+        margin-bottom: 0.35rem;
+    }
+
+    .bot-subtitle {
+        color: var(--text-muted);
+        font-size: 0.95rem;
+        max-width: 850px;
+        line-height: 1.5;
+    }
+
+    .bot-hero-actions {
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+        min-width: 260px;
+    }
+
+    .btn-bot-start {
+        background: linear-gradient(135deg, #00f090 0%, #00b06c 100%);
+        color: #000;
+        border: none;
+        padding: 0.95rem 1.5rem;
+        border-radius: 10px;
+        font-size: 0.95rem;
+        font-weight: 800;
+        letter-spacing: 0.04em;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.65rem;
+        box-shadow: 0 0 25px rgba(0, 240, 144, 0.35);
+        transition: all 0.2s;
+    }
+
+    .btn-bot-start:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 0 35px rgba(0, 240, 144, 0.55);
+    }
+
+    .btn-bot-stop {
+        background: linear-gradient(135deg, #ff3366 0%, #d41142 100%);
+        color: #fff;
+        border: none;
+        padding: 0.95rem 1.5rem;
+        border-radius: 10px;
+        font-size: 0.95rem;
+        font-weight: 800;
+        letter-spacing: 0.04em;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.65rem;
+        box-shadow: 0 0 25px rgba(255, 51, 102, 0.35);
+        transition: all 0.2s;
+    }
+
+    .btn-bot-scan {
+        background: var(--bg-surface);
+        border: 1px solid var(--border-highlight);
+        color: var(--text-main);
+        padding: 0.75rem 1.25rem;
+        border-radius: 8px;
+        font-size: 0.85rem;
+        font-weight: 700;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.5rem;
+        transition: all 0.2s;
+    }
+
+    .btn-bot-scan:hover {
+        background: var(--bg-hover);
+        border-color: var(--blue);
+        color: var(--blue);
+    }
+
+    /* CONFIGURATION BAR */
+    .bot-config-card {
+        background: var(--bg-card);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 1.25rem 1.5rem;
+    }
+
+    .config-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1rem;
+        border-bottom: 1px solid var(--border);
+        padding-bottom: 0.75rem;
+    }
+
+    .config-header h3 {
+        font-size: 0.85rem;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: var(--text-muted);
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .config-tip {
+        font-size: 0.75rem;
+        color: var(--text-muted);
+        display: flex;
+        align-items: center;
+        gap: 0.4rem;
+    }
+
+    .config-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+        gap: 1rem;
+    }
+
+    .config-item {
+        display: flex;
+        flex-direction: column;
+        gap: 0.4rem;
+    }
+
+    .config-item label {
+        font-size: 0.7rem;
+        font-weight: 800;
+        letter-spacing: 0.06em;
+        color: var(--text-muted);
+        display: flex;
+        align-items: center;
+        gap: 0.35rem;
+    }
+
+    .config-select, .config-input {
+        background: var(--bg-body);
+        border: 1px solid var(--border);
+        color: var(--text-main);
+        padding: 0.6rem 0.85rem;
+        border-radius: 8px;
+        font-family: var(--font-ui);
+        font-size: 0.85rem;
+        font-weight: 600;
+        outline: none;
+        transition: border 0.15s;
+    }
+
+    .config-select:focus, .config-input:focus {
+        border-color: var(--blue);
+        box-shadow: 0 0 8px var(--blue-glow);
+    }
+
+    /* KPI CARDS */
+    .bot-kpi-grid {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 1rem;
+    }
+
+    .kpi-card {
+        background: var(--bg-card);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 1.15rem 1.35rem;
+        display: flex;
+        align-items: center;
+        gap: 1.15rem;
+    }
+
+    .kpi-icon {
+        width: 46px;
+        height: 46px;
+        border-radius: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.25rem;
+    }
+
+    .icon-blue { background: rgba(0, 163, 255, 0.12); color: var(--blue); border: 1px solid rgba(0, 163, 255, 0.25); }
+    .icon-green { background: rgba(0, 240, 144, 0.12); color: var(--green); border: 1px solid rgba(0, 240, 144, 0.25); }
+    .icon-red { background: rgba(255, 51, 102, 0.12); color: var(--red); border: 1px solid rgba(255, 51, 102, 0.25); }
+    .icon-purple { background: rgba(167, 139, 250, 0.12); color: #a78bfa; border: 1px solid rgba(167, 139, 250, 0.25); }
+
+    .kpi-body {
+        display: flex;
+        flex-direction: column;
+    }
+
+    .kpi-title {
+        font-size: 0.7rem;
+        font-weight: 800;
+        letter-spacing: 0.08em;
+        color: var(--text-muted);
+        text-transform: uppercase;
+    }
+
+    .kpi-value {
+        font-family: var(--font-code);
+        font-size: 1.65rem;
+        font-weight: 800;
+        margin: 0.15rem 0;
+    }
+
+    .kpi-sub {
+        font-size: 0.72rem;
+        color: var(--text-muted);
+    }
+
+    /* TWO-COLUMN LAYOUT */
+    .bot-main-layout {
+        display: grid;
+        grid-template-columns: 1fr 440px;
+        gap: 1.5rem;
+    }
+
+    @media (max-width: 1200px) {
+        .bot-main-layout { grid-template-columns: 1fr; }
+        .bot-kpi-grid { grid-template-columns: repeat(2, 1fr); }
+        .bot-hero-card { flex-direction: column; align-items: flex-start; }
+        .bot-hero-actions { width: 100%; flex-direction: row; }
+    }
+
+    .bot-section-card {
+        background: var(--bg-card);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+    }
+
+    .section-card-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 1rem 1.35rem;
+        background: rgba(20, 27, 45, 0.6);
+        border-bottom: 1px solid var(--border);
+    }
+
+    .section-card-header h3 {
+        font-size: 0.9rem;
+        font-weight: 800;
+        letter-spacing: 0.04em;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .card-caption {
+        font-size: 0.75rem;
+        color: var(--text-muted);
+        display: block;
+        margin-top: 0.15rem;
+    }
+
+    .table-search-box {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        background: var(--bg-body);
+        border: 1px solid var(--border);
+        padding: 0.4rem 0.75rem;
+        border-radius: 8px;
+    }
+
+    .table-search-box input {
+        background: transparent;
+        border: none;
+        color: var(--text-main);
+        font-size: 0.8rem;
+        outline: none;
+        width: 180px;
+    }
+
+    .table-wrapper {
+        overflow-x: auto;
+        max-height: 520px;
+    }
+
+    /* TERMINAL CONSOLE */
+    .terminal-card {
+        height: 520px;
+    }
+
+    .terminal-header {
+        background: #090c14 !important;
+        border-bottom: 1px solid #1a2236;
+    }
+
+    .terminal-dot {
+        display: inline-block;
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        margin-right: 4px;
+    }
+    .terminal-dot.red { background: #ff5f56; }
+    .terminal-dot.yellow { background: #ffbd2e; }
+    .terminal-dot.green { background: #27c93f; }
+
+    .btn-terminal-clear {
+        background: transparent;
+        border: 1px solid #2e3c59;
+        color: var(--text-muted);
+        padding: 0.25rem 0.6rem;
+        border-radius: 6px;
+        font-size: 0.7rem;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .btn-terminal-clear:hover {
+        color: #fff;
+        border-color: var(--red);
+    }
+
+    .bot-terminal-window {
+        flex: 1;
+        background: #06080e;
+        padding: 1rem 1.25rem;
+        overflow-y: auto;
+        font-family: var(--font-code);
+        font-size: 0.8rem;
+        line-height: 1.6;
+        display: flex;
+        flex-direction: column-reverse;
+    }
+
+    .terminal-line {
+        margin-bottom: 0.35rem;
+        word-break: break-all;
+    }
+
+    .log-success { color: var(--green); font-weight: 600; }
+    .log-error { color: var(--red); font-weight: 600; }
+    .log-warning { color: #ffd166; }
+    .log-info { color: #93c5fd; }
+
+    /* RULES BLUEPRINT */
+    .rules-body {
+        padding: 1.25rem;
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+    }
+
+    .rule-item {
+        display: flex;
+        gap: 1rem;
+        align-items: flex-start;
+        padding: 0.85rem;
+        background: var(--bg-surface);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+    }
+
+    .rule-icon {
+        font-size: 1.25rem;
+        padding-top: 0.2rem;
+    }
+
+    .rule-item h4 {
+        font-size: 0.85rem;
+        font-weight: 700;
+        margin-bottom: 0.25rem;
+    }
+
+    .rule-item p {
+        font-size: 0.78rem;
+        color: var(--text-muted);
+        line-height: 1.45;
+    }
+
+    .rule-item p strong {
+        color: var(--text-main);
+    }
+</style>
+
+<!-- CLIENT JAVASCRIPT FOR BOT PAGE -->
+<script>
+    let isBotActive = false;
+    let botPoller = null;
+    let allScannerData = [];
+
+    document.addEventListener('DOMContentLoaded', () => {
+        fetchBotStatus();
+        loadBotHoldings();
+        loadAccountMetrics();
+
+        // Status polling loop every 3 seconds
+        botPoller = setInterval(() => {
+            fetchBotStatus(true);
+            loadBotHoldings();
+        }, 3000);
+    });
+
+    function onScanModeChange() {
+        const mode = document.getElementById('bot-scan-mode').value;
+        const singleGroup = document.getElementById('single-symbol-group');
+        singleGroup.style.display = (mode === 'SINGLE') ? 'flex' : 'none';
+    }
+
+    async function loadAccountMetrics() {
+        try {
+            const res = await fetch('/api/portfolio');
+            const data = await res.json();
+            if (data.account) {
+                document.getElementById('nav-total-equity').innerText = `₹${(data.account.total_equity || 1000000).toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+                document.getElementById('nav-cash-balance').innerText = `₹${(data.account.cash_balance || 1000000).toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+                const pnl = data.account.unrealized_pnl || 0;
+                const pnlEl = document.getElementById('nav-pnl');
+                pnlEl.innerText = `${pnl >= 0 ? '+' : ''}₹${pnl.toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+                pnlEl.className = pnl >= 0 ? 'metric-value text-green' : 'metric-value text-red';
+            }
+        } catch (e) {}
+    }
+
+    async function fetchBotStatus(silent = false) {
+        try {
+            const res = await fetch('/api/bot/status');
+            const data = await res.json();
+            updateBotUI(data);
+        } catch (err) {
+            if (!silent) showToast('Failed to connect to Bot engine', 'error');
+        }
+    }
+
+    function updateBotUI(data) {
+        if (!data) return;
+        isBotActive = data.is_running;
+
+        const ind = document.getElementById('bot-status-indicator');
+        const text = document.getElementById('bot-status-text');
+        const btn = document.getElementById('bot-primary-btn');
+
+        if (isBotActive) {
+            ind.className = 'bot-status-badge status-running';
+            text.innerText = 'ONLINE / AUTONOMOUS SCANNING';
+            btn.className = 'btn-bot-stop';
+            btn.innerHTML = '<i class="fa-solid fa-stop"></i> STOP AUTO-BOT';
+        } else {
+            ind.className = 'bot-status-badge status-stopped';
+            text.innerText = 'OFFLINE / PAUSED';
+            btn.className = 'btn-bot-start';
+            btn.innerHTML = '<i class="fa-solid fa-play"></i> START NIFTY 50 BOT';
+        }
+
+        // Set inputs if user hasn't modified them
+        if (data.scan_mode && !document.getElementById('bot-scan-mode').matches(':focus')) {
+            document.getElementById('bot-scan-mode').value = data.scan_mode;
+            onScanModeChange();
+        }
+        if (data.single_symbol && !document.getElementById('bot-symbol').matches(':focus')) {
+            document.getElementById('bot-symbol').value = data.single_symbol;
+        }
+        if (data.strategy && !document.getElementById('bot-strategy').matches(':focus')) {
+            document.getElementById('bot-strategy').value = data.strategy;
+        }
+
+        // Update KPIs
+        const summary = data.scan_summary || {};
+        const scannedCount = summary.total_scanned || (summary.scanner_results ? summary.scanner_results.length : 0);
+        document.getElementById('kpi-scanned').innerText = `${scannedCount} / 50`;
+        document.getElementById('kpi-buys').innerText = summary.buys_found || 0;
+        document.getElementById('kpi-sells').innerText = summary.sells_found || 0;
+        document.getElementById('kpi-trades').innerText = summary.trades_executed || 0;
+        
+        if (data.last_run_time) {
+            document.getElementById('kpi-last-run').innerText = `Last sweep: ${data.last_run_time.split(' ')[1] || data.last_run_time}`;
+        }
+
+        // Render Scanner Results Table
+        if (summary.scanner_results && summary.scanner_results.length > 0) {
+            allScannerData = summary.scanner_results;
+            renderRadarTable(allScannerData);
+        }
+
+        // Render logs
+        renderLogs(data.logs || []);
+    }
+
+    function renderRadarTable(results) {
+        const tbody = document.getElementById('bot-scanner-tbody');
+        if (!results || results.length === 0) return;
+
+        tbody.innerHTML = '';
+        results.forEach(s => {
+            const tr = document.createElement('tr');
+            
+            let sigBadge = '<span class="signal-badge signal-hold">HOLD</span>';
+            if (s.signal === 'BUY') sigBadge = '<span class="signal-badge signal-buy"><i class="fa-solid fa-arrow-up"></i> BUY</span>';
+            if (s.signal === 'SELL') sigBadge = '<span class="signal-badge signal-sell"><i class="fa-solid fa-arrow-down"></i> SELL</span>';
+            if (s.signal === 'STOP_LOSS') sigBadge = '<span class="signal-badge" style="background: rgba(255, 51, 102, 0.2); color: var(--red);"><i class="fa-solid fa-skull-crossbones"></i> STOP-LOSS</span>';
+            if (s.signal === 'TAKE_PROFIT') sigBadge = '<span class="signal-badge" style="background: rgba(0, 240, 144, 0.2); color: var(--green);"><i class="fa-solid fa-trophy"></i> TAKE-PROFIT</span>';
+
+            const changeClass = (s.change_pct || 0) >= 0 ? 'text-green' : 'text-red';
+            const changeSign = (s.change_pct || 0) >= 0 ? '+' : '';
+            
+            let indText = s.reason || '--';
+            if (s.fast_sma && s.slow_sma) {
+                indText = `SMA9: ₹${s.fast_sma} | SMA21: ₹${s.slow_sma}`;
+            } else if (s.rsi !== undefined && s.rsi !== null) {
+                indText = `RSI: ${s.rsi}`;
+            }
+
+            let actionBadge = '<span style="color: var(--text-muted);">--</span>';
+            if (s.action_executed) {
+                actionBadge = `<span style="color: var(--green); font-weight: 700;"><i class="fa-solid fa-check"></i> ${s.action_executed}</span>`;
+            }
+
+            tr.innerHTML = `
+                <td>
+                    <div style="font-weight: 800; font-family: var(--font-code); color: #fff;">${s.displayName}</div>
+                    <div style="font-size: 0.7rem; color: var(--text-muted);">${s.symbol}</div>
+                </td>
+                <td style="font-weight: 700;">₹${s.price.toFixed(2)}</td>
+                <td class="${changeClass}" style="font-weight: 700;">${changeSign}${(s.change_pct || 0).toFixed(2)}%</td>
+                <td>${sigBadge}</td>
+                <td style="font-size: 0.78rem; color: var(--text-muted);">${indText}</td>
+                <td>${actionBadge}</td>
+                <td>
+                    <a href="/?symbol=${s.symbol}" class="btn-sm btn-outline" style="text-decoration: none; display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px; font-size: 0.72rem;">
+                        <i class="fa-solid fa-chart-line"></i> Terminal
+                    </a>
+                </td>
+            `;
+            tbody.appendChild(tr);
+        });
+    }
+
+    function filterRadarTable() {
+        const query = (document.getElementById('radar-search').value || '').trim().toUpperCase();
+        if (!query) {
+            renderRadarTable(allScannerData);
+            return;
+        }
+        const filtered = allScannerData.filter(s => 
+            (s.displayName && s.displayName.toUpperCase().includes(query)) ||
+            (s.symbol && s.symbol.toUpperCase().includes(query))
+        );
+        renderRadarTable(filtered);
+    }
+
+    function renderLogs(logs) {
+        const win = document.getElementById('bot-console-stream');
+        if (!win || !logs) return;
+
+        win.innerHTML = '';
+        logs.forEach(l => {
+            const div = document.createElement('div');
+            let colorClass = 'terminal-line';
+            if (l.level === 'SUCCESS') colorClass += ' log-success';
+            else if (l.level === 'ERROR') colorClass += ' log-error';
+            else if (l.level === 'WARNING') colorClass += ' log-warning';
+            else colorClass += ' log-info';
+
+            div.className = colorClass;
+            div.innerHTML = `<span style="color: var(--text-muted);">[${l.timestamp}]</span> ${l.message}`;
+            win.appendChild(div);
+        });
+    }
+
+    function clearBotLogs() {
+        const win = document.getElementById('bot-console-stream');
+        if (win) {
+            win.innerHTML = '<div class="terminal-line text-muted">[CONSOLE] Buffer cleared by user.</div>';
+        }
+    }
+
+    async function toggleBot() {
+        if (isBotActive) {
+            try {
+                const res = await fetch('/api/bot/stop', { method: 'POST' });
+                const data = await res.json();
+                showToast('NIFTY 50 Auto-Bot paused', 'success');
+                updateBotUI(data.status);
+            } catch (err) {
+                showToast('Failed to stop bot', 'error');
+            }
+        } else {
+            const config = {
+                scan_mode: document.getElementById('bot-scan-mode').value,
+                single_symbol: document.getElementById('bot-symbol').value.trim().toUpperCase(),
+                strategy: document.getElementById('bot-strategy').value,
+                allocation_per_trade: parseFloat(document.getElementById('bot-allocation').value) || 50000,
+                max_positions: parseInt(document.getElementById('bot-max-positions').value) || 10,
+                interval_seconds: 20,
+                stop_loss_pct: parseFloat(document.getElementById('bot-stop-loss').value) || 2.5,
+                take_profit_pct: parseFloat(document.getElementById('bot-take-profit').value) || 5.0
+            };
+
+            try {
+                const res = await fetch('/api/bot/start', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(config)
+                });
+                const data = await res.json();
+                if (data.success) {
+                    showToast('NIFTY 50 Auto-Bot Activated!', 'success');
+                    updateBotUI(data.status);
+                    tickBotNow();
+                } else {
+                    showToast('Failed to start bot', 'error');
+                }
+            } catch (err) {
+                showToast('Network error starting bot', 'error');
+            }
+        }
+    }
+
+    async function tickBotNow() {
+        const btn = document.getElementById('bot-scan-btn');
+        btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Scanning 50 Stocks...';
+        btn.disabled = true;
+
+        showToast('Scanning all NIFTY 50 stocks for trading signals...', 'success');
+        try {
+            const res = await fetch('/api/bot/tick', { method: 'POST' });
+            const data = await res.json();
+            if (data.bot_state) {
+                updateBotUI(data.bot_state);
+            }
+            loadAccountMetrics();
+            loadBotHoldings();
+            
+            const summary = data.result || {};
+            showToast(`Scan Complete: Scanned ${summary.total_scanned || 50} stocks | 🟢 ${summary.buys_found || 0} BUY signals | 🔴 ${summary.sells_found || 0} SELL signals`, 'success');
+        } catch (err) {
+            showToast('Scanning cycle failed', 'error');
+        } finally {
+            btn.innerHTML = '<i class="fa-solid fa-arrows-rotate"></i> SCAN ALL 50 NOW';
+            btn.disabled = false;
+        }
+    }
+
+    async function loadBotHoldings() {
+        try {
+            const res = await fetch('/api/portfolio');
+            const data = await res.json();
+            const tbody = document.getElementById('bot-holdings-tbody');
+            if (!tbody) return;
+
+            const positions = data.positions || [];
+            if (positions.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="9" class="text-center" style="padding: 1.5rem; color: var(--text-muted);">No open positions held. Bot will execute buys when signals trigger.</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = '';
+            positions.forEach(p => {
+                const tr = document.createElement('tr');
+                const pnlClass = p.unrealized_pnl >= 0 ? 'text-green' : 'text-red';
+                const pnlSign = p.unrealized_pnl >= 0 ? '+' : '';
+                
+                // Stop-loss at -2.5% and take-profit at +5%
+                const slPrice = (p.average_price * 0.975).toFixed(2);
+                const tpPrice = (p.average_price * 1.05).toFixed(2);
+
+                tr.innerHTML = `
+                    <td><strong>${p.symbol.replace('.NS', '')}</strong> <span style="font-size:0.7rem; color:var(--text-muted);">${p.symbol}</span></td>
+                    <td>${p.quantity}</td>
+                    <td>₹${p.average_price.toFixed(2)}</td>
+                    <td>₹${p.current_price.toFixed(2)}</td>
+                    <td class="${pnlClass}">${pnlSign}₹${p.unrealized_pnl.toFixed(2)}</td>
+                    <td class="${pnlClass}">${pnlSign}${p.pnl_percent.toFixed(2)}%</td>
+                    <td style="color: var(--red); font-weight: 700;">₹${slPrice} (-2.5%)</td>
+                    <td style="color: var(--green); font-weight: 700;">₹${tpPrice} (+5.0%)</td>
+                    <td>
+                        <button class="btn-action-close" onclick="exitBotPosition('${p.symbol}', ${p.quantity})">
+                            <i class="fa-solid fa-xmark"></i> Exit
+                        </button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        } catch (e) {}
+    }
+
+    async function exitBotPosition(symbol, quantity) {
+        if (!confirm(`Liquidate position in ${symbol} (${quantity} shares)?`)) return;
+        try {
+            const res = await fetch('/api/order', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ symbol, order_type: 'SELL', quantity })
+            });
+            const data = await res.json();
+            if (data.success) {
+                showToast(`Liquidated ${quantity} shares of ${symbol}`, 'success');
+                loadBotHoldings();
+                loadAccountMetrics();
+            } else {
+                showToast(`Order failed: ${data.error}`, 'error');
+            }
+        } catch (e) {
+            showToast('Failed to submit order', 'error');
+        }
+    }
+
+    function showToast(msg, type = 'info') {
+        const container = document.getElementById('toast-container');
+        if (!container) return;
+        const toast = document.createElement('div');
+        toast.className = `toast toast-${type}`;
+        toast.innerHTML = msg;
+        container.appendChild(toast);
+        setTimeout(() => toast.remove(), 4000);
+    }
+</script>
+{% endblock %}

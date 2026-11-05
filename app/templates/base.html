@@ -116,6 +116,47 @@
             50% { opacity: 0.4; transform: scale(0.85); }
         }
 
+        .nav-links {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-left: 1.5rem;
+        }
+
+        .nav-link {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.45rem 0.9rem;
+            border-radius: 8px;
+            font-size: 0.85rem;
+            font-weight: 700;
+            color: var(--text-muted);
+            text-decoration: none;
+            transition: all 0.2s ease;
+            position: relative;
+        }
+
+        .nav-link:hover {
+            color: var(--text-main);
+            background: var(--bg-surface);
+        }
+
+        .nav-link.active {
+            color: #fff;
+            background: rgba(0, 163, 255, 0.15);
+            border: 1px solid rgba(0, 163, 255, 0.3);
+        }
+
+        .bot-nav-dot {
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+            background-color: var(--green);
+            box-shadow: 0 0 8px var(--green);
+            animation: pulse 1.5s infinite;
+        }
+
         .nav-metrics {
             display: flex;
             align-items: center;
@@ -698,6 +739,15 @@
             <div class="logo-badge"><i class="fa-solid fa-chart-line"></i></div>
             <div class="logo-title">ALGO<span>TRADE</span> PRO</div>
             <div class="status-pill"><div class="pulse-dot"></div> PAPER LIVE</div>
+            <nav class="nav-links">
+                <a href="/" class="nav-link {% if request.path == '/' or request.path == '/api/index' %}active{% endif %}">
+                    <i class="fa-solid fa-desktop"></i> Terminal
+                </a>
+                <a href="/bot" class="nav-link {% if request.path == '/bot' %}active{% endif %}">
+                    <i class="fa-solid fa-robot"></i> NIFTY 50 Bot
+                    <span class="bot-nav-dot"></span>
+                </a>
+            </nav>
         </div>
         <div class="nav-metrics">
             <div class="metric-box">
