@@ -5,19 +5,20 @@
     <!-- LEFT PANEL: WATCHLIST -->
     <aside class="panel watchlist-panel">
         <div class="panel-header">
-            <h3><i class="fa-solid fa-list-ul"></i> Watchlist</h3>
+            <h3><i class="fa-solid fa-list-ul"></i> Market Watch</h3>
             <form id="add-symbol-form" class="add-symbol-form">
-                <input type="text" id="new-symbol-input" placeholder="e.g. NVDA" maxlength="8" required>
-                <button type="submit" class="btn-icon" title="Add Symbol"><i class="fa-solid fa-plus"></i></button>
+                <input type="text" id="new-symbol-input" placeholder="TICKER" maxlength="8" required>
+                <button type="submit" class="btn-add" title="Add Ticker"><i class="fa-solid fa-plus"></i></button>
             </form>
         </div>
         <div class="watchlist-list" id="watchlist-items">
-            <!-- Dynamically populated -->
-            <div class="loading-state"><i class="fa-solid fa-spinner fa-spin"></i> Loading quotes...</div>
+            <div style="padding: 1.5rem; text-align: center; color: var(--text-muted);">
+                <i class="fa-solid fa-spinner fa-spin"></i> Loading live quotes...
+            </div>
         </div>
     </aside>
 
-    <!-- CENTER PANEL: CHART & TICKER HEADER -->
+    <!-- CENTER PANEL: INTERACTIVE CANDLESTICK CHART -->
     <section class="panel chart-panel">
         <div class="chart-header">
             <div class="active-ticker-info">
@@ -36,149 +37,143 @@
         <div id="chart-container" class="chart-container"></div>
     </section>
 
-    <!-- RIGHT PANEL: ORDER ENTRY TICKET -->
+    <!-- RIGHT PANEL: ORDER EXECUTION TICKET -->
     <aside class="panel trade-panel">
         <div class="panel-header">
-            <h3><i class="fa-solid fa-money-bill-transfer"></i> Trade Ticket</h3>
+            <h3><i class="fa-solid fa-bolt"></i> Quick Order Ticket</h3>
         </div>
         <form id="order-form" class="order-form">
             <div class="form-group">
-                <label>Symbol</label>
+                <label>Target Asset</label>
                 <input type="text" id="order-symbol" class="form-control mono" readonly value="AAPL">
             </div>
 
             <div class="trade-side-selector">
                 <label class="side-btn buy-side active">
-                    <input type="radio" name="side" value="BUY" checked> BUY
+                    <input type="radio" name="side" value="BUY" checked> BUY / LONG
                 </label>
                 <label class="side-btn sell-side">
-                    <input type="radio" name="side" value="SELL"> SELL
+                    <input type="radio" name="side" value="SELL"> SELL / SHORT
                 </label>
             </div>
 
             <div class="form-group">
-                <label>Shares / Quantity</label>
+                <label>Order Size (Shares)</label>
                 <input type="number" id="order-qty" class="form-control mono" min="1" step="1" value="10" required>
             </div>
 
             <div class="order-summary">
                 <div class="summary-row">
-                    <span>Market Price</span>
-                    <span id="order-summary-price" class="mono">$0.00</span>
+                    <span>Market Ask/Bid</span>
+                    <span id="order-summary-price" class="mono font-bold">$0.00</span>
                 </div>
                 <div class="summary-row font-bold">
-                    <span>Est. Total</span>
-                    <span id="order-summary-total" class="mono">$0.00</span>
+                    <span>Estimated Total</span>
+                    <span id="order-summary-total" class="mono font-bold text-green">$0.00</span>
                 </div>
             </div>
 
-            <button type="submit" id="submit-order-btn" class="btn btn-buy btn-block">
+            <button type="submit" id="submit-order-btn" class="btn-submit btn-buy">
                 BUY AAPL
             </button>
         </form>
     </aside>
 </div>
 
-<!-- BOTTOM SECTION: POSITIONS, ORDERS & STRATEGY BACKTEST -->
+<!-- BOTTOM SECTION: POSITIONS & STRATEGY BACKTESTER -->
 <div class="bottom-layout">
     <div class="tabs-header">
-        <button class="tab-btn active" data-tab="tab-positions"><i class="fa-solid fa-briefcase"></i> Open Positions</button>
-        <button class="tab-btn" data-tab="tab-trades"><i class="fa-solid fa-clock-rotate-left"></i> Trade History</button>
-        <button class="tab-btn" data-tab="tab-backtester"><i class="fa-solid fa-robot"></i> Strategy Backtester</button>
+        <button class="tab-btn active" data-tab="tab-positions"><i class="fa-solid fa-briefcase"></i> Active Positions</button>
+        <button class="tab-btn" data-tab="tab-trades"><i class="fa-solid fa-clock-rotate-left"></i> Execution Audit Log</button>
+        <button class="tab-btn" data-tab="tab-backtester"><i class="fa-solid fa-robot"></i> Algorithmic Strategy Backtester</button>
     </div>
 
     <!-- POSITIONS TAB -->
     <div id="tab-positions" class="tab-content active">
-        <div class="table-responsive">
-            <table class="data-table">
-                <thead>
-                    <tr>
-                        <th>Symbol</th>
-                        <th>Quantity</th>
-                        <th>Avg Price</th>
-                        <th>Current Price</th>
-                        <th>Market Value</th>
-                        <th>Unrealized P&L</th>
-                        <th>Actions</th>
-                    </tr>
-                </thead>
-                <tbody id="positions-table-body">
-                    <tr><td colspan="7" class="text-center">No open positions. Place a buy order to begin.</td></tr>
-                </tbody>
-            </table>
-        </div>
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Symbol</th>
+                    <th>Shares</th>
+                    <th>Avg Cost</th>
+                    <th>Current Price</th>
+                    <th>Market Value</th>
+                    <th>Unrealized P&L</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody id="positions-table-body">
+                <tr><td colspan="7" class="text-center" style="padding: 2rem; color: var(--text-muted);">No active positions. Execute a BUY order above to start your paper portfolio.</td></tr>
+            </tbody>
+        </table>
     </div>
 
-    <!-- TRADES HISTORY TAB -->
+    <!-- TRADES TAB -->
     <div id="tab-trades" class="tab-content">
-        <div class="table-responsive">
-            <table class="data-table">
-                <thead>
-                    <tr>
-                        <th>Time</th>
-                        <th>Symbol</th>
-                        <th>Side</th>
-                        <th>Quantity</th>
-                        <th>Price</th>
-                        <th>Total</th>
-                        <th>Realized P&L</th>
-                    </tr>
-                </thead>
-                <tbody id="trades-table-body">
-                    <tr><td colspan="7" class="text-center">No trade history yet.</td></tr>
-                </tbody>
-            </table>
-        </div>
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Timestamp</th>
+                    <th>Symbol</th>
+                    <th>Side</th>
+                    <th>Quantity</th>
+                    <th>Fill Price</th>
+                    <th>Notional Total</th>
+                    <th>Realized P&L</th>
+                </tr>
+            </thead>
+            <tbody id="trades-table-body">
+                <tr><td colspan="7" class="text-center" style="padding: 2rem; color: var(--text-muted);">No trades executed yet.</td></tr>
+            </tbody>
+        </table>
     </div>
 
-    <!-- STRATEGY BACKTESTER TAB -->
+    <!-- BACKTEST TAB -->
     <div id="tab-backtester" class="tab-content">
-        <div class="backtest-controls">
-            <form id="backtest-form" class="backtest-form">
-                <div class="form-inline">
-                    <label>Symbol:</label>
-                    <input type="text" id="bt-symbol" class="form-control mono sm" value="AAPL" required>
-                </div>
-                <div class="form-inline">
-                    <label>Fast SMA:</label>
-                    <input type="number" id="bt-short" class="form-control mono sm" value="20" min="5" max="100">
-                </div>
-                <div class="form-inline">
-                    <label>Slow SMA:</label>
-                    <input type="number" id="bt-long" class="form-control mono sm" value="50" min="20" max="200">
-                </div>
-                <div class="form-inline">
-                    <label>Capital ($):</label>
-                    <input type="number" id="bt-capital" class="form-control mono sm" value="10000">
-                </div>
-                <div class="form-inline">
-                    <label>Period:</label>
-                    <select id="bt-period" class="form-control sm">
-                        <option value="6mo">6 Months</option>
-                        <option value="1y" selected>1 Year</option>
-                        <option value="2y">2 Years</option>
-                    </select>
-                </div>
-                <button type="submit" class="btn btn-primary sm"><i class="fa-solid fa-play"></i> Run Simulation</button>
-            </form>
-        </div>
+        <form id="backtest-form" class="backtest-form">
+            <div class="form-inline">
+                <label>Symbol:</label>
+                <input type="text" id="bt-symbol" class="sm-input" value="AAPL" required>
+            </div>
+            <div class="form-inline">
+                <label>Fast SMA:</label>
+                <input type="number" id="bt-short" class="sm-input" value="20" min="5" max="100">
+            </div>
+            <div class="form-inline">
+                <label>Slow SMA:</label>
+                <input type="number" id="bt-long" class="sm-input" value="50" min="20" max="200">
+            </div>
+            <div class="form-inline">
+                <label>Capital ($):</label>
+                <input type="number" id="bt-capital" class="sm-input" value="10000" style="width: 105px;">
+            </div>
+            <div class="form-inline">
+                <label>Period:</label>
+                <select id="bt-period" class="sm-input" style="width: 95px;">
+                    <option value="6mo">6M</option>
+                    <option value="1y" selected>1Y</option>
+                    <option value="2y">2Y</option>
+                </select>
+            </div>
+            <button type="submit" class="btn-simulate"><i class="fa-solid fa-play"></i> Run Simulation</button>
+        </form>
 
-        <div id="backtest-results" class="backtest-results-container hidden">
+        <div id="backtest-results" class="hidden">
             <div class="metrics-grid">
                 <div class="stat-card">
-                    <span class="stat-label">Strategy Return</span>
-                    <span class="stat-val" id="bt-res-strategy-return">0%</span>
+                    <span class="stat-label">Algorithmic Return</span>
+                    <span class="stat-val text-green" id="bt-res-strategy-return">0%</span>
                 </div>
                 <div class="stat-card">
-                    <span class="stat-label">Buy & Hold Return</span>
+                    <span class="stat-label">Benchmark Buy & Hold</span>
                     <span class="stat-val" id="bt-res-market-return">0%</span>
                 </div>
                 <div class="stat-card">
-                    <span class="stat-label">Ending Capital</span>
-                    <span class="stat-val" id="bt-res-ending-equity">$0.00</span>
+                    <span class="stat-label">Simulated Ending Capital</span>
+                    <span class="stat-val text-green" id="bt-res-ending-equity">$0.00</span>
                 </div>
                 <div class="stat-card">
-                    <span class="stat-label">Total Trades</span>
+                    <span class="stat-label">Trade Signals Generated</span>
                     <span class="stat-val" id="bt-res-trades">0</span>
                 </div>
             </div>
@@ -186,5 +181,450 @@
         </div>
     </div>
 </div>
-{% endblock %}
 
+<script>
+let activeSymbol = 'AAPL';
+let activePeriod = '1mo';
+let activeInterval = '1d';
+let chart = null;
+let candleSeries = null;
+let volumeSeries = null;
+let backtestChart = null;
+let currentQuotePrice = 0.0;
+
+document.addEventListener('DOMContentLoaded', () => {
+    initChart();
+    setupEventListeners();
+    loadWatchlist();
+    loadPortfolio();
+    loadTrades();
+    selectSymbol(activeSymbol);
+
+    setInterval(() => {
+        loadPortfolio();
+        refreshActiveQuote();
+    }, 12000);
+});
+
+function initChart() {
+    const container = document.getElementById('chart-container');
+    if (!container || !window.LightweightCharts) return;
+
+    chart = LightweightCharts.createChart(container, {
+        layout: {
+            background: { color: '#0e131f' },
+            textColor: '#7e8ba6',
+        },
+        grid: {
+            vertLines: { color: 'rgba(31, 41, 61, 0.45)' },
+            horzLines: { color: 'rgba(31, 41, 61, 0.45)' },
+        },
+        crosshair: {
+            mode: LightweightCharts.CrosshairMode.Normal,
+        },
+        rightPriceScale: {
+            borderColor: '#1f293d',
+        },
+        timeScale: {
+            borderColor: '#1f293d',
+            timeVisible: true,
+        },
+    });
+
+    candleSeries = chart.addCandlestickSeries({
+        upColor: '#00f090',
+        downColor: '#ff3366',
+        borderDownColor: '#ff3366',
+        borderUpColor: '#00f090',
+        wickDownColor: '#ff3366',
+        wickUpColor: '#00f090',
+    });
+
+    volumeSeries = chart.addHistogramSeries({
+        color: '#26a69a',
+        priceFormat: { type: 'volume' },
+        priceScaleId: '',
+        scaleMargins: { top: 0.8, bottom: 0 },
+    });
+
+    window.addEventListener('resize', () => {
+        if (chart && container) {
+            chart.applyOptions({ width: container.clientWidth, height: container.clientHeight });
+        }
+    });
+}
+
+async function loadCandles(symbol, period, interval) {
+    try {
+        const res = await fetch(`/api/candles/${symbol}?period=${period}&interval=${interval}`);
+        const data = await res.json();
+        if (data.candles && data.candles.length > 0) {
+            candleSeries.setData(data.candles);
+            const volumeData = data.candles.map(c => ({
+                time: c.time,
+                value: c.volume,
+                color: c.close >= c.open ? 'rgba(0, 240, 144, 0.35)' : 'rgba(255, 51, 102, 0.35)'
+            }));
+            volumeSeries.setData(volumeData);
+            chart.timeScale().fitContent();
+        }
+    } catch (err) {
+        console.error('Error fetching candles:', err);
+    }
+}
+
+async function selectSymbol(symbol) {
+    activeSymbol = symbol.toUpperCase();
+    document.getElementById('active-symbol').innerText = activeSymbol;
+    document.getElementById('order-symbol').value = activeSymbol;
+    updateOrderButton();
+
+    document.querySelectorAll('.watchlist-row').forEach(row => {
+        row.classList.toggle('active', row.dataset.symbol === activeSymbol);
+    });
+
+    await refreshActiveQuote();
+    await loadCandles(activeSymbol, activePeriod, activeInterval);
+}
+
+async function refreshActiveQuote() {
+    try {
+        const res = await fetch(`/api/quote/${activeSymbol}`);
+        const data = await res.json();
+        if (data.price) {
+            currentQuotePrice = data.price;
+            document.getElementById('active-price').innerText = `$${data.price.toFixed(2)}`;
+            
+            const changeEl = document.getElementById('active-change');
+            const sign = data.change >= 0 ? '+' : '';
+            changeEl.innerText = `${sign}${data.change.toFixed(2)} (${sign}${data.percent_change.toFixed(2)}%)`;
+            changeEl.className = `change-display ${data.change >= 0 ? 'text-green' : 'text-red'}`;
+
+            document.getElementById('order-summary-price').innerText = `$${data.price.toFixed(2)}`;
+            calculateOrderTotal();
+        }
+    } catch (err) {
+        console.error('Error refreshing quote:', err);
+    }
+}
+
+function calculateOrderTotal() {
+    const qty = parseFloat(document.getElementById('order-qty').value) || 0;
+    const total = qty * currentQuotePrice;
+    document.getElementById('order-summary-total').innerText = `$${total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+async function loadWatchlist() {
+    const container = document.getElementById('watchlist-items');
+    try {
+        const res = await fetch('/api/watchlist');
+        const list = await res.json();
+        
+        container.innerHTML = '';
+        list.forEach(item => {
+            const row = document.createElement('div');
+            row.className = `watchlist-row ${item.symbol === activeSymbol ? 'active' : ''}`;
+            row.dataset.symbol = item.symbol;
+            
+            const priceText = item.price ? `$${item.price.toFixed(2)}` : 'N/A';
+            const changeText = item.percent_change !== undefined ? `${item.percent_change >= 0 ? '+' : ''}${item.percent_change.toFixed(2)}%` : '--';
+            const colorClass = (item.percent_change || 0) >= 0 ? 'text-green' : 'text-red';
+
+            row.innerHTML = `
+                <div class="wl-symbol">${item.symbol}</div>
+                <div class="wl-quote">
+                    <div class="wl-price">${priceText}</div>
+                    <div class="wl-change ${colorClass}">${changeText}</div>
+                </div>
+            `;
+            row.addEventListener('click', () => selectSymbol(item.symbol));
+            container.appendChild(row);
+        });
+    } catch (err) {
+        container.innerHTML = `<div style="padding: 1rem; color: var(--red);">Error loading watchlist</div>`;
+    }
+}
+
+async function loadPortfolio() {
+    try {
+        const res = await fetch('/api/portfolio');
+        const data = await res.json();
+
+        document.getElementById('nav-total-equity').innerText = `$${data.total_equity.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+        document.getElementById('nav-cash-balance').innerText = `$${data.cash_balance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+        
+        const pnlEl = document.getElementById('nav-pnl');
+        const sign = data.unrealized_pnl >= 0 ? '+' : '';
+        pnlEl.innerText = `${sign}$${data.unrealized_pnl.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+        pnlEl.className = `metric-value ${data.unrealized_pnl >= 0 ? 'text-green' : 'text-red'}`;
+
+        const tbody = document.getElementById('positions-table-body');
+        if (!data.positions || data.positions.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="7" class="text-center" style="padding: 2rem; color: var(--text-muted);">No active positions. Execute a BUY order above to start your paper portfolio.</td></tr>`;
+            return;
+        }
+
+        tbody.innerHTML = '';
+        data.positions.forEach(pos => {
+            const tr = document.createElement('tr');
+            const pnlColor = pos.unrealized_pnl >= 0 ? 'text-green' : 'text-red';
+            const pnlSign = pos.unrealized_pnl >= 0 ? '+' : '';
+            
+            tr.innerHTML = `
+                <td><strong>${pos.symbol}</strong></td>
+                <td>${pos.quantity}</td>
+                <td>$${pos.average_price.toFixed(2)}</td>
+                <td>$${pos.current_price.toFixed(2)}</td>
+                <td>$${pos.market_value.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                <td class="${pnlColor}">${pnlSign}$${pos.unrealized_pnl.toFixed(2)} (${pnlSign}${pos.unrealized_pnl_pct.toFixed(2)}%)</td>
+                <td>
+                    <button class="btn-action-close" onclick="closePosition('${pos.symbol}', ${pos.quantity})">Close Position</button>
+                </td>
+            `;
+            tbody.appendChild(tr);
+        });
+    } catch (err) {
+        console.error('Error loading portfolio:', err);
+    }
+}
+
+async function loadTrades() {
+    try {
+        const res = await fetch('/api/trades');
+        const trades = await res.json();
+        const tbody = document.getElementById('trades-table-body');
+        
+        if (!trades || trades.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="7" class="text-center" style="padding: 2rem; color: var(--text-muted);">No trades executed yet.</td></tr>`;
+            return;
+        }
+
+        tbody.innerHTML = '';
+        trades.forEach(t => {
+            const tr = document.createElement('tr');
+            const sideColor = t.side === 'BUY' ? 'text-green' : 'text-red';
+            const pnlDisplay = t.side === 'SELL' ? `$${t.realized_pnl.toFixed(2)}` : '--';
+            const pnlClass = t.realized_pnl >= 0 ? 'text-green' : 'text-red';
+
+            tr.innerHTML = `
+                <td>${t.timestamp}</td>
+                <td><strong>${t.symbol}</strong></td>
+                <td class="${sideColor}"><strong>${t.side}</strong></td>
+                <td>${t.quantity}</td>
+                <td>$${t.price.toFixed(2)}</td>
+                <td>$${t.total.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                <td class="${t.side === 'SELL' ? pnlClass : ''}">${pnlDisplay}</td>
+            `;
+            tbody.appendChild(tr);
+        });
+    } catch (err) {
+        console.error('Error loading trades:', err);
+    }
+}
+
+window.closePosition = async function(symbol, quantity) {
+    if (!confirm(`Liquidate all ${quantity} shares of ${symbol} at current market price?`)) return;
+    try {
+        const res = await fetch('/api/order', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ symbol, side: 'SELL', quantity })
+        });
+        const data = await res.json();
+        if (data.success) {
+            showToast(data.message, 'success');
+            loadPortfolio();
+            loadTrades();
+        } else {
+            showToast(data.message || 'Execution error', 'error');
+        }
+    } catch (err) {
+        showToast('Execution failure', 'error');
+    }
+};
+
+function setupEventListeners() {
+    document.querySelectorAll('.tf-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            document.querySelectorAll('.tf-btn').forEach(b => b.classList.remove('active'));
+            e.target.classList.add('active');
+            activePeriod = e.target.dataset.period;
+            activeInterval = e.target.dataset.interval;
+            loadCandles(activeSymbol, activePeriod, activeInterval);
+        });
+    });
+
+    document.querySelectorAll('input[name="side"]').forEach(radio => {
+        radio.addEventListener('change', (e) => {
+            document.querySelectorAll('.side-btn').forEach(btn => btn.classList.remove('active'));
+            e.target.closest('.side-btn').classList.add('active');
+            updateOrderButton();
+        });
+    });
+
+    document.getElementById('order-qty').addEventListener('input', calculateOrderTotal);
+
+    document.getElementById('order-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const side = document.querySelector('input[name="side"]:checked').value;
+        const qty = parseFloat(document.getElementById('order-qty').value);
+
+        try {
+            const res = await fetch('/api/order', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ symbol: activeSymbol, side, quantity: qty })
+            });
+            const data = await res.json();
+            if (data.success) {
+                showToast(data.message, 'success');
+                loadPortfolio();
+                loadTrades();
+            } else {
+                showToast(data.message || 'Order rejected', 'error');
+            }
+        } catch (err) {
+            showToast('Order failed: ' + err.message, 'error');
+        }
+    });
+
+    document.getElementById('add-symbol-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const input = document.getElementById('new-symbol-input');
+        const symbol = input.value.trim().toUpperCase();
+        if (!symbol) return;
+
+        try {
+            const res = await fetch('/api/watchlist', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ symbol })
+            });
+            const data = await res.json();
+            if (data.success) {
+                showToast(`Added ${symbol} to watchlist`, 'success');
+                input.value = '';
+                loadWatchlist();
+            } else {
+                showToast(data.error || data.message, 'error');
+            }
+        } catch (err) {
+            showToast('Failed to add symbol', 'error');
+        }
+    });
+
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+            btn.classList.add('active');
+            document.getElementById(btn.dataset.tab).classList.add('active');
+        });
+    });
+
+    document.getElementById('reset-account-btn').addEventListener('click', async () => {
+        if (!confirm('Reset desk balance back to $100,000 and clear all positions?')) return;
+        try {
+            const res = await fetch('/api/reset-account', { method: 'POST' });
+            const data = await res.json();
+            if (data.success) {
+                showToast('Portfolio reset to $100,000', 'success');
+                loadPortfolio();
+                loadTrades();
+            }
+        } catch (err) {
+            showToast('Reset failed', 'error');
+        }
+    });
+
+    document.getElementById('backtest-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const symbol = document.getElementById('bt-symbol').value.trim().toUpperCase();
+        const short_window = parseInt(document.getElementById('bt-short').value);
+        const long_window = parseInt(document.getElementById('bt-long').value);
+        const capital = parseFloat(document.getElementById('bt-capital').value);
+        const period = document.getElementById('bt-period').value;
+
+        showToast('Computing strategy simulation...', 'success');
+
+        try {
+            const res = await fetch('/api/backtest', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ symbol, short_window, long_window, capital, period })
+            });
+            const data = await res.json();
+            if (data.error) {
+                showToast(data.error, 'error');
+                return;
+            }
+            renderBacktestResults(data);
+        } catch (err) {
+            showToast('Simulation failed', 'error');
+        }
+    });
+}
+
+function updateOrderButton() {
+    const side = document.querySelector('input[name="side"]:checked').value;
+    const btn = document.getElementById('submit-order-btn');
+    btn.className = `btn-submit ${side === 'BUY' ? 'btn-buy' : 'btn-sell'}`;
+    btn.innerText = `${side} ${activeSymbol}`;
+}
+
+function renderBacktestResults(data) {
+    document.getElementById('backtest-results').classList.remove('hidden');
+    
+    const stratRetEl = document.getElementById('bt-res-strategy-return');
+    stratRetEl.innerText = `${data.strategy_return_pct >= 0 ? '+' : ''}${data.strategy_return_pct}%`;
+    stratRetEl.className = `stat-val ${data.strategy_return_pct >= 0 ? 'text-green' : 'text-red'}`;
+
+    const mktRetEl = document.getElementById('bt-res-market-return');
+    mktRetEl.innerText = `${data.benchmark_return_pct >= 0 ? '+' : ''}${data.benchmark_return_pct}%`;
+    mktRetEl.className = `stat-val ${data.benchmark_return_pct >= 0 ? 'text-green' : 'text-red'}`;
+
+    document.getElementById('bt-res-ending-equity').innerText = `$${data.final_strategy_equity.toLocaleString(undefined, { minimumFractionDigits: 2 })}`;
+    document.getElementById('bt-res-trades').innerText = data.total_trades;
+
+    const container = document.getElementById('backtest-chart-container');
+    container.innerHTML = '';
+    
+    if (!window.LightweightCharts) return;
+    backtestChart = LightweightCharts.createChart(container, {
+        layout: { background: { color: '#07090e' }, textColor: '#7e8ba6' },
+        grid: { vertLines: { color: 'rgba(31, 41, 61, 0.35)' }, horzLines: { color: 'rgba(31, 41, 61, 0.35)' } },
+        rightPriceScale: { borderColor: '#1f293d' },
+        timeScale: { borderColor: '#1f293d' },
+    });
+
+    const stratSeries = backtestChart.addLineSeries({
+        color: '#00f090',
+        lineWidth: 2,
+        title: 'Strategy Equity ($)'
+    });
+
+    const benchSeries = backtestChart.addLineSeries({
+        color: '#7e8ba6',
+        lineWidth: 1,
+        lineStyle: LightweightCharts.LineStyle.Dotted,
+        title: 'Buy & Hold ($)'
+    });
+
+    const stratLineData = data.chart.dates.map((d, i) => ({ time: d, value: data.chart.strategy_equity[i] }));
+    const benchLineData = data.chart.dates.map((d, i) => ({ time: d, value: data.chart.benchmark_equity[i] }));
+
+    stratSeries.setData(stratLineData);
+    benchSeries.setData(benchLineData);
+    backtestChart.timeScale().fitContent();
+}
+
+function showToast(message, type = 'success') {
+    const container = document.getElementById('toast-container');
+    const toast = document.createElement('div');
+    toast.className = `toast toast-${type}`;
+    toast.innerText = message;
+    container.appendChild(toast);
+    setTimeout(() => { toast.remove(); }, 4000);
+}
+</script>
+{% endblock %}
