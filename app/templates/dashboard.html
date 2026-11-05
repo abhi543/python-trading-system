@@ -1,0 +1,190 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="grid-layout">
+    <!-- LEFT PANEL: WATCHLIST -->
+    <aside class="panel watchlist-panel">
+        <div class="panel-header">
+            <h3><i class="fa-solid fa-list-ul"></i> Watchlist</h3>
+            <form id="add-symbol-form" class="add-symbol-form">
+                <input type="text" id="new-symbol-input" placeholder="e.g. NVDA" maxlength="8" required>
+                <button type="submit" class="btn-icon" title="Add Symbol"><i class="fa-solid fa-plus"></i></button>
+            </form>
+        </div>
+        <div class="watchlist-list" id="watchlist-items">
+            <!-- Dynamically populated -->
+            <div class="loading-state"><i class="fa-solid fa-spinner fa-spin"></i> Loading quotes...</div>
+        </div>
+    </aside>
+
+    <!-- CENTER PANEL: CHART & TICKER HEADER -->
+    <section class="panel chart-panel">
+        <div class="chart-header">
+            <div class="active-ticker-info">
+                <span class="symbol-display" id="active-symbol">AAPL</span>
+                <span class="price-display" id="active-price">$0.00</span>
+                <span class="change-display" id="active-change">+0.00 (+0.00%)</span>
+            </div>
+            <div class="timeframe-selectors">
+                <button class="tf-btn" data-period="1d" data-interval="5m">1D</button>
+                <button class="tf-btn" data-period="5d" data-interval="15m">5D</button>
+                <button class="tf-btn active" data-period="1mo" data-interval="1d">1M</button>
+                <button class="tf-btn" data-period="6mo" data-interval="1d">6M</button>
+                <button class="tf-btn" data-period="1y" data-interval="1d">1Y</button>
+            </div>
+        </div>
+        <div id="chart-container" class="chart-container"></div>
+    </section>
+
+    <!-- RIGHT PANEL: ORDER ENTRY TICKET -->
+    <aside class="panel trade-panel">
+        <div class="panel-header">
+            <h3><i class="fa-solid fa-money-bill-transfer"></i> Trade Ticket</h3>
+        </div>
+        <form id="order-form" class="order-form">
+            <div class="form-group">
+                <label>Symbol</label>
+                <input type="text" id="order-symbol" class="form-control mono" readonly value="AAPL">
+            </div>
+
+            <div class="trade-side-selector">
+                <label class="side-btn buy-side active">
+                    <input type="radio" name="side" value="BUY" checked> BUY
+                </label>
+                <label class="side-btn sell-side">
+                    <input type="radio" name="side" value="SELL"> SELL
+                </label>
+            </div>
+
+            <div class="form-group">
+                <label>Shares / Quantity</label>
+                <input type="number" id="order-qty" class="form-control mono" min="1" step="1" value="10" required>
+            </div>
+
+            <div class="order-summary">
+                <div class="summary-row">
+                    <span>Market Price</span>
+                    <span id="order-summary-price" class="mono">$0.00</span>
+                </div>
+                <div class="summary-row font-bold">
+                    <span>Est. Total</span>
+                    <span id="order-summary-total" class="mono">$0.00</span>
+                </div>
+            </div>
+
+            <button type="submit" id="submit-order-btn" class="btn btn-buy btn-block">
+                BUY AAPL
+            </button>
+        </form>
+    </aside>
+</div>
+
+<!-- BOTTOM SECTION: POSITIONS, ORDERS & STRATEGY BACKTEST -->
+<div class="bottom-layout">
+    <div class="tabs-header">
+        <button class="tab-btn active" data-tab="tab-positions"><i class="fa-solid fa-briefcase"></i> Open Positions</button>
+        <button class="tab-btn" data-tab="tab-trades"><i class="fa-solid fa-clock-rotate-left"></i> Trade History</button>
+        <button class="tab-btn" data-tab="tab-backtester"><i class="fa-solid fa-robot"></i> Strategy Backtester</button>
+    </div>
+
+    <!-- POSITIONS TAB -->
+    <div id="tab-positions" class="tab-content active">
+        <div class="table-responsive">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Symbol</th>
+                        <th>Quantity</th>
+                        <th>Avg Price</th>
+                        <th>Current Price</th>
+                        <th>Market Value</th>
+                        <th>Unrealized P&L</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="positions-table-body">
+                    <tr><td colspan="7" class="text-center">No open positions. Place a buy order to begin.</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- TRADES HISTORY TAB -->
+    <div id="tab-trades" class="tab-content">
+        <div class="table-responsive">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Time</th>
+                        <th>Symbol</th>
+                        <th>Side</th>
+                        <th>Quantity</th>
+                        <th>Price</th>
+                        <th>Total</th>
+                        <th>Realized P&L</th>
+                    </tr>
+                </thead>
+                <tbody id="trades-table-body">
+                    <tr><td colspan="7" class="text-center">No trade history yet.</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- STRATEGY BACKTESTER TAB -->
+    <div id="tab-backtester" class="tab-content">
+        <div class="backtest-controls">
+            <form id="backtest-form" class="backtest-form">
+                <div class="form-inline">
+                    <label>Symbol:</label>
+                    <input type="text" id="bt-symbol" class="form-control mono sm" value="AAPL" required>
+                </div>
+                <div class="form-inline">
+                    <label>Fast SMA:</label>
+                    <input type="number" id="bt-short" class="form-control mono sm" value="20" min="5" max="100">
+                </div>
+                <div class="form-inline">
+                    <label>Slow SMA:</label>
+                    <input type="number" id="bt-long" class="form-control mono sm" value="50" min="20" max="200">
+                </div>
+                <div class="form-inline">
+                    <label>Capital ($):</label>
+                    <input type="number" id="bt-capital" class="form-control mono sm" value="10000">
+                </div>
+                <div class="form-inline">
+                    <label>Period:</label>
+                    <select id="bt-period" class="form-control sm">
+                        <option value="6mo">6 Months</option>
+                        <option value="1y" selected>1 Year</option>
+                        <option value="2y">2 Years</option>
+                    </select>
+                </div>
+                <button type="submit" class="btn btn-primary sm"><i class="fa-solid fa-play"></i> Run Simulation</button>
+            </form>
+        </div>
+
+        <div id="backtest-results" class="backtest-results-container hidden">
+            <div class="metrics-grid">
+                <div class="stat-card">
+                    <span class="stat-label">Strategy Return</span>
+                    <span class="stat-val" id="bt-res-strategy-return">0%</span>
+                </div>
+                <div class="stat-card">
+                    <span class="stat-label">Buy & Hold Return</span>
+                    <span class="stat-val" id="bt-res-market-return">0%</span>
+                </div>
+                <div class="stat-card">
+                    <span class="stat-label">Ending Capital</span>
+                    <span class="stat-val" id="bt-res-ending-equity">$0.00</span>
+                </div>
+                <div class="stat-card">
+                    <span class="stat-label">Total Trades</span>
+                    <span class="stat-val" id="bt-res-trades">0</span>
+                </div>
+            </div>
+            <div id="backtest-chart-container" class="chart-container-sm"></div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+

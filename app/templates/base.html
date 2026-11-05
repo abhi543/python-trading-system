@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Python Trading Desk{% endblock %}</title>
+    <!-- Google Fonts & Font Awesome Icons -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <!-- Lightweight Charts from TradingView CDN -->
+    <script src="https://unpkg.com/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js"></script>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body class="dark-theme">
+    <header class="navbar">
+        <div class="nav-brand">
+            <i class="fa-solid fa-chart-line logo-icon"></i>
+            <span class="logo-title">ALGO<span class="highlight">TRADE</span></span>
+            <span class="badge live-badge"><i class="fa-solid fa-circle pulse-dot"></i> PAPER TRADING</span>
+        </div>
+        <div class="nav-metrics">
+            <div class="metric-card">
+                <span class="metric-label">TOTAL EQUITY</span>
+                <span class="metric-value" id="nav-total-equity">$0.00</span>
+            </div>
+            <div class="metric-card">
+                <span class="metric-label">CASH BALANCE</span>
+                <span class="metric-value" id="nav-cash-balance">$0.00</span>
+            </div>
+            <div class="metric-card">
+                <span class="metric-label">UNREALIZED P&L</span>
+                <span class="metric-value" id="nav-pnl">$0.00</span>
+            </div>
+            <button id="reset-account-btn" class="btn-sm btn-outline" title="Reset cash to $100,000 and clear positions">
+                <i class="fa-solid fa-rotate-left"></i> Reset
+            </button>
+        </div>
+    </header>
+
+    <main class="main-container">
+        {% block content %}{% endblock %}
+    </main>
+
+    <div id="toast-container" class="toast-container"></div>
+    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+</body>
+</html>
+
