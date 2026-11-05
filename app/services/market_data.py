@@ -74,6 +74,41 @@ class MarketDataService:
         }
 
     @staticmethod
+    def get_stock_analysis_data(symbol: str) -> dict:
+        """Fetches both current quote and 1mo historical closes in a single fast HTTP call"""
+        chart_res, resolved_symbol = MarketDataService._fetch_chart_data(symbol, interval="1d", range_val="1mo")
+        if not chart_res:
+            return {"error": f"No data for {symbol}"}
+
+        meta = chart_res.get('meta', {})
+        current_price = meta.get('regularMarketPrice')
+        prev_close = meta.get('chartPreviousClose') or meta.get('previousClose')
+        
+        quotes = chart_res.get('indicators', {}).get('quote', [{}])[0]
+        raw_closes = quotes.get('close', [])
+        valid_closes = [float(c) for c in raw_closes if c is not None]
+
+        if not valid_closes:
+            return {"error": f"No close data for {symbol}"}
+
+        if current_price is None:
+            current_price = valid_closes[-1]
+            prev_close = valid_closes[-2] if len(valid_closes) > 1 else current_price
+
+        if not prev_close:
+            prev_close = valid_closes[-2] if len(valid_closes) > 1 else current_price
+
+        change = current_price - prev_close
+        percent_change = (change / prev_close * 100) if prev_close else 0.0
+
+        return {
+            "symbol": resolved_symbol,
+            "price": round(float(current_price), 2),
+            "percent_change": round(float(percent_change), 2),
+            "closes": valid_closes
+        }
+
+    @staticmethod
     def get_historical_candles(symbol: str, period: str = "1mo", interval: str = "1d") -> list:
         valid_ranges = ["1d", "5d", "1mo", "3mo", "6mo", "1y", "2y", "5y"]
         range_val = period if period in valid_ranges else "1mo"

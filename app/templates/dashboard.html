@@ -91,12 +91,12 @@
 
     <!-- AUTO-TRADING BOT TAB -->
     <div id="tab-bot" class="tab-content active">
-        <div style="display: grid; grid-template-columns: 360px 1fr; gap: 1.25rem;">
+        <div style="display: grid; grid-template-columns: 340px 1fr; gap: 1.25rem;">
             <!-- BOT CONFIGURATION PANEL -->
             <div style="background: var(--bg-surface); padding: 1.25rem; border-radius: 8px; border: 1px solid var(--border); display: flex; flex-direction: column; gap: 1rem;">
                 <div style="display: flex; justify-content: space-between; align-items: center;">
                     <h4 style="font-size: 0.85rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-main);">
-                        <i class="fa-solid fa-sliders"></i> Strategy Parameters
+                        <i class="fa-solid fa-sliders"></i> Bot Control Center
                     </h4>
                     <span id="bot-status-pill" class="status-pill" style="font-size: 0.65rem;">
                         <span class="pulse-dot"></span> <span id="bot-status-text">OFFLINE</span>
@@ -105,46 +105,54 @@
 
                 <form id="bot-config-form" style="display: flex; flex-direction: column; gap: 0.85rem;">
                     <div class="form-group">
-                        <label>Target Asset (NSE)</label>
-                        <input type="text" id="bot-symbol" class="form-control mono" value="RELIANCE.NS" required>
+                        <label>Scanning Scope</label>
+                        <select id="bot-scan-mode" class="form-control" style="font-weight: 700; color: var(--green);">
+                            <option value="ALL_NIFTY_50" selected>⚡ ALL NIFTY 50 STOCKS (Full Basket)</option>
+                            <option value="SINGLE">Single Ticker Focus</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group" id="bot-single-symbol-group" style="display: none;">
+                        <label>Target Single Asset</label>
+                        <input type="text" id="bot-symbol" class="form-control mono" value="RELIANCE.NS">
                     </div>
 
                     <div class="form-group">
-                        <label>Automated Strategy Model</label>
+                        <label>Algorithmic Model</label>
                         <select id="bot-strategy" class="form-control" style="font-weight: 600;">
                             <option value="SMA_CROSSOVER" selected>Dual SMA Golden/Death Cross (9/21)</option>
-                            <option value="RSI_MOMENTUM">RSI Mean Reversion (14-Period, 30/70)</option>
+                            <option value="RSI_MOMENTUM">RSI Mean Reversion (14-Period, 35/65)</option>
                         </select>
                     </div>
 
                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.6rem;">
                         <div class="form-group">
-                            <label>Trade Size (Shares)</label>
-                            <input type="number" id="bot-quantity" class="form-control mono" value="10" min="1" step="1">
+                            <label>Budget / Stock (₹)</label>
+                            <input type="number" id="bot-allocation" class="form-control mono" value="50000" step="5000" min="5000">
                         </div>
                         <div class="form-group">
-                            <label>Interval (Sec)</label>
-                            <input type="number" id="bot-interval" class="form-control mono" value="15" min="5" max="300">
+                            <label>Max Positions</label>
+                            <input type="number" id="bot-max-positions" class="form-control mono" value="10" min="1" max="50">
                         </div>
                     </div>
 
                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.6rem;">
                         <div class="form-group">
                             <label>Stop-Loss (%)</label>
-                            <input type="number" id="bot-stop-loss" class="form-control mono" value="2.0" step="0.5" min="0.5">
+                            <input type="number" id="bot-stop-loss" class="form-control mono" value="2.5" step="0.5" min="0.5">
                         </div>
                         <div class="form-group">
                             <label>Take-Profit (%)</label>
-                            <input type="number" id="bot-take-profit" class="form-control mono" value="4.0" step="0.5" min="0.5">
+                            <input type="number" id="bot-take-profit" class="form-control mono" value="5.0" step="0.5" min="0.5">
                         </div>
                     </div>
 
                     <div style="display: flex; gap: 0.6rem; margin-top: 0.5rem;">
                         <button type="button" id="bot-toggle-btn" class="btn-submit btn-buy" style="flex: 1;">
-                            <i class="fa-solid fa-play"></i> START AUTO BOT
+                            <i class="fa-solid fa-play"></i> START NIFTY 50 BOT
                         </button>
-                        <button type="button" id="bot-tick-now-btn" class="btn-reset" style="padding: 0.65rem 1rem;" title="Evaluate strategy immediately">
-                            <i class="fa-solid fa-bolt"></i> Evaluate Now
+                        <button type="button" id="bot-tick-now-btn" class="btn-reset" style="padding: 0.65rem 0.9rem;" title="Scan all NIFTY 50 stocks right now">
+                            <i class="fa-solid fa-bolt"></i> Scan Now
                         </button>
                     </div>
                 </form>
@@ -159,27 +167,53 @@
                         <span class="stat-val text-green" id="bot-card-state">IDLE</span>
                     </div>
                     <div class="stat-card">
-                        <span class="stat-label">Last Computed Signal</span>
-                        <span class="stat-val" id="bot-card-signal" style="color: var(--blue);">HOLD</span>
+                        <span class="stat-label">NIFTY 50 Scan Coverage</span>
+                        <span class="stat-val" id="bot-card-scanned" style="color: var(--blue);">50 Stocks</span>
                     </div>
                     <div class="stat-card">
-                        <span class="stat-label">Active Monitored Price</span>
-                        <span class="stat-val" id="bot-card-price">₹0.00</span>
+                        <span class="stat-label">Active Signals Found</span>
+                        <span class="stat-val" id="bot-card-signals">0 BUY / 0 SELL</span>
                     </div>
                     <div class="stat-card">
-                        <span class="stat-label">Last Strategy Evaluation</span>
-                        <span class="stat-val mono" id="bot-card-time" style="font-size: 0.95rem; font-weight: 600;">--:--:--</span>
+                        <span class="stat-label">Portfolio Slots Used</span>
+                        <span class="stat-val mono" id="bot-card-slots">0 / 10 Active</span>
+                    </div>
+                </div>
+
+                <!-- LIVE NIFTY 50 SCANNER RESULTS TABLE -->
+                <div style="background: var(--bg-body); border: 1px solid var(--border); border-radius: 8px; display: flex; flex-direction: column; overflow: hidden; max-height: 250px;">
+                    <div style="padding: 0.6rem 0.9rem; background: var(--bg-surface); border-bottom: 1px solid var(--border); font-size: 0.75rem; font-weight: 700; color: var(--text-muted); display: flex; justify-content: space-between; align-items: center;">
+                        <span><i class="fa-solid fa-radar"></i> NIFTY 50 Live Signal Radar</span>
+                        <span style="font-size: 0.65rem; color: var(--green);"><i class="fa-solid fa-circle pulse-dot"></i> REAL-TIME SCANNER</span>
+                    </div>
+                    <div style="overflow-y: auto; flex: 1;">
+                        <table class="data-table" style="font-size: 0.8rem;">
+                            <thead>
+                                <tr>
+                                    <th>Stock</th>
+                                    <th>Price</th>
+                                    <th>Day %</th>
+                                    <th>Signal</th>
+                                    <th>Calculated Indicators</th>
+                                    <th>Bot Action</th>
+                                    <th>Chart</th>
+                                </tr>
+                            </thead>
+                            <tbody id="bot-scanner-tbody">
+                                <tr><td colspan="7" class="text-center" style="padding: 1.5rem; color: var(--text-muted);">Click <strong>Scan Now</strong> or <strong>START NIFTY 50 BOT</strong> to evaluate all 50 stocks.</td></tr>
+                            </tbody>
+                        </table>
                     </div>
                 </div>
 
                 <!-- LIVE LOG TERMINAL -->
-                <div style="background: var(--bg-body); border: 1px solid var(--border); border-radius: 8px; flex: 1; display: flex; flex-direction: column; overflow: hidden; min-height: 220px;">
-                    <div style="padding: 0.6rem 0.9rem; background: var(--bg-surface); border-bottom: 1px solid var(--border); font-size: 0.75rem; font-weight: 700; color: var(--text-muted); display: flex; justify-content: space-between; align-items: center;">
-                        <span><i class="fa-solid fa-terminal"></i> Bot Strategy Decision Stream</span>
-                        <span style="font-size: 0.65rem; color: var(--green);"><i class="fa-solid fa-circle pulse-dot"></i> REAL-TIME</span>
+                <div style="background: var(--bg-body); border: 1px solid var(--border); border-radius: 8px; display: flex; flex-direction: column; overflow: hidden; max-height: 160px;">
+                    <div style="padding: 0.5rem 0.85rem; background: var(--bg-surface); border-bottom: 1px solid var(--border); font-size: 0.75rem; font-weight: 700; color: var(--text-muted); display: flex; justify-content: space-between; align-items: center;">
+                        <span><i class="fa-solid fa-terminal"></i> Bot Execution Console</span>
+                        <span id="bot-last-tick-time" style="font-size: 0.65rem; color: var(--text-muted);">Last run: --:--:--</span>
                     </div>
-                    <div id="bot-logs-container" style="padding: 0.85rem; font-family: var(--font-code); font-size: 0.8rem; overflow-y: auto; max-height: 220px; display: flex; flex-direction: column; gap: 0.4rem;">
-                        <div style="color: var(--text-muted);">Bot engine ready. Configure strategy parameters and click 'START AUTO BOT' or 'Evaluate Now'.</div>
+                    <div id="bot-logs-container" style="padding: 0.75rem; font-family: var(--font-code); font-size: 0.75rem; overflow-y: auto; max-height: 120px; display: flex; flex-direction: column; gap: 0.35rem;">
+                        <div style="color: var(--text-muted);">Bot ready. Configured to monitor all 50 NIFTY stocks. Click 'START NIFTY 50 BOT' or 'Scan Now'.</div>
                     </div>
                 </div>
             </div>
@@ -765,16 +799,16 @@ function updateBotUI(data) {
     const toggleBtn = document.getElementById('bot-toggle-btn');
     
     if (isBotActive) {
-        badge.innerText = 'ACTIVE';
+        badge.innerText = 'SCANNING';
         badge.style.background = 'rgba(0, 240, 144, 0.2)';
         badge.style.color = 'var(--green)';
         
-        pillText.innerText = 'ACTIVE / RUNNING';
-        stateCard.innerText = 'AUTO RUNNING';
+        pillText.innerText = 'SCANNING NIFTY 50';
+        stateCard.innerText = 'AUTO SCANNING';
         stateCard.className = 'stat-val text-green';
         
         toggleBtn.className = 'btn-submit btn-sell';
-        toggleBtn.innerHTML = '<i class="fa-solid fa-pause"></i> PAUSE AUTO BOT';
+        toggleBtn.innerHTML = '<i class="fa-solid fa-pause"></i> PAUSE NIFTY 50 BOT';
     } else {
         badge.innerText = 'IDLE';
         badge.style.background = 'rgba(126, 139, 166, 0.15)';
@@ -786,27 +820,69 @@ function updateBotUI(data) {
         stateCard.style.color = 'var(--text-muted)';
         
         toggleBtn.className = 'btn-submit btn-buy';
-        toggleBtn.innerHTML = '<i class="fa-solid fa-play"></i> START AUTO BOT';
+        toggleBtn.innerHTML = '<i class="fa-solid fa-play"></i> START NIFTY 50 BOT';
     }
 
-    // Update signal card
-    const signalCard = document.getElementById('bot-card-signal');
-    signalCard.innerText = data.last_signal || 'HOLD';
-    if (data.last_signal === 'BUY') {
-        signalCard.className = 'stat-val text-green';
-    } else if (data.last_signal === 'SELL' || data.last_signal === 'STOP_LOSS_SELL' || data.last_signal === 'TAKE_PROFIT_SELL') {
-        signalCard.className = 'stat-val text-red';
-    } else {
-        signalCard.className = 'stat-val';
-        signalCard.style.color = 'var(--blue)';
-    }
+    // Update Summary cards
+    const summary = data.scan_summary || {};
+    document.getElementById('bot-card-scanned').innerText = `${summary.total_scanned || 50} Stocks`;
+    
+    const buysFound = summary.buys_found || 0;
+    const sellsFound = summary.sells_found || 0;
+    const signalsEl = document.getElementById('bot-card-signals');
+    signalsEl.innerText = `${buysFound} BUY / ${sellsFound} SELL`;
+    signalsEl.className = buysFound > 0 ? 'stat-val text-green' : (sellsFound > 0 ? 'stat-val text-red' : 'stat-val');
 
-    // Update price and time
-    if (data.current_price) {
-        document.getElementById('bot-card-price').innerText = `₹${data.current_price.toFixed(2)}`;
-    }
+    document.getElementById('bot-card-slots').innerText = `${summary.active_positions_count || 0} / ${data.max_positions || 10} Active`;
+    
     if (data.last_run_time) {
-        document.getElementById('bot-card-time').innerText = data.last_run_time.split(' ')[1] || data.last_run_time;
+        document.getElementById('bot-last-tick-time').innerText = `Last scan: ${data.last_run_time.split(' ')[1] || data.last_run_time}`;
+    }
+
+    // Render Scanner Table
+    const tbody = document.getElementById('bot-scanner-tbody');
+    if (summary.scanner_results && summary.scanner_results.length > 0) {
+        tbody.innerHTML = '';
+        summary.scanner_results.forEach(s => {
+            const tr = document.createElement('tr');
+            
+            let sigBadge = `<span class="badge" style="background: rgba(126, 139, 166, 0.15); color: var(--text-muted);">HOLD</span>`;
+            if (s.signal === 'BUY') {
+                sigBadge = `<span class="badge" style="background: rgba(0, 240, 144, 0.2); color: var(--green); font-weight: 800;">🟢 BUY</span>`;
+            } else if (s.signal === 'SELL' || s.signal === 'STOP_LOSS' || s.signal === 'TAKE_PROFIT') {
+                sigBadge = `<span class="badge" style="background: rgba(255, 51, 102, 0.2); color: var(--red); font-weight: 800;">🔴 ${s.signal}</span>`;
+            }
+
+            const changeClass = (s.change_pct || 0) >= 0 ? 'text-green' : 'text-red';
+            const changeSign = (s.change_pct || 0) >= 0 ? '+' : '';
+            
+            let indText = s.reason || '--';
+            if (s.fast_sma && s.slow_sma) {
+                indText = `SMA9: ₹${s.fast_sma} | SMA21: ₹${s.slow_sma}`;
+            } else if (s.rsi !== undefined && s.rsi !== null) {
+                indText = `RSI: ${s.rsi}`;
+            }
+
+            let actionBadge = '--';
+            if (s.action_executed) {
+                actionBadge = `<span style="color: var(--green); font-weight: 700;"><i class="fa-solid fa-check"></i> ${s.action_executed}</span>`;
+            }
+
+            tr.innerHTML = `
+                <td><strong>${s.displayName}</strong></td>
+                <td>₹${s.price.toFixed(2)}</td>
+                <td class="${changeClass}">${changeSign}${(s.change_pct || 0).toFixed(2)}%</td>
+                <td>${sigBadge}</td>
+                <td style="font-size: 0.75rem; color: var(--text-muted);">${indText}</td>
+                <td>${actionBadge}</td>
+                <td>
+                    <button class="btn-sm btn-outline" style="padding: 2px 8px; font-size: 0.7rem;" onclick="selectSymbol('${s.symbol}')">
+                        <i class="fa-solid fa-chart-line"></i> Chart
+                    </button>
+                </td>
+            `;
+            tbody.appendChild(tr);
+        });
     }
 
     // Render logs
@@ -837,7 +913,7 @@ function updateBotUI(data) {
                     loadTrades();
                 } catch (e) {}
             }
-        }, (data.interval_seconds || 15) * 1000);
+        }, (data.interval_seconds || 20) * 1000);
     } else if (!isBotActive && botTickTimer) {
         clearInterval(botTickTimer);
         botTickTimer = null;
@@ -849,19 +925,22 @@ async function toggleBot() {
         try {
             const res = await fetch('/api/bot/stop', { method: 'POST' });
             const data = await res.json();
-            showToast('Auto-trading bot paused', 'success');
+            showToast('NIFTY 50 Auto-bot paused', 'success');
             updateBotUI(data.status);
         } catch (err) {
             showToast('Failed to stop bot', 'error');
         }
     } else {
+        const scanMode = document.getElementById('bot-scan-mode').value;
         const config = {
-            symbol: document.getElementById('bot-symbol').value.trim().toUpperCase(),
+            scan_mode: scanMode,
+            single_symbol: document.getElementById('bot-symbol').value.trim().toUpperCase(),
             strategy: document.getElementById('bot-strategy').value,
-            quantity: parseFloat(document.getElementById('bot-quantity').value) || 10,
-            interval_seconds: parseInt(document.getElementById('bot-interval').value) || 15,
-            stop_loss_pct: parseFloat(document.getElementById('bot-stop-loss').value) || 2.0,
-            take_profit_pct: parseFloat(document.getElementById('bot-take-profit').value) || 4.0
+            allocation_per_trade: parseFloat(document.getElementById('bot-allocation').value) || 50000,
+            max_positions: parseInt(document.getElementById('bot-max-positions').value) || 10,
+            interval_seconds: 20,
+            stop_loss_pct: parseFloat(document.getElementById('bot-stop-loss').value) || 2.5,
+            take_profit_pct: parseFloat(document.getElementById('bot-take-profit').value) || 5.0
         };
 
         try {
@@ -872,9 +951,8 @@ async function toggleBot() {
             });
             const data = await res.json();
             if (data.success) {
-                showToast(`Auto-bot activated for ${config.symbol}`, 'success');
+                showToast(`NIFTY 50 Auto-Bot Activated!`, 'success');
                 updateBotUI(data.status);
-                // Trigger first immediate evaluation
                 tickBotNow();
             } else {
                 showToast('Failed to start bot', 'error');
@@ -886,7 +964,7 @@ async function toggleBot() {
 }
 
 async function tickBotNow() {
-    showToast('Evaluating strategy signals...', 'success');
+    showToast('Scanning all NIFTY 50 stocks for signals...', 'success');
     try {
         const res = await fetch('/api/bot/tick', { method: 'POST' });
         const data = await res.json();
@@ -895,11 +973,11 @@ async function tickBotNow() {
         }
         loadPortfolio();
         loadTrades();
-        const sig = data.result?.signal || 'HOLD';
-        const msg = data.result?.reason || 'Evaluation completed';
-        showToast(`Signal: ${sig} | ${msg}`, sig === 'BUY' ? 'success' : (sig === 'SELL' ? 'error' : 'info'));
+        
+        const summary = data.result || {};
+        showToast(`Scan Complete: Scanned ${summary.total_scanned || 50} stocks | 🟢 ${summary.buys_found || 0} BUY signals | 🔴 ${summary.sells_found || 0} SELL signals`, 'success');
     } catch (err) {
-        showToast('Evaluation failed', 'error');
+        showToast('Scanning cycle failed', 'error');
     }
 }
 
