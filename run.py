@@ -1,16 +1,35 @@
 import os
-from dotenv import load_dotenv
+import sys
+import traceback
 
-load_dotenv()
-
-# Configure cache directories to /tmp for serverless environments (e.g. Vercel)
+# Configure cache directories to /tmp for serverless environments
 if any(k in os.environ for k in ('VERCEL', 'VERCEL_ENV', 'AWS_LAMBDA_FUNCTION_NAME', 'LAMBDA_TASK_ROOT')):
     os.environ.setdefault('TMPDIR', '/tmp')
     os.environ.setdefault('YFINANCE_CACHE_DIR', '/tmp/py-yfinance')
 
-from app import create_app
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
 
-app = create_app()
+    from app import create_app
+    app = create_app()
+
+    @app.errorhandler(Exception)
+    def handle_500(e):
+        tb = traceback.format_exc()
+        from flask import Response
+        return Response(f"Internal Server Error:\n\n{tb}", status=500, mimetype="text/plain")
+
+except Exception as err:
+    startup_error = traceback.format_exc()
+    print("FATAL STARTUP ERROR:\n", startup_error, file=sys.stderr)
+    from flask import Flask, Response
+    app = Flask(__name__)
+
+    @app.route('/', defaults={'path': ''})
+    @app.route('/<path:path>')
+    def catch_all(path):
+        return Response(f"CRITICAL FLASK STARTUP ERROR:\n\n{startup_error}", status=500, mimetype="text/plain")
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
