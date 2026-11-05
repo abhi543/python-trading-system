@@ -127,8 +127,7 @@ class AutoTradingBot:
                 self.logs.pop()
 
     def get_status(self) -> dict:
-        persisted = _load_persistent_bot_state()
-        is_active = self.is_running or persisted.get("is_running", False)
+        is_active = bool(self.is_running)
         after_hours = not is_nse_market_open()
         return {
             "is_running": is_active,
@@ -225,10 +224,10 @@ class AutoTradingBot:
     def stop(self):
         self.is_running = False
         _save_persistent_bot_state({"is_running": False})
-        self.add_log("Auto-Bot paused by operator", "WARNING")
+        self.add_log("🛑 Auto-Bot PAUSED and STOPPED by operator. All automated sweeps and order executions are strictly halted.", "WARNING")
         return {"success": True, "message": "Bot stopped", "status": self.get_status()}
 
-    def evaluate_single_stock(self, symbol: str, held_positions_map: dict, stock_data: dict = None) -> dict:
+    def evaluate_single_stock(self, symbol: str, held_positions_map: dict, stock_data: dict = None, allow_order_execution: bool = True) -> dict:
         """Evaluates indicators, checks risk exits, and computes buy/sell signal for a stock"""
         if stock_data is None:
             stock_data = MarketDataService.get_stock_analysis_data(symbol)
@@ -288,33 +287,36 @@ class AutoTradingBot:
             sl_level = getattr(pos, 'stop_loss', 0.0) or 0.0
             if sl_level > 0 and current_price <= sl_level:
                 lock_pnl = ((current_price - avg_price) / avg_price) * 100
-                self.add_log(f"🛑 [STOP HIT] {display_name}: Liquidated @ ₹{current_price:.2f} (Stop was ₹{sl_level:.2f}, Result: {lock_pnl:+.2f}%)", "ERROR" if lock_pnl < 0 else "SUCCESS")
-                exec_res = PaperTradingEngine.execute_order(symbol, "SELL", pos.quantity, execution_price=current_price)
+                if allow_order_execution:
+                    self.add_log(f"🛑 [STOP HIT] {display_name}: Liquidated @ ₹{current_price:.2f} (Stop was ₹{sl_level:.2f}, Result: {lock_pnl:+.2f}%)", "ERROR" if lock_pnl < 0 else "SUCCESS")
+                    exec_res = PaperTradingEngine.execute_order(symbol, "SELL", pos.quantity, execution_price=current_price)
                 return {
                     "symbol": symbol, "displayName": display_name, "price": current_price,
                     "change_pct": change_pct, "signal": "STOP_LOSS", "reason": f"Trailing Stop hit @ ₹{current_price:.2f} ({lock_pnl:+.2f}%)",
-                    "action_executed": "STOP_EXIT", "ema_200": ema_200, "trend_200": trend_200, "vol_ratio": vol_ratio, "atr_14": atr_14
+                    "action_executed": "STOP_EXIT" if allow_order_execution else "OFFLINE (No orders placed)", "ema_200": ema_200, "trend_200": trend_200, "vol_ratio": vol_ratio, "atr_14": atr_14
                 }
 
             # Check if Fixed % Stop-Loss triggered
             if pnl_pct <= -abs(self.stop_loss_pct):
-                self.add_log(f"[STOP-LOSS] {display_name}: Hit -{abs(pnl_pct):.2f}% <= -{self.stop_loss_pct}%. Liquidating {pos.quantity} shares @ ₹{current_price:.2f}", "ERROR")
-                exec_res = PaperTradingEngine.execute_order(symbol, "SELL", pos.quantity, execution_price=current_price)
+                if allow_order_execution:
+                    self.add_log(f"[STOP-LOSS] {display_name}: Hit -{abs(pnl_pct):.2f}% <= -{self.stop_loss_pct}%. Liquidating {pos.quantity} shares @ ₹{current_price:.2f}", "ERROR")
+                    exec_res = PaperTradingEngine.execute_order(symbol, "SELL", pos.quantity, execution_price=current_price)
                 return {
                     "symbol": symbol, "displayName": display_name, "price": current_price,
                     "change_pct": change_pct, "signal": "STOP_LOSS", "reason": f"Stop-Loss triggered at {pnl_pct:.2f}%",
-                    "action_executed": "LIQUIDATED", "ema_200": ema_200, "trend_200": trend_200, "vol_ratio": vol_ratio, "atr_14": atr_14
+                    "action_executed": "LIQUIDATED" if allow_order_execution else "OFFLINE (No orders placed)", "ema_200": ema_200, "trend_200": trend_200, "vol_ratio": vol_ratio, "atr_14": atr_14
                 }
 
             # Check Take-Profit
             tp_level = getattr(pos, 'take_profit', 0.0) or 0.0
             if (tp_level > 0 and current_price >= tp_level) or (pnl_pct >= abs(self.take_profit_pct)):
-                self.add_log(f"🎯 [TAKE-PROFIT] {display_name}: Hit +{pnl_pct:.2f}%. Selling {pos.quantity} shares @ ₹{current_price:.2f} to lock gains!", "SUCCESS")
-                exec_res = PaperTradingEngine.execute_order(symbol, "SELL", pos.quantity, execution_price=current_price)
+                if allow_order_execution:
+                    self.add_log(f"🎯 [TAKE-PROFIT] {display_name}: Hit +{pnl_pct:.2f}%. Selling {pos.quantity} shares @ ₹{current_price:.2f} to lock gains!", "SUCCESS")
+                    exec_res = PaperTradingEngine.execute_order(symbol, "SELL", pos.quantity, execution_price=current_price)
                 return {
                     "symbol": symbol, "displayName": display_name, "price": current_price,
                     "change_pct": change_pct, "signal": "TAKE_PROFIT", "reason": f"Take-Profit target achieved at +{pnl_pct:.2f}%",
-                    "action_executed": "PROFIT_LOCKED", "ema_200": ema_200, "trend_200": trend_200, "vol_ratio": vol_ratio, "atr_14": atr_14
+                    "action_executed": "PROFIT_LOCKED" if allow_order_execution else "OFFLINE (No orders placed)", "ema_200": ema_200, "trend_200": trend_200, "vol_ratio": vol_ratio, "atr_14": atr_14
                 }
 
         # 2. Strategy Indicator Evaluation
@@ -549,12 +551,17 @@ class AutoTradingBot:
         sells_found = 0
         trades_executed = 0
 
+        # Autonomous trade order execution strictly requires bot to be running (self.is_running is True)
+        # Or explicit manual simulation triggers (FORCE_BUY, STOP_SHOCK)
+        is_explicit_test = simulation_event in ["FORCE_BUY", "STOP_SHOCK"]
+        can_execute_trades = bool(self.is_running or is_explicit_test)
+
         for symbol in target_stocks:
             stock_data = stock_data_map.get(symbol)
             if not stock_data:
                 continue
 
-            eval_res = self.evaluate_single_stock(symbol, held_map, stock_data)
+            eval_res = self.evaluate_single_stock(symbol, held_map, stock_data, allow_order_execution=can_execute_trades)
             if eval_res.get("signal") == "ERROR":
                 continue
 
@@ -565,56 +572,62 @@ class AutoTradingBot:
             # AUTO-TRADE EXECUTION LOGIC:
             if sig == "BUY":
                 buys_found += 1
-                # If we don't already hold this stock and have available portfolio slots
-                if symbol not in held_map and len(held_map) < self.max_positions:
-                    # Calculate quantity based on capital allocation
-                    trade_qty = max(1, int(self.allocation_per_trade / price))
-                    total_cost = trade_qty * price
+                if can_execute_trades:
+                    # If we don't already hold this stock and have available portfolio slots
+                    if symbol not in held_map and len(held_map) < self.max_positions:
+                        # Calculate quantity based on capital allocation
+                        trade_qty = max(1, int(self.allocation_per_trade / price))
+                        total_cost = trade_qty * price
 
-                    if available_cash >= total_cost:
-                        exec_res = PaperTradingEngine.execute_order(symbol, "BUY", trade_qty, execution_price=price)
-                        if exec_res.get("success"):
-                            trades_executed += 1
-                            available_cash -= total_cost
-                            eval_res["action_executed"] = f"BOUGHT {trade_qty} SHARES"
-                            
-                            # Set Initial Stop-Loss and Take-Profit targets on position
-                            pos_rec = Position.query.filter_by(symbol=symbol).first()
-                            if pos_rec:
-                                atr_val = eval_res.get("atr_14") or (price * 0.025)
-                                if eval_res.get("suggested_sl") and eval_res.get("suggested_tp"):
-                                    pos_rec.stop_loss = eval_res["suggested_sl"]
-                                    pos_rec.take_profit = eval_res["suggested_tp"]
-                                elif self.use_atr_exits:
-                                    pos_rec.stop_loss = round(price - (self.atr_multiplier_sl * atr_val), 2)
-                                    pos_rec.take_profit = round(price + (self.atr_multiplier_tp * atr_val), 2)
-                                else:
-                                    pos_rec.stop_loss = round(price * (1 - self.stop_loss_pct / 100), 2)
-                                    pos_rec.take_profit = round(price * (1 + self.take_profit_pct / 100), 2)
-                                pos_rec.peak_price = price
-                                pos_rec.trailing_active = False
-                                try:
-                                    db.session.commit()
-                                except Exception:
-                                    pass
+                        if available_cash >= total_cost:
+                            exec_res = PaperTradingEngine.execute_order(symbol, "BUY", trade_qty, execution_price=price)
+                            if exec_res.get("success"):
+                                trades_executed += 1
+                                available_cash -= total_cost
+                                eval_res["action_executed"] = f"BOUGHT {trade_qty} SHARES"
+                                
+                                # Set Initial Stop-Loss and Take-Profit targets on position
+                                pos_rec = Position.query.filter_by(symbol=symbol).first()
+                                if pos_rec:
+                                    atr_val = eval_res.get("atr_14") or (price * 0.025)
+                                    if eval_res.get("suggested_sl") and eval_res.get("suggested_tp"):
+                                        pos_rec.stop_loss = eval_res["suggested_sl"]
+                                        pos_rec.take_profit = eval_res["suggested_tp"]
+                                    elif self.use_atr_exits:
+                                        pos_rec.stop_loss = round(price - (self.atr_multiplier_sl * atr_val), 2)
+                                        pos_rec.take_profit = round(price + (self.atr_multiplier_tp * atr_val), 2)
+                                    else:
+                                        pos_rec.stop_loss = round(price * (1 - self.stop_loss_pct / 100), 2)
+                                        pos_rec.take_profit = round(price * (1 + self.take_profit_pct / 100), 2)
+                                    pos_rec.peak_price = price
+                                    pos_rec.trailing_active = False
+                                    try:
+                                        db.session.commit()
+                                    except Exception:
+                                        pass
 
-                            self.add_log(f"⚡ AUTO-BOUGHT {trade_qty} shares of {display_name} @ ₹{price:.2f} (Total: ₹{total_cost:,.2f}) | {eval_res['reason']}", "SUCCESS")
-                            # Add to local held map to prevent double-buys
-                            held_map[symbol] = Position(symbol=symbol, quantity=trade_qty, average_price=price, peak_price=price, stop_loss=pos_rec.stop_loss if pos_rec else 0.0)
-                    else:
-                        self.add_log(f"BUY signal on {display_name}, but insufficient cash (Needed ₹{total_cost:,.2f}, Avail ₹{available_cash:,.2f})", "WARNING")
+                                self.add_log(f"⚡ AUTO-BOUGHT {trade_qty} shares of {display_name} @ ₹{price:.2f} (Total: ₹{total_cost:,.2f}) | {eval_res['reason']}", "SUCCESS")
+                                # Add to local held map to prevent double-buys
+                                held_map[symbol] = Position(symbol=symbol, quantity=trade_qty, average_price=price, peak_price=price, stop_loss=pos_rec.stop_loss if pos_rec else 0.0)
+                        else:
+                            self.add_log(f"BUY signal on {display_name}, but insufficient cash (Needed ₹{total_cost:,.2f}, Avail ₹{available_cash:,.2f})", "WARNING")
+                else:
+                    eval_res["action_executed"] = "OFFLINE (Bot Stopped)"
 
             elif sig == "SELL":
                 sells_found += 1
-                # If we hold this stock, exit position
-                if symbol in held_map:
-                    pos = held_map[symbol]
-                    exec_res = PaperTradingEngine.execute_order(symbol, "SELL", pos.quantity, execution_price=price)
-                    if exec_res.get("success"):
-                        trades_executed += 1
-                        eval_res["action_executed"] = f"SOLD {pos.quantity} SHARES"
-                        self.add_log(f"⚡ AUTO-SOLD {pos.quantity} shares of {display_name} @ ₹{price:.2f} | {eval_res['reason']}", "WARNING")
-                        del held_map[symbol]
+                if can_execute_trades:
+                    # If we hold this stock, exit position
+                    if symbol in held_map:
+                        pos = held_map[symbol]
+                        exec_res = PaperTradingEngine.execute_order(symbol, "SELL", pos.quantity, execution_price=price)
+                        if exec_res.get("success"):
+                            trades_executed += 1
+                            eval_res["action_executed"] = f"SOLD {pos.quantity} SHARES"
+                            self.add_log(f"⚡ AUTO-SOLD {pos.quantity} shares of {display_name} @ ₹{price:.2f} | {eval_res['reason']}", "WARNING")
+                            del held_map[symbol]
+                else:
+                    eval_res["action_executed"] = "OFFLINE (Bot Stopped)"
 
             scanner_results.append(eval_res)
 

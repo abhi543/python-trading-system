@@ -2024,7 +2024,30 @@
                 clearInterval(countdownTimer);
                 countdownTimer = null;
             }
-            document.getElementById('bot-interval-badge').innerHTML = '<i class="fa-solid fa-clock"></i> CYCLE: 12s';
+            document.getElementById('bot-interval-badge').innerHTML = '<i class="fa-solid fa-clock"></i> PAUSED';
+
+            // Also stop continuous simulation loop if active
+            if (continuousSimTimer) {
+                clearInterval(continuousSimTimer);
+                continuousSimTimer = null;
+                isContinuousSim = false;
+                const simBtn = document.getElementById('sim-continuous-toggle-btn');
+                const labSimBtn = document.getElementById('simlab-continuous-toggle-btn');
+                const dropIcon = document.getElementById('sim-dropdown-loop-icon');
+                const dropTitle = document.getElementById('sim-dropdown-loop-title');
+                const dropDesc = document.getElementById('sim-dropdown-loop-desc');
+                if (simBtn) {
+                    simBtn.classList.remove('active');
+                    simBtn.innerHTML = '<i class="fa-solid fa-play"></i> Continuous Live Ticks (Every 5s)';
+                }
+                if (labSimBtn) {
+                    labSimBtn.classList.remove('active');
+                    labSimBtn.innerHTML = '<i class="fa-solid fa-play"></i> Continuous Live Ticks (Every 5s)';
+                }
+                if (dropIcon) dropIcon.className = 'fa-solid fa-play text-purple';
+                if (dropTitle) dropTitle.innerText = 'Continuous Live Ticks (Every 5s)';
+                if (dropDesc) dropDesc.innerText = 'Autonomous price drift engine';
+            }
         }
     }
 
@@ -2088,9 +2111,11 @@
     function updateBotUI(data) {
         if (!data) return;
 
-        const localActive = localStorage.getItem('nifty_bot_active') === 'true';
-        if (data.is_running && !isBotActive && !localActive) {
+        // Strictly synchronize bot active state with backend
+        if (data.is_running && !isBotActive) {
             setBotActiveState(true, false);
+        } else if (!data.is_running && isBotActive) {
+            setBotActiveState(false, false);
         }
 
         if (data.scan_mode && !document.getElementById('bot-scan-mode').matches(':focus')) {
@@ -2315,7 +2340,10 @@
             const data = await res.json();
             if (data.bot_state) updateBotUI(data.bot_state);
             showToast(`Strategy updated to: ${selectedStrat}`, 'success');
-            tickBotNow();
+            // Only trigger tick scan if the bot is actually active
+            if (isBotActive) {
+                tickBotNow();
+            }
         } catch (e) {
             showToast('Strategy update error: ' + e.message, 'error');
         }
@@ -2348,7 +2376,8 @@
             loadBotHoldings();
             
             const summary = data.result || {};
-            showToast(`Sweep Done: ${summary.total_scanned || (scanMode === 'ALL_NIFTY_200' ? 200 : 50)} stocks | 🟢 ${summary.buys_found || 0} BUY | 🔴 ${summary.sells_found || 0} SELL`, 'info');
+            const tradesMsg = summary.trades_executed ? ` | ${summary.trades_executed} Executed` : (isBotActive ? '' : ' | (Bot Paused: 0 Orders Placed)');
+            showToast(`Radar: ${summary.total_scanned || (scanMode === 'ALL_NIFTY_200' ? 200 : 50)} stocks | 🟢 ${summary.buys_found || 0} BUY | 🔴 ${summary.sells_found || 0} SELL${tradesMsg}`, 'info');
         } catch (err) {
             showToast('Scan sweep failed', 'error');
         } finally {
