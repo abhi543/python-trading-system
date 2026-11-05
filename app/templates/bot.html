@@ -942,31 +942,6 @@
         // Render logs
         renderLogs(data.logs || []);
     }
-        if (data.use_atr_exits !== undefined) {
-            document.getElementById('bot-use-atr').checked = data.use_atr_exits;
-        }
-
-        // Update KPIs
-        const summary = data.scan_summary || {};
-        const scannedCount = summary.total_scanned || (summary.scanner_results ? summary.scanner_results.length : 0);
-        document.getElementById('kpi-scanned').innerText = `${scannedCount} / 50`;
-        document.getElementById('kpi-buys').innerText = summary.buys_found || 0;
-        document.getElementById('kpi-sells').innerText = summary.sells_found || 0;
-        document.getElementById('kpi-trades').innerText = summary.trades_executed || 0;
-        
-        if (data.last_run_time) {
-            document.getElementById('kpi-last-run').innerText = `Last sweep: ${data.last_run_time.split(' ')[1] || data.last_run_time}`;
-        }
-
-        // Render Scanner Results Table
-        if (summary.scanner_results && summary.scanner_results.length > 0) {
-            allScannerData = summary.scanner_results;
-            renderRadarTable(allScannerData);
-        }
-
-        // Render logs
-        renderLogs(data.logs || []);
-    }
 
     function renderRadarTable(results) {
         const tbody = document.getElementById('bot-scanner-tbody');
