@@ -137,7 +137,7 @@
 
                 <div class="config-item">
                     <label><i class="fa-solid fa-chart-line"></i> STRATEGY MODEL</label>
-                    <select id="bot-strategy" class="config-select">
+                    <select id="bot-strategy" class="config-select" onchange="onStrategyChange()">
                         <option value="123_REVERSAL" selected>1-2-3 Reversal Map [AGPro Series v2.1] (Neckline Break &amp; Target)</option>
                         <option value="SMA_CROSSOVER">Dual SMA Golden/Death Cross (9 / 21)</option>
                         <option value="RSI_MOMENTUM">RSI Mean Reversion (14-Period, 35/65)</option>
@@ -2194,6 +2194,45 @@
         }
     }
 
+    function getCurrentBotConfig() {
+        return {
+            scan_mode: document.getElementById('bot-scan-mode')?.value || 'ALL_NIFTY_50',
+            single_symbol: document.getElementById('bot-symbol')?.value?.trim()?.toUpperCase() || 'RELIANCE.NS',
+            strategy: document.getElementById('bot-strategy')?.value || '123_REVERSAL',
+            allocation_per_trade: parseFloat(document.getElementById('bot-allocation')?.value) || 50000,
+            max_positions: parseInt(document.getElementById('bot-max-positions')?.value) || 10,
+            interval_seconds: 20,
+            stop_loss_pct: parseFloat(document.getElementById('bot-stop-loss')?.value) || 2.5,
+            take_profit_pct: parseFloat(document.getElementById('bot-take-profit')?.value) || 5.0,
+            use_ema200_filter: document.getElementById('bot-use-ema200')?.checked ?? true,
+            use_volume_filter: document.getElementById('bot-use-vol')?.checked ?? true,
+            use_trailing_stop: document.getElementById('bot-use-trailing')?.checked ?? true,
+            use_atr_exits: document.getElementById('bot-use-atr')?.checked ?? true
+        };
+    }
+
+    async function onStrategyChange() {
+        const stratSelect = document.getElementById('bot-strategy');
+        if (!stratSelect) return;
+        const selectedStrat = stratSelect.value;
+        const cfg = getCurrentBotConfig();
+        cfg.strategy = selectedStrat;
+        showToast(`Switching strategy to: ${selectedStrat}...`, 'info');
+        try {
+            const res = await fetch('/api/bot/config', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(cfg)
+            });
+            const data = await res.json();
+            if (data.bot_state) updateBotUI(data.bot_state);
+            showToast(`Strategy updated to: ${selectedStrat}`, 'success');
+            tickBotNow();
+        } catch (e) {
+            showToast('Strategy update error: ' + e.message, 'error');
+        }
+    }
+
     async function tickBotNow() {
         if (isScanning) return;
         isScanning = true;
@@ -2205,10 +2244,11 @@
         }
 
         try {
+            const cfg = getCurrentBotConfig();
             const res = await fetch('/api/bot/tick', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ event: 'AFTER_HOURS_WALK' })
+                body: JSON.stringify({ event: 'AFTER_HOURS_WALK', config: cfg })
             });
             const data = await res.json();
             if (data.bot_state) {
@@ -2292,10 +2332,11 @@
         showToast(`Injecting test event: ${eventType}...`, 'info');
         appendSimlabLog(`Injecting scenario: ${eventType} into portfolio feed...`, 'INFO');
         try {
+            const cfg = getCurrentBotConfig();
             const res = await fetch('/api/bot/simulate', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ event: eventType, symbol: symbol })
+                body: JSON.stringify({ event: eventType, symbol: symbol, config: cfg })
             });
             const data = await res.json();
             if (data.bot_state) {

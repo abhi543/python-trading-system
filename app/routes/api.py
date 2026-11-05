@@ -208,10 +208,23 @@ def stop_bot():
     res = bot_instance.stop()
     return jsonify(res)
 
+@api_bp.route('/bot/config', methods=['POST'])
+def update_bot_config():
+    from app.services.bot import bot_instance
+    config = request.get_json(silent=True) or {}
+    bot_instance.update_config(config)
+    return jsonify({
+        "status": "config_updated",
+        "bot_state": bot_instance.get_status()
+    })
+
 @api_bp.route('/bot/tick', methods=['POST'])
 def tick_bot():
     from app.services.bot import bot_instance
     body = request.get_json(silent=True) or {}
+    if "strategy" in body or "config" in body:
+        cfg = body.get("config") or body
+        bot_instance.update_config(cfg)
     event = body.get('event')
     symbol = body.get('symbol')
     res = bot_instance.evaluate_signals(simulation_event=event, target_symbol=symbol)
@@ -225,6 +238,9 @@ def tick_bot():
 def simulate_bot():
     from app.services.bot import bot_instance
     body = request.get_json(silent=True) or {}
+    if "strategy" in body or "config" in body:
+        cfg = body.get("config") or body
+        bot_instance.update_config(cfg)
     event = body.get('event', 'RANDOM_WALK')
     symbol = body.get('symbol')
     res = bot_instance.evaluate_signals(simulation_event=event, target_symbol=symbol)

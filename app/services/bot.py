@@ -157,29 +157,47 @@ class AutoTradingBot:
             "logs": self.logs[:30]
         }
 
+    def update_config(self, config: dict = None):
+        """Dynamically updates trading strategy, parameters, and risk guards in real-time"""
+        if not config:
+            return
+        if "scan_mode" in config:
+            self.scan_mode = config["scan_mode"]
+        if "single_symbol" in config and config["single_symbol"]:
+            self.single_symbol = config["single_symbol"].strip().upper()
+        if "strategy" in config and config["strategy"]:
+            old_strat = self.strategy
+            self.strategy = config["strategy"]
+            if old_strat != self.strategy:
+                self.add_log(f"🔄 Strategy updated: switched from {old_strat} to {self.strategy}", "INFO")
+        if "allocation_per_trade" in config:
+            self.allocation_per_trade = float(config["allocation_per_trade"])
+        if "max_positions" in config:
+            self.max_positions = int(config["max_positions"])
+        if "fast_period" in config:
+            self.fast_period = int(config["fast_period"])
+        if "slow_period" in config:
+            self.slow_period = int(config["slow_period"])
+        if "rsi_period" in config:
+            self.rsi_period = int(config["rsi_period"])
+        if "stop_loss_pct" in config:
+            self.stop_loss_pct = float(config["stop_loss_pct"])
+        if "take_profit_pct" in config:
+            self.take_profit_pct = float(config["take_profit_pct"])
+        if "interval_seconds" in config:
+            self.interval_seconds = int(config["interval_seconds"])
+        if "use_ema200_filter" in config:
+            self.use_ema200_filter = bool(config["use_ema200_filter"])
+        if "use_volume_filter" in config:
+            self.use_volume_filter = bool(config["use_volume_filter"])
+        if "use_trailing_stop" in config:
+            self.use_trailing_stop = bool(config["use_trailing_stop"])
+        if "use_atr_exits" in config:
+            self.use_atr_exits = bool(config["use_atr_exits"])
+
     def start(self, config: dict = None):
         if config:
-            self.scan_mode = config.get("scan_mode", self.scan_mode)
-            self.single_symbol = config.get("single_symbol", self.single_symbol).strip().upper()
-            self.strategy = config.get("strategy", self.strategy)
-            self.allocation_per_trade = float(config.get("allocation_per_trade", self.allocation_per_trade))
-            self.max_positions = int(config.get("max_positions", self.max_positions))
-            self.fast_period = int(config.get("fast_period", self.fast_period))
-            self.slow_period = int(config.get("slow_period", self.slow_period))
-            self.rsi_period = int(config.get("rsi_period", self.rsi_period))
-            self.stop_loss_pct = float(config.get("stop_loss_pct", self.stop_loss_pct))
-            self.take_profit_pct = float(config.get("take_profit_pct", self.take_profit_pct))
-            self.interval_seconds = int(config.get("interval_seconds", self.interval_seconds))
-            
-            # Options A & B toggles
-            if "use_ema200_filter" in config:
-                self.use_ema200_filter = bool(config["use_ema200_filter"])
-            if "use_volume_filter" in config:
-                self.use_volume_filter = bool(config["use_volume_filter"])
-            if "use_trailing_stop" in config:
-                self.use_trailing_stop = bool(config["use_trailing_stop"])
-            if "use_atr_exits" in config:
-                self.use_atr_exits = bool(config["use_atr_exits"])
+            self.update_config(config)
 
         self.is_running = True
         after_hours = not is_nse_market_open()
