@@ -215,9 +215,9 @@ def reset_account():
         db.session.add(WatchlistItem(symbol=s))
     account = Account.query.first()
     if account:
-        account.cash_balance = 1000000.0
+        account.cash_balance = 50000.0
     else:
-        account = Account(cash_balance=1000000.0)
+        account = Account(cash_balance=50000.0)
         db.session.add(account)
     db.session.commit()
 
@@ -233,9 +233,9 @@ def reset_account():
     bot_instance.start_new_session()
     return jsonify({
         "success": True, 
-        "message": "Account reset to ₹10,00,000 and NIFTY 50 watchlist restored",
-        "cash_balance": 1000000.0,
-        "total_equity": 1000000.0
+        "message": "Account reset to ₹50,000 cash capital and NIFTY 50 watchlist restored",
+        "cash_balance": 50000.0,
+        "total_equity": 50000.0
     })
 
 @api_bp.route('/bot/status', methods=['GET'])

@@ -81,7 +81,7 @@ class AutoTradingBot:
         self.scan_mode = persisted.get("scan_mode", "ALL_NIFTY_200")
         self.single_symbol = persisted.get("single_symbol", "RELIANCE.NS")
         self.strategy = persisted.get("strategy", "123_REVERSAL")
-        self.allocation_per_trade = float(persisted.get("allocation_per_trade", 15000.0))
+        self.allocation_per_trade = float(persisted.get("allocation_per_trade", 5000.0))
         self.leverage = float(persisted.get("leverage", 5.0))  # 5x NSE Intraday MIS Leverage
         self.max_positions = int(persisted.get("max_positions", 3))
         self.interval_seconds = 60  # 1 minute (60 seconds)

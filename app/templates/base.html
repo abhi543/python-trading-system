@@ -765,22 +765,22 @@
         <div class="nav-metrics">
             <div class="metric-box">
                 <span class="metric-title">TOTAL PORTFOLIO EQUITY</span>
-                <span class="metric-value text-green" id="nav-total-equity">₹10,00,000.00</span>
+                <span class="metric-value text-green" id="nav-total-equity">₹50,000.00</span>
             </div>
             <div class="metric-box">
                 <span class="metric-title">AVAILABLE CASH MARGIN</span>
-                <span class="metric-value" id="nav-cash-balance">₹10,00,000.00</span>
+                <span class="metric-value" id="nav-cash-balance">₹50,000.00</span>
             </div>
             <div class="metric-box">
                 <span class="metric-title">5X BUYING POWER</span>
-                <span class="metric-value text-green" id="nav-buying-power">₹50,00,000.00</span>
+                <span class="metric-value text-green" id="nav-buying-power">₹2,50,000.00</span>
             </div>
             <div class="metric-box">
                 <span class="metric-title">UNREALIZED P&amp;L</span>
                 <span class="metric-value" id="nav-pnl">₹0.00</span>
             </div>
-            <button id="reset-account-btn" class="btn-reset" style="background: rgba(255, 75, 75, 0.15); color: #ff7575; border: 1px solid rgba(255, 75, 75, 0.4); font-weight: 700; padding: 0.45rem 0.85rem;" title="Reset portfolio balance back to ₹10 Lakh (₹10,00,000)">
-                <i class="fa-solid fa-rotate-left"></i> Reset to ₹10 Lakh
+            <button id="reset-account-btn" class="btn-reset" style="background: rgba(255, 75, 75, 0.15); color: #ff7575; border: 1px solid rgba(255, 75, 75, 0.4); font-weight: 700; padding: 0.45rem 0.85rem;" title="Reset portfolio balance back to ₹50,000">
+                <i class="fa-solid fa-rotate-left"></i> Reset to ₹50k
             </button>
         </div>
     </header>
@@ -796,15 +796,15 @@
             const resetBtn = document.getElementById('reset-account-btn');
             if (resetBtn) {
                 resetBtn.addEventListener('click', async () => {
-                    if (!confirm('Reset paper desk to ₹10,00,000 cash and restore fresh NIFTY 50 watchlist?')) return;
+                    if (!confirm('Reset paper desk to ₹50,000 cash and restore fresh NIFTY 50 watchlist?')) return;
                     try {
                         const res = await fetch('/api/reset-account', { method: 'POST' });
                         const data = await res.json();
                         if (data.success) {
-                            document.getElementById('nav-total-equity').innerText = '₹10,00,000.00';
-                            document.getElementById('nav-cash-balance').innerText = '₹10,00,000.00';
+                            document.getElementById('nav-total-equity').innerText = '₹50,000.00';
+                            document.getElementById('nav-cash-balance').innerText = '₹50,000.00';
                             const bpEl = document.getElementById('nav-buying-power');
-                            if (bpEl) bpEl.innerText = '₹50,00,000.00';
+                            if (bpEl) bpEl.innerText = '₹2,50,000.00';
                             document.getElementById('nav-pnl').innerText = '₹0.00';
                             document.getElementById('nav-pnl').className = 'metric-value text-green';
                             
@@ -815,7 +815,7 @@
                             if (typeof loadWatchlist === 'function') loadWatchlist();
                             
                             if (typeof showToast === 'function') {
-                                showToast('Desk reset to ₹10,00,000 cash capital!', 'success');
+                                showToast('Desk reset to ₹50,000 cash capital!', 'success');
                             }
                         }
                     } catch (e) {

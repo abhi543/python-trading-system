@@ -42,8 +42,8 @@
                 <button id="bot-scan-btn" class="btn-bot-scan" onclick="tickBotNow()">
                     <i class="fa-solid fa-arrows-rotate"></i> SCAN BASKET NOW
                 </button>
-                <button id="bot-reset-portfolio-btn" class="btn-bot-scan" style="border-color: rgba(255, 75, 75, 0.4); color: #ff7575;" onclick="resetPortfolioTo10Lakh()" title="Liquidate all positions and reset portfolio back to ₹10 Lakh">
-                    <i class="fa-solid fa-rotate-left"></i> RESET PORTFOLIO (₹10L)
+                <button id="bot-reset-portfolio-btn" class="btn-bot-scan" style="border-color: rgba(255, 75, 75, 0.4); color: #ff7575;" onclick="resetPortfolioTo10Lakh()" title="Liquidate all positions and reset portfolio back to ₹50,000">
+                    <i class="fa-solid fa-rotate-left"></i> RESET PORTFOLIO (₹50k)
                 </button>
             </div>
         </div>
@@ -66,7 +66,7 @@
             <div class="config-summary-ribbon" id="config-summary-ribbon">
                 <span class="cfg-pill pill-strat" id="ribbon-strat"><i class="fa-solid fa-brain"></i> Strategy: <strong>1-2-3 Reversal Map</strong></span>
                 <span class="cfg-pill pill-universe" id="ribbon-universe"><i class="fa-solid fa-layer-group"></i> Universe: <strong>NIFTY 200</strong></span>
-                <span class="cfg-pill pill-capital" id="ribbon-capital"><i class="fa-solid fa-bolt" style="color: var(--green);"></i> 5x Leverage: <strong>₹15,000 Margin (₹75,000 Exposure)</strong></span>
+                <span class="cfg-pill pill-capital" id="ribbon-capital"><i class="fa-solid fa-bolt" style="color: var(--green);"></i> 5x Leverage: <strong>₹5,000 Margin (₹25,000 Exposure)</strong></span>
                 <span class="cfg-pill pill-sl" id="ribbon-sl"><i class="fa-solid fa-shield-halved"></i> SL: <strong>Pattern Stop (Point 3)</strong></span>
                 <span class="cfg-pill pill-tp" id="ribbon-tp"><i class="fa-solid fa-bullseye"></i> TP: <strong>Measured Move</strong></span>
                 <span class="cfg-pill pill-filter" id="ribbon-ema"><i class="fa-solid fa-filter" style="color: var(--green);"></i> 200 EMA Filter: <strong>ON</strong></span>
@@ -99,8 +99,8 @@
 
                 <div class="config-item">
                     <label><i class="fa-solid fa-indian-rupee-sign"></i> MARGIN PER TRADE (₹) [5X LEVERAGE]</label>
-                    <input type="number" id="bot-allocation" class="config-input" value="15000" step="1000" min="1000" onchange="onStrategyChange()">
-                    <span class="badge" style="font-size: 0.68rem; background: rgba(0, 240, 144, 0.15); color: var(--green); border: 1px solid rgba(0, 240, 144, 0.3); margin-top: 4px; display: inline-block;">⚡ 5x Buying Power: ₹75,000 Exposure</span>
+                    <input type="number" id="bot-allocation" class="config-input" value="5000" step="1000" min="1000" onchange="onStrategyChange()">
+                    <span class="badge" style="font-size: 0.68rem; background: rgba(0, 240, 144, 0.15); color: var(--green); border: 1px solid rgba(0, 240, 144, 0.3); margin-top: 4px; display: inline-block;">⚡ 5x Buying Power: ₹25,000 Exposure</span>
                 </div>
 
                 <div class="config-item" id="cfg-item-max-positions">
@@ -286,8 +286,8 @@
                             <button class="btn-sm btn-outline" onclick="refreshCurrentLedgerTab()">
                                 <i class="fa-solid fa-rotate"></i> Refresh
                             </button>
-                            <button class="btn-sm btn-outline" style="color: #ff7575; border-color: rgba(255, 75, 75, 0.4); font-weight: 700;" onclick="resetPortfolioTo10Lakh()" title="Reset portfolio cash to ₹10,00,000 and clear holdings">
-                                <i class="fa-solid fa-rotate-left"></i> Reset to ₹10L
+                            <button class="btn-sm btn-outline" style="color: #ff7575; border-color: rgba(255, 75, 75, 0.4); font-weight: 700;" onclick="resetPortfolioTo10Lakh()" title="Reset portfolio cash to ₹50,000 and clear holdings">
+                                <i class="fa-solid fa-rotate-left"></i> Reset to ₹50k
                             </button>
                         </div>
                     </div>
@@ -520,8 +520,8 @@
                         <div class="rule-item">
                             <div class="rule-icon"><i class="fa-solid fa-bolt" style="color: #00f090;"></i></div>
                             <div>
-                                <h4>₹10 Lakh Capital &amp; 5x NSE Leverage</h4>
-                                <p>Trades with standard <strong>5x intraday leverage (20% margin)</strong> on NSE equities. Allocates <strong>₹15,000 margin</strong> to control <strong>₹75,000 buying power</strong> per position, backed by ₹10,00,000 cash balance.</p>
+                                <h4>₹50,000 Capital &amp; 5x NSE Leverage</h4>
+                                <p>Trades with standard <strong>5x intraday leverage (20% margin)</strong> on NSE equities. Allocates <strong>₹5,000 margin</strong> to control <strong>₹25,000 buying power</strong> per position, backed by ₹50,000 cash balance.</p>
                             </div>
                         </div>
                     </div>
@@ -1561,8 +1561,8 @@
         try {
             const res = await fetch('/api/portfolio');
             const data = await res.json();
-            const cash = (data.cash_balance !== undefined) ? data.cash_balance : (data.account ? data.account.cash_balance : 1000000);
-            const equity = (data.total_equity !== undefined) ? data.total_equity : (data.account ? data.account.total_equity : 1000000);
+            const cash = (data.cash_balance !== undefined) ? data.cash_balance : (data.account ? data.account.cash_balance : 50000);
+            const equity = (data.total_equity !== undefined) ? data.total_equity : (data.account ? data.account.total_equity : 50000);
             const pnl = (data.unrealized_pnl !== undefined) ? data.unrealized_pnl : (data.account ? data.account.unrealized_pnl : 0);
 
             document.getElementById('nav-total-equity').innerText = `₹${equity.toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
@@ -1713,7 +1713,7 @@
         const stratName = (stratVal === '123_REVERSAL') ? '1-2-3 Reversal Map' : (stratVal === 'SMA_CROSSOVER' ? 'Dual SMA (9/21)' : 'RSI Reversion');
         const mode = document.getElementById('bot-scan-mode')?.value || 'ALL_NIFTY_200';
         const universeName = (mode === 'ALL_NIFTY_200') ? 'NIFTY 200' : (mode === 'SINGLE' ? 'Single Focus' : 'NIFTY 50');
-        const capital = document.getElementById('bot-allocation')?.value || '15000';
+        const capital = document.getElementById('bot-allocation')?.value || '5000';
         const slVal = document.getElementById('bot-stop-loss')?.value || '1.0';
         const tpVal = document.getElementById('bot-take-profit')?.value || '1.0';
         const emaOn = document.getElementById('bot-use-ema200')?.checked ?? true;
@@ -1729,7 +1729,7 @@
 
         if (ribStrat) ribStrat.innerHTML = `<i class="fa-solid fa-brain"></i> Strategy: <strong>${stratName}</strong>`;
         if (ribUni) ribUni.innerHTML = `<i class="fa-solid fa-layer-group"></i> Universe: <strong>${universeName}</strong>`;
-        const marginVal = Number(capital) || 15000;
+        const marginVal = Number(capital) || 5000;
         const exposureVal = marginVal * 5;
         if (ribCap) ribCap.innerHTML = `<i class="fa-solid fa-bolt" style="color: var(--green);"></i> Margin: <strong>₹${marginVal.toLocaleString('en-IN')}</strong> <span style="opacity: 0.85;">(5x: ₹${exposureVal.toLocaleString('en-IN')})</span>`;
         if (ribSl) ribSl.innerHTML = (stratVal === '123_REVERSAL') ? `<i class="fa-solid fa-shield-halved"></i> SL: <strong>Pattern Stop (Point 3)</strong>` : `<i class="fa-solid fa-shield-halved"></i> SL: <strong>${slVal}%</strong>`;
@@ -2046,7 +2046,7 @@
             scan_mode: document.getElementById('bot-scan-mode')?.value || 'ALL_NIFTY_200',
             single_symbol: document.getElementById('bot-symbol')?.value?.trim()?.toUpperCase() || 'RELIANCE.NS',
             strategy: document.getElementById('bot-strategy')?.value || '123_REVERSAL',
-            allocation_per_trade: parseFloat(document.getElementById('bot-allocation')?.value) || 15000,
+            allocation_per_trade: parseFloat(document.getElementById('bot-allocation')?.value) || 5000,
             max_positions: parseInt(document.getElementById('bot-max-positions')?.value) || 3,
             interval_seconds: 60,
             stop_loss_pct: parseFloat(document.getElementById('bot-stop-loss')?.value) || 1.0,
@@ -2692,13 +2692,13 @@
     }
 
     async function resetPortfolioTo10Lakh() {
-        if (!confirm('Are you sure you want to reset your portfolio back to ₹10,00,000?\n\n• Cash balance will be restored to ₹10,00,000\n• All open positions will be cleared\n• Trade history and closed trades report will be reset\n• Bot session trades report will be reset')) return;
+        if (!confirm('Are you sure you want to reset your portfolio back to ₹50,000?\n\n• Cash balance will be restored to ₹50,000\n• All open positions will be cleared\n• Trade history and closed trades report will be reset\n• Bot session trades report will be reset')) return;
 
         try {
             const res = await fetch('/api/reset-account', { method: 'POST' });
             const data = await res.json();
             if (data.success) {
-                showToast('Portfolio successfully reset back to ₹10,00,000 cash!', 'success');
+                showToast('Portfolio successfully reset back to ₹50,000 cash!', 'success');
                 resetBotSessionReport(false);
                 loadAccountMetrics();
                 loadBotHoldings();

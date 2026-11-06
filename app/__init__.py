@@ -55,7 +55,7 @@ def create_app(config_class=Config):
             except Exception:
                 pass
 
-            trading.init_default_data(app.config.get('INITIAL_CASH', 1000000.0))
+            trading.init_default_data(app.config.get('INITIAL_CASH', 50000.0))
         except Exception as e:
             app.logger.warning(f"Database init warning (non-fatal): {e}")
 
