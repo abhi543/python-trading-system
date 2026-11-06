@@ -491,7 +491,22 @@ async function loadWatchlist() {
 
 async function loadPortfolio() {
     try {
-        const res = await fetch('/api/portfolio');
+        let localPositions = [];
+        try {
+            const raw = localStorage.getItem('nifty_active_holdings_v3');
+            if (raw) localPositions = JSON.parse(raw) || [];
+        } catch(e){}
+
+        let res;
+        if (localPositions.length > 0) {
+            res = await fetch('/api/portfolio', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ client_positions: localPositions })
+            });
+        } else {
+            res = await fetch('/api/portfolio');
+        }
         const data = await res.json();
 
         document.getElementById('nav-total-equity').innerText = `₹${data.total_equity.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -505,8 +520,15 @@ async function loadPortfolio() {
         pnlEl.innerText = `${sign}₹${data.unrealized_pnl.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
         pnlEl.className = `metric-value ${data.unrealized_pnl >= 0 ? 'text-green' : 'text-red'}`;
 
+        let positions = data.positions || [];
+        if (positions.length > 0) {
+            try { localStorage.setItem('nifty_active_holdings_v3', JSON.stringify(positions)); } catch(e){}
+        } else if (localPositions.length > 0) {
+            positions = localPositions;
+        }
+
         const tbody = document.getElementById('positions-table-body');
-        if (!data.positions || data.positions.length === 0) {
+        if (!positions || positions.length === 0) {
             tbody.innerHTML = `<tr><td colspan="8" class="text-center" style="padding: 2rem; color: var(--text-muted);">No active positions. Execute a BUY order above to start your paper portfolio.</td></tr>`;
             return;
         }
@@ -516,7 +538,7 @@ async function loadPortfolio() {
         let dashLock = {};
         try { dashLock = JSON.parse(localStorage.getItem(DASH_POS_LOCK_KEY) || '{}'); } catch(e){}
 
-        data.positions.forEach(pos => {
+        positions.forEach(pos => {
             if (dashLock[pos.symbol] && typeof dashLock[pos.symbol] === 'number') {
                 pos.average_price = dashLock[pos.symbol];
             } else {

@@ -1565,7 +1565,17 @@
 
     async function loadAccountMetrics() {
         try {
-            const res = await fetch('/api/portfolio');
+            const localPositions = (typeof getStoredActivePositions === 'function') ? getStoredActivePositions() : [];
+            let res;
+            if (localPositions.length > 0) {
+                res = await fetch('/api/portfolio', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ client_positions: localPositions })
+                });
+            } else {
+                res = await fetch('/api/portfolio');
+            }
             const data = await res.json();
             const cash = (data.cash_balance !== undefined) ? data.cash_balance : (data.account ? data.account.cash_balance : 50000);
             const equity = (data.total_equity !== undefined) ? data.total_equity : (data.account ? data.account.total_equity : 50000);
@@ -2131,7 +2141,12 @@
             const res = await fetch('/api/bot/tick', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ event: tickEvent, config: cfg, is_running: isBotActive })
+                body: JSON.stringify({ 
+                    event: tickEvent, 
+                    config: cfg, 
+                    is_running: isBotActive,
+                    client_positions: getStoredActivePositions() 
+                })
             });
             if (!res.ok) {
                 throw new Error(`Server returned status ${res.status}`);
@@ -2163,7 +2178,28 @@
     let continuousSimTimer = null;
     let isContinuousSim = false;
 
+    // ========================================================
+    // ROCK-SOLID ACTIVE HOLDINGS CACHE & SERVERLESS SYNC
+    // ========================================================
+    const ACTIVE_HOLDINGS_KEY = 'nifty_active_holdings_v3';
     const POS_ENTRY_LOCK_KEY = 'nifty_positions_entry_lock_v1';
+
+    function getStoredActivePositions() {
+        try {
+            const raw = localStorage.getItem(ACTIVE_HOLDINGS_KEY);
+            if (raw) {
+                const parsed = JSON.parse(raw);
+                if (Array.isArray(parsed)) return parsed;
+            }
+        } catch (e) {}
+        return [];
+    }
+
+    function saveStoredActivePositions(positions) {
+        try {
+            localStorage.setItem(ACTIVE_HOLDINGS_KEY, JSON.stringify(positions || []));
+        } catch (e) {}
+    }
 
     function getLockedEntryPrice(symbol, incomingAvgPrice) {
         try {
@@ -2197,31 +2233,68 @@
 
     async function loadBotHoldings() {
         try {
-            const res = await fetch('/api/portfolio');
+            let localPositions = getStoredActivePositions();
+
+            // Always pass client_positions to keep serverless container database in sync
+            let res;
+            try {
+                res = await fetch('/api/portfolio', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ client_positions: localPositions })
+                });
+            } catch (netErr) {
+                res = await fetch('/api/portfolio');
+            }
             const data = await res.json();
             const tbody = document.getElementById('bot-holdings-tbody');
             if (!tbody) return;
 
-            const positions = data.positions || [];
+            let backendPositions = data.positions || [];
+
+            // Identify symbols closed by the strategy in session trades
+            const closedSymbols = new Set((botSession.trades || []).filter(t => t.side === 'SELL' || t.side === 'COVER').map(t => t.symbol));
+
+            // Merge logic: Never allow random serverless 0-position glitches to wipe user's screen
+            let positions = [];
+            if (backendPositions.length > 0) {
+                positions = backendPositions.filter(p => !closedSymbols.has(p.symbol));
+                saveStoredActivePositions(positions);
+            } else if (localPositions.length > 0) {
+                positions = localPositions.filter(p => !closedSymbols.has(p.symbol));
+            } else {
+                positions = [];
+                saveStoredActivePositions([]);
+            }
+
             window.cachedActivePositions = positions;
             if (allScannerData && allScannerData.length > 0) {
                 updateRadarPillCounts(allScannerData);
             }
+            const count = positions.length;
             const badge = document.getElementById('holdings-badge-count');
-            if (badge) badge.innerText = positions.length;
+            if (badge) badge.innerText = count;
             const heroCount = document.getElementById('hero-holdings-count');
-            if (heroCount) heroCount.innerText = positions.length;
+            if (heroCount) heroCount.innerText = count;
             const tabCount = document.getElementById('tab-holdings-count');
-            if (tabCount) tabCount.innerText = positions.length;
+            if (tabCount) tabCount.innerText = count;
 
             const activeSymbols = positions.map(p => p.symbol);
             cleanClosedPositionsFromLock(activeSymbols);
 
-            if (positions.length === 0) {
+            if (count === 0) {
                 tbody.innerHTML = '<tr><td colspan="10" class="text-center" style="padding: 1.5rem; color: var(--text-muted);">No open positions held. Bot will execute buys when signals trigger.</td></tr>';
             } else {
                 tbody.innerHTML = '';
                 positions.forEach(p => {
+                    // Update current_price from scanner data or radar if available
+                    if (allScannerData && allScannerData.length > 0) {
+                        const quoteItem = allScannerData.find(s => s.symbol === p.symbol);
+                        if (quoteItem && quoteItem.price) {
+                            p.current_price = quoteItem.price;
+                        }
+                    }
+
                     // Strictly lock average price to eliminate multi-container serverless fluctuation
                     p.average_price = getLockedEntryPrice(p.symbol, p.average_price);
 
@@ -2767,10 +2840,17 @@
         if (!confirm(`${actionLabel} in ${symbol} (${quantity} shares)?`)) return;
         try {
             const exitOrderSide = isShort ? 'COVER' : 'SELL';
+            const currentAvg = getLockedEntryPrice(symbol, 0);
             const res = await fetch('/api/order', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ symbol, order_type: exitOrderSide, side: exitOrderSide, quantity })
+                body: JSON.stringify({ 
+                    symbol, 
+                    order_type: exitOrderSide, 
+                    side: exitOrderSide, 
+                    quantity,
+                    average_price: currentAvg 
+                })
             });
             const data = await res.json();
             if (data.success) {
@@ -2779,6 +2859,12 @@
                     delete cache[symbol];
                     localStorage.setItem(POS_ENTRY_LOCK_KEY, JSON.stringify(cache));
                 } catch(e){}
+                
+                // Immediately update local active holdings
+                const remaining = getStoredActivePositions().filter(p => p.symbol !== symbol);
+                saveStoredActivePositions(remaining);
+                window.cachedActivePositions = remaining;
+
                 showToast(`${isShort ? 'Covered' : 'Liquidated'} ${quantity} shares of ${symbol}`, 'success');
                 loadBotHoldings();
                 loadAccountMetrics();
@@ -2792,7 +2878,8 @@
     }
 
     async function manualSquareOffAll() {
-        const count = (window.cachedActivePositions || []).length;
+        const localPositions = getStoredActivePositions();
+        const count = localPositions.length || (window.cachedActivePositions || []).length;
         if (count === 0) {
             showToast('No active positions to exit.', 'info');
             return;
@@ -2800,10 +2887,16 @@
         if (!confirm(`Are you sure you want to manually exit / square off ALL ${count} open positions at live market prices?`)) return;
 
         try {
-            const res = await fetch('/api/positions/exit-all', { method: 'POST' });
+            const res = await fetch('/api/positions/exit-all', { 
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ client_positions: localPositions })
+            });
             const data = await res.json();
             if (data.success) {
                 try { localStorage.removeItem(POS_ENTRY_LOCK_KEY); } catch(e){}
+                saveStoredActivePositions([]);
+                window.cachedActivePositions = [];
                 showToast(`Successfully squared off ${data.exited_count} open positions!`, 'success');
                 loadBotHoldings();
                 loadAccountMetrics();
@@ -2824,6 +2917,8 @@
             const data = await res.json();
             if (data.success) {
                 try { localStorage.removeItem(POS_ENTRY_LOCK_KEY); } catch(e){}
+                saveStoredActivePositions([]);
+                window.cachedActivePositions = [];
                 resetBotSessionReport(false);
                 showToast('Bot reset and successfully restarted fresh with ₹50,000 capital!', 'success');
                 loadAccountMetrics();
@@ -2846,6 +2941,8 @@
             const data = await res.json();
             if (data.success) {
                 try { localStorage.removeItem(POS_ENTRY_LOCK_KEY); } catch(e){}
+                saveStoredActivePositions([]);
+                window.cachedActivePositions = [];
                 showToast('Portfolio successfully reset back to ₹50,000 cash!', 'success');
                 resetBotSessionReport(false);
                 loadAccountMetrics();

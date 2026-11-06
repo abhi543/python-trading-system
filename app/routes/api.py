@@ -21,18 +21,80 @@ def get_candles(symbol):
     candles = MarketDataService.get_historical_candles(symbol, period, interval)
     return jsonify({"symbol": symbol.upper(), "candles": candles})
 
-@api_bp.route('/portfolio', methods=['GET'])
+def sync_positions_from_client(client_positions):
+    if client_positions is None or not isinstance(client_positions, list):
+        return
+    try:
+        from app.models.trading import Position
+        from app import db
+        existing = {p.symbol: p for p in Position.query.all()}
+        client_symbols = set()
+        for cp in client_positions:
+            sym = cp.get('symbol')
+            if not sym:
+                continue
+            client_symbols.add(sym)
+            p = existing.get(sym)
+            if not p:
+                p = Position(
+                    symbol=sym,
+                    side=cp.get('side', 'LONG'),
+                    quantity=float(cp.get('quantity', 0)),
+                    average_price=float(cp.get('average_price', 0)),
+                    peak_price=float(cp.get('peak_price', 0) or cp.get('average_price', 0)),
+                    stop_loss=float(cp.get('stop_loss', 0)),
+                    take_profit=float(cp.get('take_profit', 0)),
+                    trailing_active=bool(cp.get('trailing_active', False))
+                )
+                db.session.add(p)
+            else:
+                p.side = cp.get('side', p.side)
+                p.quantity = float(cp.get('quantity', p.quantity))
+                p.average_price = float(cp.get('average_price', p.average_price))
+        
+        # Prune positions that client already closed or exited
+        for sym, p in existing.items():
+            if sym not in client_symbols:
+                db.session.delete(p)
+
+        db.session.commit()
+    except Exception:
+        pass
+
+@api_bp.route('/portfolio', methods=['GET', 'POST'])
 def get_portfolio():
+    if request.method == 'POST':
+        body = request.get_json(silent=True) or {}
+        client_positions = body.get('client_positions')
+        sync_positions_from_client(client_positions)
+
     summary = PaperTradingEngine.get_portfolio_summary()
     return jsonify(summary)
 
 @api_bp.route('/order', methods=['POST'])
 def place_order():
-    body = request.get_json() or {}
+    body = request.get_json(silent=True) or {}
     symbol = body.get('symbol', '')
     side = body.get('side') or body.get('order_type') or ''
-    quantity = body.get('quantity', 0)
-    
+    quantity = float(body.get('quantity', 0) or 0)
+    avg_price = float(body.get('average_price', 0) or 0)
+
+    # Ensure position exists in current container if exiting
+    if side in ("SELL", "COVER") and symbol:
+        try:
+            pos = Position.query.filter_by(symbol=symbol).first()
+            if not pos:
+                pos = Position(
+                    symbol=symbol,
+                    side="SHORT" if side == "COVER" else "LONG",
+                    quantity=quantity if quantity > 0 else 1.0,
+                    average_price=avg_price if avg_price > 0 else 1.0
+                )
+                db.session.add(pos)
+                db.session.commit()
+        except Exception:
+            pass
+
     result = PaperTradingEngine.execute_order(symbol, side, quantity)
     if not result.get("success"):
         return jsonify(result), 400
@@ -246,6 +308,11 @@ def exit_all_positions():
     calculates realized P&L, records trade history and session exits,
     and returns freed margin to cash balance.
     """
+    body = request.get_json(silent=True) or {}
+    client_positions = body.get('client_positions')
+    if client_positions and isinstance(client_positions, list):
+        sync_positions_from_client(client_positions)
+
     from app.services.bot import bot_instance
     from datetime import datetime
 
@@ -404,6 +471,10 @@ def tick_bot():
         client_running = cfg.get('is_running')
     if client_running is not None:
         bot_instance.is_running = bool(client_running)
+
+    # Sync positions with client state if provided to prevent container drift
+    client_positions = body.get('client_positions')
+    sync_positions_from_client(client_positions)
 
     event = body.get('event')
     symbol = body.get('symbol')
