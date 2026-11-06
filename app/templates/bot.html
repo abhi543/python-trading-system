@@ -1529,7 +1529,6 @@
         }
         updateConfigSummaryRibbon();
     }
-    }
 
     async function loadAccountMetrics() {
         try {
@@ -1982,20 +1981,8 @@
             switchLedgerTab('session');
 
             setBotActiveState(true);
-            const config = {
-                scan_mode: document.getElementById('bot-scan-mode').value,
-                single_symbol: document.getElementById('bot-symbol').value.trim().toUpperCase(),
-                strategy: document.getElementById('bot-strategy').value,
-                allocation_per_trade: parseFloat(document.getElementById('bot-allocation').value) || 15000,
-                max_positions: parseInt(document.getElementById('bot-max-positions').value) || 3,
-                interval_seconds: 300,
-                stop_loss_pct: parseFloat(document.getElementById('bot-stop-loss').value) || 1.0,
-                take_profit_pct: parseFloat(document.getElementById('bot-take-profit').value) || 1.0,
-                use_ema200_filter: document.getElementById('bot-use-ema200').checked,
-                use_volume_filter: document.getElementById('bot-use-vol').checked,
-                use_trailing_stop: document.getElementById('bot-use-trailing').checked,
-                use_atr_exits: document.getElementById('bot-use-atr').checked
-            };
+            const config = getCurrentBotConfig();
+            config.is_running = true;
 
             try {
                 const res = await fetch('/api/bot/start', {
