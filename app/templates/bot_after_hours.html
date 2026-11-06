@@ -1597,16 +1597,11 @@
 
     async function fetchBotOverview(silent = false) {
         try {
-            const localPositions = (typeof getStoredActivePositions === 'function') ? getStoredActivePositions() : [];
-            const res = await fetch('/api/after-hours/overview', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ client_positions: localPositions })
-            });
+            const res = await fetch('/api/after-hours/overview');
             if (!res.ok) return;
             const data = await res.json();
             if (data.status) updateBotUI(data.status);
-            if (data.portfolio) renderPortfolioUI(data.portfolio, localPositions);
+            if (data.portfolio) renderPortfolioUI(data.portfolio);
             if (data.closed_trades) renderClosedTradesUI(data.closed_trades);
         } catch (err) {
             if (!silent) console.warn('Overview sync error:', err);
@@ -2277,7 +2272,7 @@
         const cash = (data.cash_balance !== undefined) ? data.cash_balance : (data.account ? data.account.cash_balance : 10000000);
         const equity = (data.total_equity !== undefined) ? data.total_equity : (data.account ? data.account.total_equity : 10000000);
         let pnl = (data.unrealized_pnl !== undefined) ? data.unrealized_pnl : (data.account ? data.account.unrealized_pnl : 0);
-        if (localPositions.length === 0 && (!data.positions || data.positions.length === 0)) {
+        if (!data.positions || data.positions.length === 0) {
             pnl = 0.0;
         }
 
@@ -2298,16 +2293,8 @@
         const tbody = document.getElementById('bot-holdings-tbody');
         if (!tbody) return;
 
-        let backendPositions = data.positions || [];
-        let positions = [];
-        if (backendPositions.length > 0) {
-            positions = backendPositions;
-            saveStoredActivePositions(positions);
-        } else if (localPositions.length > 0) {
-            positions = localPositions;
-        } else {
-            positions = [];
-        }
+        let positions = data.positions || [];
+        saveStoredActivePositions(positions);
 
         window.cachedActivePositions = positions;
         if (allScannerData && allScannerData.length > 0) {
