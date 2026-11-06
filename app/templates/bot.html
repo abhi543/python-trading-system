@@ -17,7 +17,7 @@
                     </span>
                     <span class="bot-badge-outline"><i class="fa-solid fa-bolt"></i> NIFTY 200 / 50 MULTI-BASKET ENGINE</span>
                     <span class="bot-badge-outline" id="bot-session-badge"><i class="fa-solid fa-moon" style="color: #ffd166;"></i> SESSION: AFTER-HOURS ENGINE (24/7)</span>
-                    <span class="bot-badge-outline" id="bot-interval-badge"><i class="fa-solid fa-clock"></i> CYCLE: 60s (1m)</span>
+                    <span class="bot-badge-outline" id="bot-interval-badge"><i class="fa-solid fa-clock"></i> CYCLE: 300s (5m)</span>
                 </div>
                 <h1 class="bot-title">Algorithmic Auto-Trading Station</h1>
                 <p class="bot-subtitle">Autonomous multi-asset strategy scanner & execution engine running live across NIFTY 200 & NIFTY 50 National Stock Exchange of India (NSE) constituents.</p>
@@ -1162,12 +1162,12 @@
             btn.innerHTML = '<i class="fa-solid fa-stop"></i> STOP AUTO-BOT';
 
             if (!botTickTimer) {
-                startCountdown(60);
+                startCountdown(300);
                 botTickTimer = setInterval(async () => {
                     if (!isBotActive) return;
                     await tickBotNow();
-                    startCountdown(60);
-                }, 60000);
+                    startCountdown(300);
+                }, 300000);
             }
         } else {
             ind.className = 'bot-status-badge status-stopped';
@@ -1183,7 +1183,7 @@
                 clearInterval(countdownTimer);
                 countdownTimer = null;
             }
-            document.getElementById('bot-interval-badge').innerHTML = '<i class="fa-solid fa-clock"></i> CYCLE: 60s (PAUSED)';
+            document.getElementById('bot-interval-badge').innerHTML = '<i class="fa-solid fa-clock"></i> CYCLE: 300s (PAUSED)';
 
             // Clear any active timers
             if (continuousSimTimer) {
@@ -1209,7 +1209,10 @@
                 badge.innerHTML = '<i class="fa-solid fa-satellite-dish fa-spin" style="color: var(--green);"></i> SWEEPING BASKET NOW...';
                 clearInterval(countdownTimer);
             } else {
-                badge.innerHTML = `<i class="fa-solid fa-clock" style="color: var(--green);"></i> NEXT SWEEP: ${secondsRemaining}s`;
+                const mins = Math.floor(secondsRemaining / 60);
+                const secs = secondsRemaining % 60;
+                const timeStr = mins > 0 ? `${mins}m ${secs.toString().padStart(2, '0')}s` : `${secs}s`;
+                badge.innerHTML = `<i class="fa-solid fa-clock" style="color: var(--green);"></i> NEXT SWEEP: ${timeStr}`;
             }
         }, 1000);
     }
@@ -1536,7 +1539,7 @@
                 strategy: document.getElementById('bot-strategy').value,
                 allocation_per_trade: parseFloat(document.getElementById('bot-allocation').value) || 15000,
                 max_positions: parseInt(document.getElementById('bot-max-positions').value) || 3,
-                interval_seconds: 60,
+                interval_seconds: 300,
                 stop_loss_pct: parseFloat(document.getElementById('bot-stop-loss').value) || 1.0,
                 take_profit_pct: parseFloat(document.getElementById('bot-take-profit').value) || 1.0,
                 use_ema200_filter: document.getElementById('bot-use-ema200').checked,
@@ -1567,7 +1570,7 @@
             strategy: document.getElementById('bot-strategy')?.value || '123_REVERSAL',
             allocation_per_trade: parseFloat(document.getElementById('bot-allocation')?.value) || 15000,
             max_positions: parseInt(document.getElementById('bot-max-positions')?.value) || 3,
-            interval_seconds: 60,
+            interval_seconds: 300,
             stop_loss_pct: parseFloat(document.getElementById('bot-stop-loss')?.value) || 1.0,
             take_profit_pct: parseFloat(document.getElementById('bot-take-profit')?.value) || 1.0,
             use_ema200_filter: document.getElementById('bot-use-ema200')?.checked ?? true,
