@@ -45,7 +45,7 @@
             <div class="config-grid">
                 <div class="config-item">
                     <label><i class="fa-solid fa-layer-group"></i> SCANNING UNIVERSE</label>
-                    <select id="bot-scan-mode" class="config-select" onchange="onScanModeChange(); onStrategyChange();">
+                    <select id="bot-scan-mode" class="config-select" onchange="onScanModeChange();">
                         <option value="ALL_NIFTY_200" selected>All NIFTY 200 Basket (Top 200 Stocks)</option>
                         <option value="ALL_NIFTY_50">All NIFTY 50 Basket (Top 50 Stocks)</option>
                         <option value="SINGLE">Single Stock Focus</option>
@@ -1119,6 +1119,10 @@
     let allScannerData = [];
 
     document.addEventListener('DOMContentLoaded', () => {
+        const savedStrat = localStorage.getItem('nifty_bot_strategy') || '123_REVERSAL';
+        const stratEl = document.getElementById('bot-strategy');
+        if (stratEl) stratEl.value = savedStrat;
+
         loadStoredBotSession();
         syncStrategyUIHints();
         fetchBotStatus();
@@ -1278,7 +1282,10 @@
         if (data.single_symbol && !document.getElementById('bot-symbol').matches(':focus')) {
             document.getElementById('bot-symbol').value = data.single_symbol;
         }
-        if (data.strategy && !document.getElementById('bot-strategy').matches(':focus')) {
+        const savedStrat = localStorage.getItem('nifty_bot_strategy');
+        if (savedStrat) {
+            document.getElementById('bot-strategy').value = savedStrat;
+        } else if (data.strategy && !document.getElementById('bot-strategy').matches(':focus')) {
             document.getElementById('bot-strategy').value = data.strategy;
         }
         if (data.use_ema200_filter !== undefined) {
@@ -1575,6 +1582,7 @@
         const stratSelect = document.getElementById('bot-strategy');
         if (!stratSelect) return;
         const selectedStrat = stratSelect.value;
+        localStorage.setItem('nifty_bot_strategy', selectedStrat);
         const cfg = getCurrentBotConfig();
         cfg.strategy = selectedStrat;
         showToast(`Updating strategy to: ${selectedStrat}...`, 'info');
