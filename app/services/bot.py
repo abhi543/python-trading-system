@@ -210,6 +210,47 @@ class AutoTradingBot:
             self.last_scan_summary["trades_executed"] = len(self.session_trades)
             self.persist_state()
 
+    def get_intraday_traded_symbols(self) -> set:
+        """Returns set of symbols that have already had an entry trade today during the current IST session"""
+        from datetime import datetime, timezone, timedelta
+        from app.models.trading import TradeHistory, Position
+        
+        traded = set()
+        # 1. Any currently held open position
+        try:
+            open_positions = Position.query.filter(Position.quantity > 0).all()
+            for p in open_positions:
+                traded.add(p.symbol)
+        except Exception:
+            pass
+
+        # 2. Database TradeHistory for today's IST trading session
+        try:
+            now_utc = datetime.now(timezone.utc)
+            now_ist = now_utc + timedelta(hours=5, minutes=30)
+            start_of_ist_day_utc = datetime(now_ist.year, now_ist.month, now_ist.day, 0, 0, 0) - timedelta(hours=5, minutes=30)
+            
+            today_trades = TradeHistory.query.filter(
+                TradeHistory.timestamp >= start_of_ist_day_utc,
+                TradeHistory.side.in_(["BUY", "SHORT"])
+            ).all()
+            for t in today_trades:
+                traded.add(t.symbol)
+        except Exception:
+            pass
+            
+        # 3. Session trades from current bot state
+        try:
+            for t in (self.session_trades or []):
+                if t.get("side") in ["BUY", "SHORT"]:
+                    sym = t.get("symbol")
+                    if sym:
+                        traded.add(sym)
+        except Exception:
+            pass
+            
+        return traded
+
     def get_status(self) -> dict:
         persisted = _load_persistent_bot_state()
         is_active = self.is_running or persisted.get("is_running", False)
@@ -780,6 +821,7 @@ class AutoTradingBot:
         held_map = {p.symbol: p for p in held_positions}
         account = Account.query.first()
         available_cash = account.cash_balance if account else 0.0
+        already_traded_today = self.get_intraday_traded_symbols()
 
         if self.scan_mode == "ALL_NIFTY_200":
             target_stocks = NIFTY_200_DEFAULT
@@ -907,16 +949,21 @@ class AutoTradingBot:
 
                     # Otherwise, if we do not hold this stock and have a position slot, open a LONG trade
                     elif symbol not in held_map and has_position_slot:
-                        buying_power = self.allocation_per_trade * self.leverage
-                        trade_qty = max(1, int(buying_power / price))
-                        margin_needed = round((trade_qty * price) / self.leverage, 2)
+                        if symbol in already_traded_today:
+                            eval_res["action_executed"] = "SKIPPED (Already Traded Today)"
+                            self.add_log(f"⏸️ {display_name} BUY skipped: Intraday 1-trade limit reached today", "INFO")
+                        else:
+                            buying_power = self.allocation_per_trade * self.leverage
+                            trade_qty = max(1, int(buying_power / price))
+                            margin_needed = round((trade_qty * price) / self.leverage, 2)
 
-                        if available_cash >= margin_needed:
-                            exec_res = PaperTradingEngine.execute_order(symbol, "BUY", trade_qty, execution_price=price)
-                            if exec_res.get("success"):
-                                trades_executed += 1
-                                available_cash -= margin_needed
-                                eval_res["action_executed"] = f"BOUGHT {trade_qty} (5x)"
+                            if available_cash >= margin_needed:
+                                exec_res = PaperTradingEngine.execute_order(symbol, "BUY", trade_qty, execution_price=price)
+                                if exec_res.get("success"):
+                                    already_traded_today.add(symbol)
+                                    trades_executed += 1
+                                    available_cash -= margin_needed
+                                    eval_res["action_executed"] = f"BOUGHT {trade_qty} (5x)"
                                 
                                 pos_rec = Position.query.filter_by(symbol=symbol).first()
                                 if pos_rec:
@@ -973,8 +1020,8 @@ class AutoTradingBot:
                                     stop_loss=pos_rec.stop_loss if pos_rec else 0.0,
                                     take_profit=pos_rec.take_profit if pos_rec else 0.0
                                 )
-                        else:
-                            self.add_log(f"BUY signal on {display_name}, but insufficient cash (Needed ₹{margin_needed:,.2f}, Avail ₹{available_cash:,.2f})", "WARNING")
+                            else:
+                                self.add_log(f"BUY signal on {display_name}, but insufficient cash (Needed ₹{margin_needed:,.2f}, Avail ₹{available_cash:,.2f})", "WARNING")
                 else:
                     eval_res["action_executed"] = "OFFLINE (Bot Stopped)"
 
@@ -1015,16 +1062,21 @@ class AutoTradingBot:
 
                     # Case B: If we do NOT hold this stock, enter a SHORT position!
                     elif symbol not in held_map and has_position_slot:
-                        buying_power = self.allocation_per_trade * self.leverage
-                        trade_qty = max(1, int(buying_power / price))
-                        margin_needed = round((trade_qty * price) / self.leverage, 2)
+                        if symbol in already_traded_today:
+                            eval_res["action_executed"] = "SKIPPED (Already Traded Today)"
+                            self.add_log(f"⏸️ {display_name} SHORT skipped: Intraday 1-trade limit reached today", "INFO")
+                        else:
+                            buying_power = self.allocation_per_trade * self.leverage
+                            trade_qty = max(1, int(buying_power / price))
+                            margin_needed = round((trade_qty * price) / self.leverage, 2)
 
-                        if available_cash >= margin_needed:
-                            exec_res = PaperTradingEngine.execute_order(symbol, "SHORT", trade_qty, execution_price=price)
-                            if exec_res.get("success"):
-                                trades_executed += 1
-                                available_cash -= margin_needed
-                                eval_res["action_executed"] = f"SHORTED {trade_qty} (5x)"
+                            if available_cash >= margin_needed:
+                                exec_res = PaperTradingEngine.execute_order(symbol, "SHORT", trade_qty, execution_price=price)
+                                if exec_res.get("success"):
+                                    already_traded_today.add(symbol)
+                                    trades_executed += 1
+                                    available_cash -= margin_needed
+                                    eval_res["action_executed"] = f"SHORTED {trade_qty} (5x)"
 
                                 pos_rec = Position.query.filter_by(symbol=symbol).first()
                                 if pos_rec:
@@ -1081,10 +1133,13 @@ class AutoTradingBot:
                                     stop_loss=pos_rec.stop_loss if pos_rec else 0.0,
                                     take_profit=pos_rec.take_profit if pos_rec else 0.0
                                 )
-                        else:
-                            self.add_log(f"SELL/SHORT signal on {display_name}, but insufficient cash (Needed ₹{margin_needed:,.2f}, Avail ₹{available_cash:,.2f})", "WARNING")
+                            else:
+                                self.add_log(f"SELL/SHORT signal on {display_name}, but insufficient cash (Needed ₹{margin_needed:,.2f}, Avail ₹{available_cash:,.2f})", "WARNING")
                 else:
                     eval_res["action_executed"] = "OFFLINE (Bot Stopped)"
+
+            if symbol in already_traded_today and not eval_res.get("action_executed") and symbol not in held_map:
+                eval_res["action_executed"] = "TRADED TODAY"
 
             scanner_results.append(eval_res)
 

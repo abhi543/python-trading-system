@@ -1,3 +1,4 @@
+from datetime import datetime, timezone, timedelta
 from app import db
 from app.models.trading import Account, Position, TradeHistory
 from app.services.market_data import MarketDataService
@@ -130,7 +131,33 @@ class PaperTradingEngine:
         }
 
     @staticmethod
-    def execute_order(symbol: str, side: str, quantity: float, execution_price: float = None):
+    def is_symbol_traded_today(symbol: str) -> bool:
+        """
+        Checks if a stock has already had an intraday entry trade (BUY or SHORT) today in IST,
+        or is currently held in an open position.
+        """
+        try:
+            # 1. Check open position
+            pos = Position.query.filter_by(symbol=symbol).first()
+            if pos and pos.quantity > 0:
+                return True
+
+            # 2. Check TradeHistory for today in IST (UTC+5:30)
+            now_utc = datetime.now(timezone.utc)
+            now_ist = now_utc + timedelta(hours=5, minutes=30)
+            start_of_ist_day_utc = datetime(now_ist.year, now_ist.month, now_ist.day, 0, 0, 0) - timedelta(hours=5, minutes=30)
+            
+            trade = TradeHistory.query.filter(
+                TradeHistory.symbol == symbol,
+                TradeHistory.side.in_(["BUY", "SHORT"]),
+                TradeHistory.timestamp >= start_of_ist_day_utc
+            ).first()
+            return trade is not None
+        except Exception:
+            return False
+
+    @staticmethod
+    def execute_order(symbol: str, side: str, quantity: float, execution_price: float = None, force_bypass_day_limit: bool = False):
         symbol = symbol.strip().upper()
         side = side.strip().upper()
         quantity = float(quantity)
@@ -263,6 +290,20 @@ class PaperTradingEngine:
         # 3. LONG ENTRY: BUY TO OPEN
         # -------------------------------------------------------------
         elif side == "BUY":
+            # Guard A: Intraday Averaging is strictly disabled
+            if position and position.quantity > 0:
+                return {
+                    "success": False,
+                    "message": f"Position already exists for {symbol} ({int(position.quantity)} shares @ ₹{position.average_price:.2f}). Intraday averaging is disabled."
+                }
+
+            # Guard B: Strict Intraday 1-Trade-Per-Stock limit (no re-entry if traded today)
+            if not force_bypass_day_limit and PaperTradingEngine.is_symbol_traded_today(symbol):
+                return {
+                    "success": False,
+                    "message": f"Intraday 1-trade limit reached for {symbol}. Stock has already been traded today."
+                }
+
             charges_data = PaperTradingEngine.calculate_transaction_charges(turnover, "BUY")
             total_charges = charges_data["total_charges"]
             margin_required = round((turnover / PaperTradingEngine.LEVERAGE) + total_charges, 2)
@@ -287,13 +328,13 @@ class PaperTradingEngine:
                 )
                 db.session.add(position)
             else:
-                new_qty = position.quantity + quantity
-                new_avg = ((position.quantity * position.average_price) + turnover) / new_qty
-                position.quantity = new_qty
-                position.average_price = new_avg
+                position.quantity = quantity
+                position.average_price = price
                 position.side = "LONG"
-                if hasattr(position, 'peak_price'):
-                    position.peak_price = max(position.peak_price or 0.0, price)
+                position.peak_price = price
+                position.stop_loss = 0.0
+                position.take_profit = 0.0
+                position.trailing_active = False
 
             trade = TradeHistory(
                 symbol=symbol,
@@ -328,6 +369,20 @@ class PaperTradingEngine:
         # 4. SHORT ENTRY: SELL SHORT (initiated when not holding long)
         # -------------------------------------------------------------
         elif side in ["SELL", "SHORT"]:
+            # Guard A: Intraday Averaging is strictly disabled
+            if position and position.quantity > 0:
+                return {
+                    "success": False,
+                    "message": f"Position already exists for {symbol} ({int(position.quantity)} shares @ ₹{position.average_price:.2f}). Intraday averaging is disabled."
+                }
+
+            # Guard B: Strict Intraday 1-Trade-Per-Stock limit (no re-entry if traded today)
+            if not force_bypass_day_limit and PaperTradingEngine.is_symbol_traded_today(symbol):
+                return {
+                    "success": False,
+                    "message": f"Intraday 1-trade limit reached for {symbol}. Stock has already been traded today."
+                }
+
             charges_data = PaperTradingEngine.calculate_transaction_charges(turnover, "SELL")
             total_charges = charges_data["total_charges"]
             margin_required = round((turnover / PaperTradingEngine.LEVERAGE) + total_charges, 2)
@@ -352,13 +407,13 @@ class PaperTradingEngine:
                 )
                 db.session.add(position)
             else:
-                new_qty = position.quantity + quantity
-                new_avg = ((position.quantity * position.average_price) + turnover) / new_qty
-                position.quantity = new_qty
-                position.average_price = new_avg
+                position.quantity = quantity
+                position.average_price = price
                 position.side = "SHORT"
-                if hasattr(position, 'peak_price'):
-                    position.peak_price = min(position.peak_price or 999999.0, price)
+                position.peak_price = price
+                position.stop_loss = 0.0
+                position.take_profit = 0.0
+                position.trailing_active = False
 
             trade = TradeHistory(
                 symbol=symbol,

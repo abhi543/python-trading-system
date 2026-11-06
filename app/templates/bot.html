@@ -1929,7 +1929,13 @@
 
             let actionBadge = '<span style="color: var(--text-muted);">--</span>';
             if (s.action_executed) {
-                actionBadge = `<span style="color: var(--green); font-weight: 700;"><i class="fa-solid fa-check"></i> ${s.action_executed}</span>`;
+                if (s.action_executed.includes('SKIPPED') || s.action_executed.includes('TRADED')) {
+                    actionBadge = `<span style="color: #ffbd2e; font-weight: 700; font-size: 0.76rem;"><i class="fa-solid fa-clock-rotate-left"></i> ${s.action_executed}</span>`;
+                } else if (s.action_executed.includes('OFFLINE')) {
+                    actionBadge = `<span style="color: var(--text-muted); font-size: 0.76rem;"><i class="fa-solid fa-pause"></i> ${s.action_executed}</span>`;
+                } else {
+                    actionBadge = `<span style="color: var(--green); font-weight: 700;"><i class="fa-solid fa-check"></i> ${s.action_executed}</span>`;
+                }
             }
 
             const miniSparkline = generateMiniSparkline(s.change_pct || 0, s.trend_200 === 'BULLISH');
