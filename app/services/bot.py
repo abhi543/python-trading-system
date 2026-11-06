@@ -562,10 +562,11 @@ class AutoTradingBot:
         sells_found = 0
         trades_executed = 0
 
-        # Autonomous trade order execution strictly requires bot to be running (self.is_running is True)
+        # Autonomous trade order execution strictly requires bot to be running (self.is_running is True or persisted)
         # Or explicit manual simulation triggers (FORCE_BUY, STOP_SHOCK)
         is_explicit_test = simulation_event in ["FORCE_BUY", "STOP_SHOCK"]
-        can_execute_trades = bool(self.is_running or is_explicit_test)
+        persisted_running = _load_persistent_bot_state().get("is_running", False)
+        can_execute_trades = bool(self.is_running or persisted_running or is_explicit_test)
 
         for symbol in target_stocks:
             stock_data = stock_data_map.get(symbol)

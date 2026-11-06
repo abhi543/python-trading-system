@@ -264,6 +264,28 @@ def tick_bot():
         "bot_state": bot_instance.get_status()
     })
 
+@api_bp.route('/bot/cron', methods=['GET', 'POST'])
+def bot_cron():
+    """
+    Automated Background Cron trigger called every 1 minute by Vercel Cron or GitHub Actions.
+    Triggers autonomous scanning, after-hours simulation, and order executions.
+    """
+    from datetime import datetime
+    from app.services.bot import bot_instance
+    from app.services.crypto_bot import crypto_bot_instance
+
+    nifty_res = bot_instance.evaluate_signals()
+    crypto_res = crypto_bot_instance.evaluate_signals()
+
+    return jsonify({
+        "status": "cron_executed",
+        "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "nifty_scanned": len(nifty_res),
+        "crypto_scanned": len(crypto_res),
+        "nifty_bot_running": bot_instance.is_running,
+        "crypto_bot_running": crypto_bot_instance.is_running
+    })
+
 @api_bp.route('/bot/simulate', methods=['POST'])
 def simulate_bot():
     from app.services.bot import bot_instance

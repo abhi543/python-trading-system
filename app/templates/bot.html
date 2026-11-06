@@ -16,6 +16,7 @@
                         <span id="bot-status-text">OFFLINE / STOPPED</span>
                     </span>
                     <span class="bot-badge-outline"><i class="fa-solid fa-bolt"></i> NIFTY 200 / 50 MULTI-BASKET ENGINE</span>
+                    <span class="bot-badge-outline" id="bot-session-badge"><i class="fa-solid fa-moon" style="color: #ffd166;"></i> SESSION: AFTER-HOURS ENGINE (24/7)</span>
                     <span class="bot-badge-outline" id="bot-interval-badge"><i class="fa-solid fa-clock"></i> CYCLE: 60s (1m)</span>
                 </div>
                 <h1 class="bot-title">Algorithmic Auto-Trading Station</h1>
@@ -1162,6 +1163,19 @@
             setBotActiveState(true, false);
         } else if (!localActive && isBotActive) {
             setBotActiveState(false, false);
+        }
+
+        const sessBadge = document.getElementById('bot-session-badge');
+        if (sessBadge) {
+            if (data.is_after_hours) {
+                sessBadge.innerHTML = '<i class="fa-solid fa-moon" style="color: #ffd166;"></i> SESSION: AFTER-HOURS ENGINE (24/7)';
+                sessBadge.style.borderColor = 'rgba(255, 209, 102, 0.4)';
+                sessBadge.style.color = '#ffd166';
+            } else {
+                sessBadge.innerHTML = '<i class="fa-solid fa-sun" style="color: var(--green);"></i> SESSION: LIVE NSE MARKET SESSION';
+                sessBadge.style.borderColor = 'rgba(0, 240, 144, 0.4)';
+                sessBadge.style.color = 'var(--green)';
+            }
         }
 
         if (data.scan_mode && !document.getElementById('bot-scan-mode').matches(':focus')) {

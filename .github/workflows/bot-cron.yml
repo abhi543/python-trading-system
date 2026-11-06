@@ -1,0 +1,17 @@
+name: 24/7 Autonomous Bot Cloud Trigger
+
+on:
+  schedule:
+    # Trigger every 5 minutes continuously
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
+
+jobs:
+  ping-bot:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger NIFTY & Crypto Bot Cron
+        run: |
+          curl -s -X POST https://python-trading-system.vercel.app/api/bot/cron \
+            -H "Content-Type: application/json" \
+            -d '{"source": "github_actions_cron"}'

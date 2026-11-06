@@ -460,3 +460,4 @@ class CryptoAutoTradingBot:
                 time.sleep(1)
 
 crypto_bot_instance = CryptoAutoTradingBot()
+
