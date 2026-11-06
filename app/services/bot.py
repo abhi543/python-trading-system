@@ -1181,5 +1181,7 @@ class AutoTradingBot:
                     break
                 time.sleep(1)
 
-bot_instance = AutoTradingBot(state_filename="trading_bot_state.json", name="LiveBot", is_after_hours_forced=False)
-after_hours_bot_instance = AutoTradingBot(state_filename="after_hours_bot_state.json", name="AfterHoursBot", is_after_hours_forced=True)
+# 1. ALPHA: Dedicated Live Market Day Engine (/bot)
+# 2. NIGHTHAWK: Dedicated 24/7 After-Hours Strategy Lab (/bot-after-hours)
+bot_instance = AutoTradingBot(state_filename="trading_bot_state.json", name="ALPHA", is_after_hours_forced=False)
+after_hours_bot_instance = AutoTradingBot(state_filename="after_hours_bot_state.json", name="NIGHTHAWK", is_after_hours_forced=True)
