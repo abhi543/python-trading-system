@@ -1,8 +1,9 @@
 from flask import Blueprint, request, jsonify
 from app import db
-from app.models.trading import Account, WatchlistItem, TradeHistory, Position
+from app.models.trading import Account, WatchlistItem, TradeHistory, Position, CryptoAccount, CryptoPosition, CryptoTradeHistory
 from app.services.market_data import MarketDataService
 from app.services.paper_trader import PaperTradingEngine
+from app.services.crypto_trader import CryptoTradingEngine
 from app.services.strategy import StrategyBacktester
 
 api_bp = Blueprint('api', __name__)
@@ -290,5 +291,77 @@ def get_replay_data():
     if "error" in data:
         return jsonify(data), 404
     return jsonify(data)
+
+# ==========================================
+# CRYPTO TRADING API ENDPOINTS
+# ==========================================
+@api_bp.route('/crypto/markets', methods=['GET'])
+def get_crypto_markets():
+    markets = CryptoTradingEngine.get_crypto_markets()
+    return jsonify(markets)
+
+@api_bp.route('/crypto/portfolio', methods=['GET'])
+def get_crypto_portfolio():
+    summary = CryptoTradingEngine.get_portfolio_summary()
+    return jsonify(summary)
+
+@api_bp.route('/crypto/order', methods=['POST'])
+def place_crypto_order():
+    body = request.get_json(silent=True) or {}
+    symbol = body.get('symbol', 'BTC-USD')
+    side = body.get('side', 'BUY')
+    quantity = float(body.get('quantity', 0.0))
+    leverage = int(body.get('leverage', 1))
+    order_type = body.get('order_type', 'MARKET')
+    limit_price = float(body.get('limit_price', 0.0))
+    stop_loss = float(body.get('stop_loss', 0.0))
+    take_profit = float(body.get('take_profit', 0.0))
+
+    res = CryptoTradingEngine.execute_order(
+        symbol=symbol,
+        side=side,
+        quantity=quantity,
+        leverage=leverage,
+        order_type=order_type,
+        limit_price=limit_price,
+        stop_loss=stop_loss,
+        take_profit=take_profit
+    )
+    if not res.get("success"):
+        return jsonify(res), 400
+    return jsonify(res)
+
+@api_bp.route('/crypto/close/<int:position_id>', methods=['POST'])
+def close_crypto_position(position_id):
+    res = CryptoTradingEngine.close_position_by_id(position_id)
+    if not res.get("success"):
+        return jsonify(res), 400
+    return jsonify(res)
+
+@api_bp.route('/crypto/trades', methods=['GET'])
+def get_crypto_trades():
+    trades = CryptoTradeHistory.query.order_by(CryptoTradeHistory.timestamp.desc()).limit(100).all()
+    res = []
+    for t in trades:
+        res.append({
+            "id": t.id,
+            "symbol": t.symbol,
+            "displayName": t.symbol.replace('-USD', ''),
+            "side": t.side,
+            "quantity": round(float(t.quantity), 6),
+            "price": round(float(t.price), 4 if t.price < 1 else 2),
+            "leverage": t.leverage,
+            "total": round(float(t.total), 2),
+            "margin": round(float(t.margin), 2),
+            "fee": round(float(t.fee), 4),
+            "realized_pnl": round(float(t.realized_pnl or 0.0), 2),
+            "timestamp": t.timestamp.strftime("%Y-%m-%d %H:%M:%S")
+        })
+    return jsonify(res)
+
+@api_bp.route('/crypto/reset', methods=['POST'])
+def reset_crypto_account():
+    res = CryptoTradingEngine.reset_account()
+    return jsonify(res)
 
 
