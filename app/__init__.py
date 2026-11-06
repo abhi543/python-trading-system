@@ -29,7 +29,8 @@ def create_app(config_class=Config):
                         "peak_price FLOAT DEFAULT 0.0",
                         "stop_loss FLOAT DEFAULT 0.0",
                         "take_profit FLOAT DEFAULT 0.0",
-                        "trailing_active BOOLEAN DEFAULT 0"
+                        "trailing_active BOOLEAN DEFAULT 0",
+                        "side VARCHAR(10) DEFAULT 'LONG'"
                     ]:
                         try:
                             conn.execute(text(f"ALTER TABLE positions ADD COLUMN {col_def}"))

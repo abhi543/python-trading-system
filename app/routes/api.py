@@ -30,7 +30,7 @@ def get_portfolio():
 def place_order():
     body = request.get_json() or {}
     symbol = body.get('symbol', '')
-    side = body.get('side', '')
+    side = body.get('side') or body.get('order_type') or ''
     quantity = body.get('quantity', 0)
     
     result = PaperTradingEngine.execute_order(symbol, side, quantity)
@@ -98,7 +98,7 @@ def get_trades():
 
 @api_bp.route('/trades/closed', methods=['GET'])
 def get_closed_trades():
-    trades = TradeHistory.query.filter_by(side="SELL").order_by(TradeHistory.timestamp.desc()).all()
+    trades = TradeHistory.query.filter(TradeHistory.side.in_(["SELL", "COVER"])).order_by(TradeHistory.timestamp.desc()).all()
     closed = []
     total_pnl = 0.0
     total_charges = 0.0
@@ -115,7 +115,7 @@ def get_closed_trades():
         elif pnl < 0:
             losses += 1
 
-        cost_basis = t.total - pnl
+        cost_basis = (t.total + pnl) if t.side == 'COVER' else (t.total - pnl)
         roi_pct = round((pnl / cost_basis) * 100, 2) if cost_basis > 0 else 0.0
         entry_p = round(cost_basis / t.quantity, 2) if (t.quantity > 0 and cost_basis > 0) else t.price
 
@@ -123,6 +123,7 @@ def get_closed_trades():
             "id": t.id,
             "symbol": t.symbol,
             "displayName": t.symbol.replace('.NS', ''),
+            "side": t.side,
             "quantity": t.quantity,
             "entry_price": entry_p,
             "exit_price": t.price,

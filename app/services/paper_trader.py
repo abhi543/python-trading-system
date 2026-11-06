@@ -21,10 +21,16 @@ class PaperTradingEngine:
             quote = MarketDataService.get_quote(pos.symbol)
             current_price = quote.get("price", pos.average_price) if "error" not in quote else pos.average_price
             
-            market_value = pos.quantity * current_price
+            side = getattr(pos, 'side', 'LONG') or 'LONG'
             cost_basis = pos.quantity * pos.average_price
+            market_value = pos.quantity * current_price
             margin_used = cost_basis / PaperTradingEngine.LEVERAGE
-            unrealized_pnl = market_value - cost_basis
+            
+            if side == 'SHORT':
+                unrealized_pnl = cost_basis - market_value
+            else:
+                unrealized_pnl = market_value - cost_basis
+
             # Calculate return on actual margin deployed
             unrealized_pnl_pct = (unrealized_pnl / margin_used * 100) if margin_used > 0 else 0.0
             
@@ -34,6 +40,7 @@ class PaperTradingEngine:
             
             portfolio_positions.append({
                 "symbol": pos.symbol,
+                "side": side,
                 "quantity": pos.quantity,
                 "average_price": round(pos.average_price, 2),
                 "current_price": round(current_price, 2),
@@ -131,8 +138,8 @@ class PaperTradingEngine:
         if quantity <= 0:
             return {"success": False, "message": "Quantity must be greater than zero"}
             
-        if side not in ["BUY", "SELL"]:
-            return {"success": False, "message": "Side must be BUY or SELL"}
+        if side not in ["BUY", "SELL", "SHORT", "COVER"]:
+            return {"success": False, "message": "Side must be BUY, SELL, SHORT, or COVER"}
             
         if execution_price is not None and execution_price > 0:
             price = round(float(execution_price), 2)
@@ -147,23 +154,131 @@ class PaperTradingEngine:
         if not account:
             return {"success": False, "message": "Account not initialized"}
 
-        charges_data = PaperTradingEngine.calculate_transaction_charges(turnover, side)
-        total_charges = charges_data["total_charges"]
-        
-        if side == "BUY":
+        position = Position.query.filter_by(symbol=symbol).first()
+        pos_side = (getattr(position, 'side', 'LONG') or 'LONG') if position else None
+
+        # -------------------------------------------------------------
+        # 1. SHORT EXIT: BUY TO COVER (closing or reducing SHORT position)
+        # -------------------------------------------------------------
+        if (side in ["BUY", "COVER"]) and position and pos_side == "SHORT":
+            charges_data = PaperTradingEngine.calculate_transaction_charges(turnover, "BUY")
+            total_charges = charges_data["total_charges"]
+
+            qty_to_cover = min(quantity, position.quantity)
+            cost_basis = round(qty_to_cover * position.average_price, 2)
+            margin_originally_blocked = round(cost_basis / PaperTradingEngine.LEVERAGE, 2)
+            cover_turnover = round(qty_to_cover * price, 2)
+            # Short profit = entry price - cover price
+            gross_pnl = cost_basis - cover_turnover
+            net_realized_pnl = round(gross_pnl - total_charges, 2)
+
+            cash_returned = round(margin_originally_blocked + net_realized_pnl, 2)
+            account.cash_balance += cash_returned
+            position.quantity -= qty_to_cover
+
+            if position.quantity <= 0:
+                db.session.delete(position)
+
+            trade = TradeHistory(
+                symbol=symbol,
+                side="COVER",
+                quantity=qty_to_cover,
+                price=price,
+                total=cover_turnover,
+                realized_pnl=net_realized_pnl,
+                charges=total_charges,
+                brokerage=charges_data["brokerage"],
+                stt=charges_data["stt"],
+                exchange_charges=charges_data["exchange_charges"],
+                sebi_charges=charges_data["sebi_charges"],
+                gst=charges_data["gst"],
+                stamp_duty=charges_data["stamp_duty"],
+                net_total=cash_returned
+            )
+            db.session.add(trade)
+            db.session.commit()
+            return {
+                "success": True,
+                "action": "COVER",
+                "price": price,
+                "entry_price": position.average_price if position else price,
+                "realized_pnl": net_realized_pnl,
+                "message": f"Covered {qty_to_cover} {symbol} @ ₹{price:.2f} [Short Exit]. Net Realized P&L: ₹{net_realized_pnl:,.2f} (Charges: ₹{total_charges:.2f})",
+                "trade_id": trade.id,
+                "charges": charges_data
+            }
+
+        # -------------------------------------------------------------
+        # 2. LONG EXIT: SELL TO CLOSE (liquidating or reducing LONG position)
+        # -------------------------------------------------------------
+        elif (side == "SELL") and position and pos_side == "LONG":
+            charges_data = PaperTradingEngine.calculate_transaction_charges(turnover, "SELL")
+            total_charges = charges_data["total_charges"]
+
+            qty_to_sell = min(quantity, position.quantity)
+            cost_basis = round(qty_to_sell * position.average_price, 2)
+            margin_originally_blocked = round(cost_basis / PaperTradingEngine.LEVERAGE, 2)
+            sell_turnover = round(qty_to_sell * price, 2)
+            # Long profit = sell price - entry price
+            gross_pnl = sell_turnover - cost_basis
+            net_realized_pnl = round(gross_pnl - total_charges, 2)
+
+            cash_returned = round(margin_originally_blocked + net_realized_pnl, 2)
+            account.cash_balance += cash_returned
+            position.quantity -= qty_to_sell
+
+            if position.quantity <= 0:
+                db.session.delete(position)
+
+            trade = TradeHistory(
+                symbol=symbol,
+                side="SELL",
+                quantity=qty_to_sell,
+                price=price,
+                total=sell_turnover,
+                realized_pnl=net_realized_pnl,
+                charges=total_charges,
+                brokerage=charges_data["brokerage"],
+                stt=charges_data["stt"],
+                exchange_charges=charges_data["exchange_charges"],
+                sebi_charges=charges_data["sebi_charges"],
+                gst=charges_data["gst"],
+                stamp_duty=charges_data["stamp_duty"],
+                net_total=cash_returned
+            )
+            db.session.add(trade)
+            db.session.commit()
+            return {
+                "success": True,
+                "action": "SELL",
+                "price": price,
+                "entry_price": position.average_price if position else price,
+                "realized_pnl": net_realized_pnl,
+                "message": f"Sold {qty_to_sell} {symbol} @ ₹{price:.2f} [Long Exit]. Net Realized P&L: ₹{net_realized_pnl:,.2f} (Charges: ₹{total_charges:.2f})",
+                "trade_id": trade.id,
+                "charges": charges_data
+            }
+
+        # -------------------------------------------------------------
+        # 3. LONG ENTRY: BUY TO OPEN
+        # -------------------------------------------------------------
+        elif side == "BUY":
+            charges_data = PaperTradingEngine.calculate_transaction_charges(turnover, "BUY")
+            total_charges = charges_data["total_charges"]
             margin_required = round((turnover / PaperTradingEngine.LEVERAGE) + total_charges, 2)
+
             if account.cash_balance < margin_required:
                 return {
-                    "success": False, 
+                    "success": False,
                     "message": f"Insufficient margin (5x Leverage). Required: ₹{margin_required:,.2f} (Turnover: ₹{turnover:,.2f} + Charges: ₹{total_charges:.2f}), Available: ₹{account.cash_balance:,.2f}"
                 }
-            
+
             account.cash_balance -= margin_required
-            position = Position.query.filter_by(symbol=symbol).first()
             if not position:
                 position = Position(
-                    symbol=symbol, 
-                    quantity=quantity, 
+                    symbol=symbol,
+                    side="LONG",
+                    quantity=quantity,
                     average_price=price,
                     peak_price=price,
                     stop_loss=0.0,
@@ -176,9 +291,10 @@ class PaperTradingEngine:
                 new_avg = ((position.quantity * position.average_price) + turnover) / new_qty
                 position.quantity = new_qty
                 position.average_price = new_avg
+                position.side = "LONG"
                 if hasattr(position, 'peak_price'):
                     position.peak_price = max(position.peak_price or 0.0, price)
-                
+
             trade = TradeHistory(
                 symbol=symbol,
                 side="BUY",
@@ -198,38 +314,59 @@ class PaperTradingEngine:
             db.session.add(trade)
             db.session.commit()
             return {
-                "success": True, 
-                "message": f"Bought {quantity} {symbol} @ ₹{price:.2f} [5x Leverage | Margin: ₹{margin_required:,.2f}] (Charges: ₹{total_charges:.2f})", 
+                "success": True,
+                "action": "BUY",
+                "price": price,
+                "entry_price": price,
+                "realized_pnl": 0.0,
+                "message": f"Bought {quantity} {symbol} @ ₹{price:.2f} [5x Leverage | Margin: ₹{margin_required:,.2f}] (Charges: ₹{total_charges:.2f})",
                 "trade_id": trade.id,
                 "charges": charges_data
             }
-            
-        elif side == "SELL":
-            position = Position.query.filter_by(symbol=symbol).first()
-            if not position or position.quantity < quantity:
-                available = position.quantity if position else 0
-                return {"success": False, "message": f"Insufficient position. Available: {available}, Requested: {quantity}"}
-            
-            cost_basis = round(quantity * position.average_price, 2)
-            margin_originally_blocked = round(cost_basis / PaperTradingEngine.LEVERAGE, 2)
-            gross_pnl = turnover - cost_basis
-            net_realized_pnl = round(gross_pnl - total_charges, 2)
-            
-            # Cash returned = original margin released + net realized profit/loss
-            cash_returned = round(margin_originally_blocked + net_realized_pnl, 2)
-            account.cash_balance += cash_returned
-            position.quantity -= quantity
-            
-            if position.quantity == 0:
-                db.session.delete(position)
-                
+
+        # -------------------------------------------------------------
+        # 4. SHORT ENTRY: SELL SHORT (initiated when not holding long)
+        # -------------------------------------------------------------
+        elif side in ["SELL", "SHORT"]:
+            charges_data = PaperTradingEngine.calculate_transaction_charges(turnover, "SELL")
+            total_charges = charges_data["total_charges"]
+            margin_required = round((turnover / PaperTradingEngine.LEVERAGE) + total_charges, 2)
+
+            if account.cash_balance < margin_required:
+                return {
+                    "success": False,
+                    "message": f"Insufficient margin (5x Leverage). Required: ₹{margin_required:,.2f} (Turnover: ₹{turnover:,.2f} + Charges: ₹{total_charges:.2f}), Available: ₹{account.cash_balance:,.2f}"
+                }
+
+            account.cash_balance -= margin_required
+            if not position:
+                position = Position(
+                    symbol=symbol,
+                    side="SHORT",
+                    quantity=quantity,
+                    average_price=price,
+                    peak_price=price,
+                    stop_loss=0.0,
+                    take_profit=0.0,
+                    trailing_active=False
+                )
+                db.session.add(position)
+            else:
+                new_qty = position.quantity + quantity
+                new_avg = ((position.quantity * position.average_price) + turnover) / new_qty
+                position.quantity = new_qty
+                position.average_price = new_avg
+                position.side = "SHORT"
+                if hasattr(position, 'peak_price'):
+                    position.peak_price = min(position.peak_price or 999999.0, price)
+
             trade = TradeHistory(
                 symbol=symbol,
-                side="SELL",
+                side="SHORT",
                 quantity=quantity,
                 price=price,
                 total=turnover,
-                realized_pnl=net_realized_pnl,
+                realized_pnl=0.0,
                 charges=total_charges,
                 brokerage=charges_data["brokerage"],
                 stt=charges_data["stt"],
@@ -237,13 +374,17 @@ class PaperTradingEngine:
                 sebi_charges=charges_data["sebi_charges"],
                 gst=charges_data["gst"],
                 stamp_duty=charges_data["stamp_duty"],
-                net_total=cash_returned
+                net_total=margin_required
             )
             db.session.add(trade)
             db.session.commit()
             return {
-                "success": True, 
-                "message": f"Sold {quantity} {symbol} @ ₹{price:.2f} [5x Leverage]. Net Realized P&L: ₹{net_realized_pnl:,.2f} (Charges: ₹{total_charges:.2f})", 
+                "success": True,
+                "action": "SHORT",
+                "price": price,
+                "entry_price": price,
+                "realized_pnl": 0.0,
+                "message": f"Shorted {quantity} {symbol} @ ₹{price:.2f} [5x Leverage | Margin: ₹{margin_required:,.2f}] (Charges: ₹{total_charges:.2f})",
                 "trade_id": trade.id,
                 "charges": charges_data
             }

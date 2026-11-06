@@ -494,18 +494,18 @@
                         </div>
 
                         <div class="rule-item">
-                            <div class="rule-icon"><i class="fa-solid fa-chart-line" style="color: var(--blue);"></i></div>
+                            <div class="rule-icon"><i class="fa-solid fa-arrows-split-up-and-left" style="color: var(--blue);"></i></div>
                             <div>
-                                <h4>Dual SMA Crossover</h4>
-                                <p>Fast SMA (9-day) crosses above Slow SMA (21-day) generates a <strong>BUY</strong> signal. Crossing below generates a <strong>SELL</strong> signal.</p>
+                                <h4>Two-Way Trading: Long &amp; Short Execution</h4>
+                                <p>Takes <strong>LONG (BUY)</strong> positions on bullish neckline breakouts, and <strong>SHORT (SELL)</strong> positions on bearish breakdowns using 5x intraday leverage.</p>
                             </div>
                         </div>
 
                         <div class="rule-item">
                             <div class="rule-icon"><i class="fa-solid fa-shield-halved" style="color: var(--green);"></i></div>
                             <div>
-                                <h4>200 EMA Macro Filter (Option A)</h4>
-                                <p>Filters out counter-trend buys. Only permits a <strong>BUY</strong> order if the stock is trading strictly above its <strong>200-day EMA</strong>.</p>
+                                <h4>200 EMA Macro Trend Filter</h4>
+                                <p>Filters out counter-trend entries: Only permits <strong>BUY (Long)</strong> if price &gt; 200 EMA, and only permits <strong>SELL (Short)</strong> if price &lt; 200 EMA.</p>
                             </div>
                         </div>
 
@@ -2156,12 +2156,16 @@
                     const tr = document.createElement('tr');
                     const pnlClass = p.unrealized_pnl >= 0 ? 'text-green' : 'text-red';
                     const pnlSign = p.unrealized_pnl >= 0 ? '+' : '';
+                    const isShort = (p.side === 'SHORT');
+                    const sideBadge = isShort 
+                        ? '<span class="side-badge side-short" style="background: rgba(255, 51, 102, 0.15); color: var(--red); border: 1px solid rgba(255, 51, 102, 0.3); padding: 3px 8px; border-radius: 4px; font-weight: 700; font-size: 0.72rem;"><i class="fa-solid fa-arrow-trend-down"></i> SHORT</span>'
+                        : '<span class="side-badge side-long" style="background: rgba(0, 240, 144, 0.15); color: var(--green); border: 1px solid rgba(0, 240, 144, 0.3); padding: 3px 8px; border-radius: 4px; font-weight: 700; font-size: 0.72rem;"><i class="fa-solid fa-arrow-trend-up"></i> LONG</span>';
                     
-                    let slDisplay = `₹${(p.stop_loss || p.average_price * 0.975).toFixed(2)}`;
+                    let slDisplay = `₹${(p.stop_loss || (isShort ? p.average_price * 1.025 : p.average_price * 0.975)).toFixed(2)}`;
                     if (p.trailing_active) {
                         slDisplay += ` <span style="font-size: 0.68rem; color: var(--green); font-weight: 700;">🛡️ Breakeven</span>`;
                     }
-                    let tpDisplay = `₹${(p.take_profit || p.average_price * 1.05).toFixed(2)}`;
+                    let tpDisplay = `₹${(p.take_profit || (isShort ? p.average_price * 0.95 : p.average_price * 1.05)).toFixed(2)}`;
                     if (p.take_profit) {
                         tpDisplay += ` <span style="font-size: 0.68rem; color: #a78bfa;">🎯 Target</span>`;
                     }
@@ -2172,7 +2176,7 @@
                             <span style="font-size:0.7rem; color:var(--text-muted); display: block;">${p.symbol}</span>
                         </td>
                         <td>
-                            <span class="side-badge side-long"><i class="fa-solid fa-arrow-trend-up"></i> LONG</span>
+                            ${sideBadge}
                         </td>
                         <td style="font-weight: 700;">${p.quantity}</td>
                         <td>₹${p.average_price.toFixed(2)}</td>
@@ -2182,8 +2186,8 @@
                         <td style="color: var(--red); font-weight: 700;">${slDisplay}</td>
                         <td style="color: var(--green); font-weight: 700;">${tpDisplay}</td>
                         <td>
-                            <button class="btn-action-close" onclick="exitBotPosition('${p.symbol}', ${p.quantity})">
-                                <i class="fa-solid fa-xmark"></i> Exit
+                            <button class="btn-action-close" onclick="exitBotPosition('${p.symbol}', ${p.quantity}, '${p.side || "LONG"}')">
+                                <i class="fa-solid fa-xmark"></i> ${isShort ? 'Cover' : 'Exit'}
                             </button>
                         </td>
                     `;
@@ -2248,10 +2252,10 @@
 
         botSession.trades.forEach(t => {
             charges += parseFloat(t.charges || 0.0);
-            if (t.side === 'BUY') {
-                buys++;
-            } else if (t.side === 'SELL') {
-                sells++;
+            if (t.side === 'BUY' || t.side === 'SHORT') {
+                if (t.side === 'BUY') buys++;
+                if (t.side === 'SHORT') sells++;
+            } else if (t.side === 'SELL' || t.side === 'COVER') {
                 const tradePnl = parseFloat(t.realized_pnl || 0.0);
                 pnl += tradePnl;
                 if (tradePnl > 0) wins++;
@@ -2403,20 +2407,27 @@
         tbody.innerHTML = '';
         botSession.trades.forEach(t => {
             const tr = document.createElement('tr');
-            const isBuy = t.side === 'BUY';
-            const actionBadge = isBuy
-                ? '<span class="side-badge side-long"><i class="fa-solid fa-arrow-trend-up"></i> BUY (ENTRY)</span>'
-                : '<span class="side-badge side-short" style="background: rgba(255, 75, 75, 0.15); color: #ff7575; border-color: rgba(255, 75, 75, 0.3);"><i class="fa-solid fa-arrow-trend-down"></i> SELL (EXIT)</span>';
+            const isEntry = (t.side === 'BUY' || t.side === 'SHORT');
+            let actionBadge = '';
+            if (t.side === 'BUY') {
+                actionBadge = '<span class="side-badge side-long"><i class="fa-solid fa-arrow-trend-up"></i> BUY (LONG)</span>';
+            } else if (t.side === 'SHORT') {
+                actionBadge = '<span class="side-badge side-short" style="background: rgba(255, 75, 75, 0.15); color: #ff7575; border: 1px solid rgba(255, 75, 75, 0.3);"><i class="fa-solid fa-arrow-trend-down"></i> SELL SHORT</span>';
+            } else if (t.side === 'COVER') {
+                actionBadge = '<span class="side-badge side-long" style="background: rgba(0, 240, 144, 0.15); color: var(--green); border: 1px solid rgba(0, 240, 144, 0.3);"><i class="fa-solid fa-check-double"></i> BUY (COVER)</span>';
+            } else {
+                actionBadge = '<span class="side-badge side-short" style="background: rgba(255, 75, 75, 0.15); color: #ff7575; border: 1px solid rgba(255, 75, 75, 0.3);"><i class="fa-solid fa-arrow-trend-down"></i> SELL (EXIT)</span>';
+            }
 
             const pnl = parseFloat(t.realized_pnl || 0.0);
             const isWin = pnl >= 0;
             const pnlClass = isWin ? 'text-green' : 'text-red';
             const pnlSign = isWin ? '+' : '';
-            const pnlText = isBuy ? '<span style="color: var(--text-muted);">--</span>' : `<span class="${pnlClass}" style="font-weight: 700;">${pnlSign}₹${pnl.toFixed(2)}</span>`;
-            const roiText = isBuy ? '<span style="color: var(--text-muted);">--</span>' : `<span class="${pnlClass}" style="font-weight: 700;">${pnlSign}${(t.roi_pct || 0).toFixed(2)}%</span>`;
+            const pnlText = isEntry ? '<span style="color: var(--text-muted);">--</span>' : `<span class="${pnlClass}" style="font-weight: 700;">${pnlSign}₹${pnl.toFixed(2)}</span>`;
+            const roiText = isEntry ? '<span style="color: var(--text-muted);">--</span>' : `<span class="${pnlClass}" style="font-weight: 700;">${pnlSign}${(t.roi_pct || 0).toFixed(2)}%</span>`;
 
             let statusBadge = '';
-            if (isBuy) {
+            if (isEntry) {
                 statusBadge = '<span class="signal-badge" style="background: rgba(0,240,144,0.12); color: var(--green); border: 1px solid rgba(0,240,144,0.25); font-size: 0.68rem;"><i class="fa-solid fa-check"></i> FILLED</span>';
             } else if (t.signal === 'TAKE_PROFIT') {
                 statusBadge = '<span class="signal-badge" style="background: rgba(0,240,144,0.15); color: var(--green); border: 1px solid rgba(0,240,144,0.3); font-size: 0.68rem;"><i class="fa-solid fa-trophy"></i> TARGET HIT</span>';
@@ -2670,24 +2681,27 @@
         showToast('Closed trades CSV report downloaded', 'success');
     }
 
-    async function exitBotPosition(symbol, quantity) {
-        if (!confirm(`Liquidate position in ${symbol} (${quantity} shares)?`)) return;
+    async function exitBotPosition(symbol, quantity, side = 'LONG') {
+        const isShort = (side === 'SHORT');
+        const actionLabel = isShort ? 'Cover short position' : 'Liquidate long position';
+        if (!confirm(`${actionLabel} in ${symbol} (${quantity} shares)?`)) return;
         try {
+            const exitOrderSide = isShort ? 'COVER' : 'SELL';
             const res = await fetch('/api/order', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ symbol, order_type: 'SELL', quantity })
+                body: JSON.stringify({ symbol, order_type: exitOrderSide, side: exitOrderSide, quantity })
             });
             const data = await res.json();
             if (data.success) {
-                showToast(`Liquidated ${quantity} shares of ${symbol}`, 'success');
+                showToast(`${isShort ? 'Covered' : 'Liquidated'} ${quantity} shares of ${symbol}`, 'success');
                 loadBotHoldings();
                 loadAccountMetrics();
             } else {
-                showToast(`Order failed: ${data.error}`, 'error');
+                showToast(`Order failed: ${data.message || data.error}`, 'error');
             }
         } catch (e) {
-            showToast('Failed to submit order', 'error');
+            showToast('Failed to submit order: ' + e.message, 'error');
         }
     }
 

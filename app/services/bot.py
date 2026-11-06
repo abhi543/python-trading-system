@@ -188,9 +188,12 @@ class AutoTradingBot:
 
             sm = self.session_metrics
             sm["total_trades"] = len(self.session_trades)
-            if trade_data.get("side") == "BUY":
+            side = trade_data.get("side")
+            if side == "BUY":
                 sm["total_buys"] = sm.get("total_buys", 0) + 1
-            elif trade_data.get("side") == "SELL":
+            elif side == "SHORT":
+                sm["total_shorts"] = sm.get("total_shorts", 0) + 1
+            elif side in ("SELL", "COVER"):
                 sm["total_sells"] = sm.get("total_sells", 0) + 1
                 pnl = float(trade_data.get("realized_pnl") or 0.0)
                 sm["net_realized_pnl"] = round(sm.get("net_realized_pnl", 0.0) + pnl, 2)
@@ -392,53 +395,84 @@ class AutoTradingBot:
         # 1. OPTION B: Dynamic Trailing Stop-Loss & Take-Profit check
         if pos and pos.quantity > 0:
             avg_price = pos.average_price
-            pnl_pct = ((current_price - avg_price) / avg_price) * 100
+            pos_side = getattr(pos, 'side', 'LONG') or 'LONG'
+            is_short = (pos_side == 'SHORT')
 
-            # Track peak price attained
-            peak = max(getattr(pos, 'peak_price', 0.0) or avg_price, current_price)
+            # Calculate PnL based on position direction:
+            if is_short:
+                pnl_pct = ((avg_price - current_price) / avg_price) * 100
+                exit_order_side = "COVER"
+                exit_action_label = "COVER"
+            else:
+                pnl_pct = ((current_price - avg_price) / avg_price) * 100
+                exit_order_side = "SELL"
+                exit_action_label = "SELL"
+
+            # Track extreme price attained (peak for LONG, trough for SHORT)
+            if is_short:
+                extreme = min(getattr(pos, 'peak_price', 999999.0) or avg_price, current_price)
+            else:
+                extreme = max(getattr(pos, 'peak_price', 0.0) or avg_price, current_price)
+
             if hasattr(pos, 'peak_price'):
-                pos.peak_price = peak
+                pos.peak_price = extreme
 
             # OPTION B: Trailing Stop-Loss & Breakeven Shield (Only for SMA / RSI strategies)
             if self.use_trailing_stop and self.strategy != "123_REVERSAL":
                 # Stage 1: Breakeven Shield at +2.0%
                 if pnl_pct >= self.trailing_trigger_pct and not getattr(pos, 'trailing_active', False):
                     pos.trailing_active = True
-                    if (getattr(pos, 'stop_loss', 0.0) or 0.0) < avg_price:
+                    cur_sl = getattr(pos, 'stop_loss', 0.0) or 0.0
+                    should_raise_sl = (cur_sl < avg_price) if not is_short else (cur_sl > avg_price or cur_sl == 0.0)
+                    if should_raise_sl:
                         pos.stop_loss = avg_price
                         try:
                             db.session.commit()
                         except Exception:
                             pass
-                        self.add_log(f"🛡️ [BREAKEVEN SHIELD] {display_name}: Gain reached +{pnl_pct:.2f}%. Stop-loss raised to Breakeven (₹{avg_price:.2f}). Trade is 100% Risk-Free!", "SUCCESS")
+                        self.add_log(f"🛡️ [BREAKEVEN SHIELD] {display_name} ({pos_side}): Gain reached +{pnl_pct:.2f}%. Stop-loss set to Breakeven (₹{avg_price:.2f}). Trade is 100% Risk-Free!", "SUCCESS")
 
-                # Stage 2: Trail upward behind higher peaks
+                # Stage 2: Trail behind extreme prices
                 if getattr(pos, 'trailing_active', False):
-                    trail_distance = (self.atr_multiplier_sl * atr_14) if self.use_atr_exits else (peak * 0.02)
-                    dynamic_stop = round(peak - trail_distance, 2)
+                    trail_distance = (self.atr_multiplier_sl * atr_14) if self.use_atr_exits else (extreme * 0.02)
                     current_sl = getattr(pos, 'stop_loss', 0.0) or 0.0
-                    if dynamic_stop > current_sl and dynamic_stop > avg_price:
-                        pos.stop_loss = dynamic_stop
-                        try:
-                            db.session.commit()
-                        except Exception:
-                            pass
-                        self.add_log(f"📈 [TRAILING STOP TRAIL] {display_name}: High ₹{peak:.2f}! Stop raised to ₹{dynamic_stop:.2f} (Locking +{((dynamic_stop-avg_price)/avg_price*100):.1f}%)", "SUCCESS")
+                    if not is_short:
+                        dynamic_stop = round(extreme - trail_distance, 2)
+                        if dynamic_stop > current_sl and dynamic_stop > avg_price:
+                            pos.stop_loss = dynamic_stop
+                            try:
+                                db.session.commit()
+                            except Exception:
+                                pass
+                            self.add_log(f"📈 [TRAILING STOP TRAIL] {display_name} (LONG): High ₹{extreme:.2f}! Stop raised to ₹{dynamic_stop:.2f} (Locking +{((dynamic_stop-avg_price)/avg_price*100):.1f}%)", "SUCCESS")
+                    else:
+                        dynamic_stop = round(extreme + trail_distance, 2)
+                        if (current_sl == 0.0 or dynamic_stop < current_sl) and dynamic_stop < avg_price:
+                            pos.stop_loss = dynamic_stop
+                            try:
+                                db.session.commit()
+                            except Exception:
+                                pass
+                            self.add_log(f"📉 [TRAILING STOP TRAIL] {display_name} (SHORT): Low ₹{extreme:.2f}! Stop lowered to ₹{dynamic_stop:.2f} (Locking +{((avg_price-dynamic_stop)/avg_price*100):.1f}%)", "SUCCESS")
 
             # Check if Trailing / Dynamic Stop-Loss triggered
             sl_level = getattr(pos, 'stop_loss', 0.0) or 0.0
-            if sl_level > 0 and current_price <= sl_level:
-                lock_pnl = ((current_price - avg_price) / avg_price) * 100
+            is_sl_hit = False
+            if sl_level > 0:
+                is_sl_hit = (current_price <= sl_level) if not is_short else (current_price >= sl_level)
+
+            if is_sl_hit:
+                lock_pnl = pnl_pct
                 if allow_order_execution:
-                    self.add_log(f"🛑 [STOP HIT] {display_name}: Liquidated @ ₹{current_price:.2f} (Stop was ₹{sl_level:.2f}, Result: {lock_pnl:+.2f}%)", "ERROR" if lock_pnl < 0 else "SUCCESS")
-                    exec_res = PaperTradingEngine.execute_order(symbol, "SELL", pos.quantity, execution_price=current_price)
+                    self.add_log(f"🛑 [STOP HIT] {display_name} ({pos_side}): Liquidated @ ₹{current_price:.2f} (Stop was ₹{sl_level:.2f}, Result: {lock_pnl:+.2f}%)", "ERROR" if lock_pnl < 0 else "SUCCESS")
+                    exec_res = PaperTradingEngine.execute_order(symbol, exit_order_side, pos.quantity, execution_price=current_price)
                     if exec_res.get("success"):
-                        pnl = exec_res.get("realized_pnl", round((current_price - avg_price) * pos.quantity, 2))
+                        pnl = exec_res.get("realized_pnl", round(((current_price - avg_price) if not is_short else (avg_price - current_price)) * pos.quantity, 2))
                         chg = exec_res.get("charges", {}).get("total_charges", 0.0) if isinstance(exec_res.get("charges"), dict) else 0.0
                         self.record_session_trade({
                             "symbol": symbol,
                             "displayName": display_name,
-                            "side": "SELL",
+                            "side": exit_order_side,
                             "quantity": pos.quantity,
                             "entry_price": avg_price,
                             "exit_price": current_price,
@@ -447,7 +481,7 @@ class AutoTradingBot:
                             "charges": chg,
                             "realized_pnl": pnl,
                             "roi_pct": round(lock_pnl, 2),
-                            "action": "SELL",
+                            "action": exit_action_label,
                             "signal": "STOP_LOSS",
                             "reason": f"Stop-Loss hit @ ₹{current_price:.2f} (SL: ₹{sl_level:.2f})",
                             "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -461,15 +495,15 @@ class AutoTradingBot:
             # Check if Fixed % Stop-Loss triggered (DISABLED for 123_REVERSAL strategy - strictly uses indicator stop)
             if self.strategy != "123_REVERSAL" and pnl_pct <= -abs(self.stop_loss_pct):
                 if allow_order_execution:
-                    self.add_log(f"[STOP-LOSS] {display_name}: Hit -{abs(pnl_pct):.2f}% <= -{self.stop_loss_pct}%. Liquidating {pos.quantity} shares @ ₹{current_price:.2f}", "ERROR")
-                    exec_res = PaperTradingEngine.execute_order(symbol, "SELL", pos.quantity, execution_price=current_price)
+                    self.add_log(f"[STOP-LOSS] {display_name} ({pos_side}): Hit -{abs(pnl_pct):.2f}% <= -{self.stop_loss_pct}%. Closing {pos.quantity} shares @ ₹{current_price:.2f}", "ERROR")
+                    exec_res = PaperTradingEngine.execute_order(symbol, exit_order_side, pos.quantity, execution_price=current_price)
                     if exec_res.get("success"):
-                        pnl = exec_res.get("realized_pnl", round((current_price - avg_price) * pos.quantity, 2))
+                        pnl = exec_res.get("realized_pnl", round(((current_price - avg_price) if not is_short else (avg_price - current_price)) * pos.quantity, 2))
                         chg = exec_res.get("charges", {}).get("total_charges", 0.0) if isinstance(exec_res.get("charges"), dict) else 0.0
                         self.record_session_trade({
                             "symbol": symbol,
                             "displayName": display_name,
-                            "side": "SELL",
+                            "side": exit_order_side,
                             "quantity": pos.quantity,
                             "entry_price": avg_price,
                             "exit_price": current_price,
@@ -478,7 +512,7 @@ class AutoTradingBot:
                             "charges": chg,
                             "realized_pnl": pnl,
                             "roi_pct": round(pnl_pct, 2),
-                            "action": "SELL",
+                            "action": exit_action_label,
                             "signal": "STOP_LOSS",
                             "reason": f"Fixed Stop-Loss hit at {pnl_pct:.2f}%",
                             "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -493,24 +527,25 @@ class AutoTradingBot:
             tp_level = getattr(pos, 'take_profit', 0.0) or 0.0
             is_tp_hit = False
             tp_reason = ""
-            if tp_level > 0 and current_price >= tp_level:
-                is_tp_hit = True
-                tp_reason = f"Indicator Target achieved @ ₹{current_price:.2f} (Target: ₹{tp_level:.2f}, +{pnl_pct:.2f}%)"
+            if tp_level > 0:
+                is_tp_hit = (current_price >= tp_level) if not is_short else (current_price <= tp_level)
+                if is_tp_hit:
+                    tp_reason = f"Indicator Target achieved @ ₹{current_price:.2f} (Target: ₹{tp_level:.2f}, +{pnl_pct:.2f}%)"
             elif self.strategy != "123_REVERSAL" and (pnl_pct >= abs(self.take_profit_pct)):
                 is_tp_hit = True
                 tp_reason = f"Take-Profit target achieved at +{pnl_pct:.2f}%"
 
             if is_tp_hit:
                 if allow_order_execution:
-                    self.add_log(f"🎯 [TAKE-PROFIT] {display_name}: Hit +{pnl_pct:.2f}%. Selling {pos.quantity} shares @ ₹{current_price:.2f} to lock gains! ({tp_reason})", "SUCCESS")
-                    exec_res = PaperTradingEngine.execute_order(symbol, "SELL", pos.quantity, execution_price=current_price)
+                    self.add_log(f"🎯 [TAKE-PROFIT] {display_name} ({pos_side}): Hit +{pnl_pct:.2f}%. Closing {pos.quantity} shares @ ₹{current_price:.2f} to lock gains! ({tp_reason})", "SUCCESS")
+                    exec_res = PaperTradingEngine.execute_order(symbol, exit_order_side, pos.quantity, execution_price=current_price)
                     if exec_res.get("success"):
-                        pnl = exec_res.get("realized_pnl", round((current_price - avg_price) * pos.quantity, 2))
+                        pnl = exec_res.get("realized_pnl", round(((current_price - avg_price) if not is_short else (avg_price - current_price)) * pos.quantity, 2))
                         chg = exec_res.get("charges", {}).get("total_charges", 0.0) if isinstance(exec_res.get("charges"), dict) else 0.0
                         self.record_session_trade({
                             "symbol": symbol,
                             "displayName": display_name,
-                            "side": "SELL",
+                            "side": exit_order_side,
                             "quantity": pos.quantity,
                             "entry_price": avg_price,
                             "exit_price": current_price,
@@ -519,7 +554,7 @@ class AutoTradingBot:
                             "charges": chg,
                             "realized_pnl": pnl,
                             "roi_pct": round(pnl_pct, 2),
-                            "action": "SELL",
+                            "action": exit_action_label,
                             "signal": "TAKE_PROFIT",
                             "reason": tp_reason,
                             "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -613,9 +648,9 @@ class AutoTradingBot:
             else:
                 reason = f"Neutral Momentum (RSI: {current_rsi:.1f})"
 
-        # OPTION A: Filter BUY signals with 200 EMA Macro Trend & Volume Surge
+        # OPTION A: Filter BUY/SELL signals with 200 EMA Macro Trend & Volume Surge
         filter_status = None
-        if signal == "BUY":
+        if signal == "BUY" and (not pos or getattr(pos, 'side', 'LONG') == 'SHORT'):
             if self.use_ema200_filter and trend_200 == "BEARISH":
                 signal = "HOLD"
                 reason = f"BUY Filtered: Bearish Trend (Price ₹{current_price:.1f} < 200 EMA ₹{ema_200})"
@@ -623,6 +658,16 @@ class AutoTradingBot:
             elif self.use_volume_filter and vol_ratio < 1.0:
                 signal = "HOLD"
                 reason = f"BUY Filtered: Low Volume Surge ({vol_ratio:.2f}x < 1.0x avg)"
+                filter_status = "FILTERED_VOLUME"
+        elif signal == "SELL" and not pos:
+            # For new SHORT entries:
+            if self.use_ema200_filter and trend_200 == "BULLISH":
+                signal = "HOLD"
+                reason = f"SHORT Filtered: Bullish Trend (Price ₹{current_price:.1f} > 200 EMA ₹{ema_200})"
+                filter_status = "FILTERED_200EMA"
+            elif self.use_volume_filter and vol_ratio < 1.0:
+                signal = "HOLD"
+                reason = f"SHORT Filtered: Low Volume Surge ({vol_ratio:.2f}x < 1.0x avg)"
                 filter_status = "FILTERED_VOLUME"
 
         return {
@@ -819,17 +864,46 @@ class AutoTradingBot:
             price = eval_res["price"]
             display_name = eval_res["displayName"]
 
-            # AUTO-TRADE EXECUTION LOGIC:
+            # AUTO-TRADE EXECUTION LOGIC (TWO-WAY: LONG & SHORT):
+            is_unlimited_positions = (self.strategy == "123_REVERSAL")
+            has_position_slot = is_unlimited_positions or (len(held_map) < self.max_positions)
+
             if sig == "BUY":
                 buys_found += 1
                 if can_execute_trades:
-                    # For 123_REVERSAL strategy: UNLIMITED positions (no limit on positions)
-                    # For other strategies: capped at self.max_positions
-                    is_unlimited_positions = (self.strategy == "123_REVERSAL")
-                    has_position_slot = is_unlimited_positions or (len(held_map) < self.max_positions)
+                    # If we currently hold a SHORT position, BUY is a BUY TO COVER (exit short)
+                    if symbol in held_map and getattr(held_map[symbol], 'side', 'LONG') == 'SHORT':
+                        pos = held_map[symbol]
+                        exec_res = PaperTradingEngine.execute_order(symbol, "COVER", pos.quantity, execution_price=price)
+                        if exec_res.get("success"):
+                            trades_executed += 1
+                            eval_res["action_executed"] = f"COVERED {pos.quantity} SHARES"
+                            pnl = exec_res.get("realized_pnl", round((pos.average_price - price) * pos.quantity, 2))
+                            roi = round((pos.average_price - price) / pos.average_price * 100, 2) if pos.average_price > 0 else 0.0
+                            chg_amt = exec_res.get("charges", {}).get("total_charges", 0.0) if isinstance(exec_res.get("charges"), dict) else 0.0
+                            self.record_session_trade({
+                                "symbol": symbol,
+                                "displayName": display_name,
+                                "side": "COVER",
+                                "quantity": pos.quantity,
+                                "entry_price": pos.average_price,
+                                "exit_price": price,
+                                "price": price,
+                                "total_value": round(pos.quantity * price, 2),
+                                "charges": chg_amt,
+                                "realized_pnl": pnl,
+                                "roi_pct": roi,
+                                "action": "COVER",
+                                "signal": "STRATEGY_EXIT",
+                                "reason": eval_res.get("reason", "Bullish Reversal Cover Signal"),
+                                "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                            })
+                            chg_str = f" (Charges: ₹{chg_amt:.2f})" if chg_amt > 0 else ""
+                            self.add_log(f"⚡ AUTO-COVERED {pos.quantity} shares of {display_name} @ ₹{price:.2f} [Short Exit]{chg_str} | P&L: ₹{pnl:+,.2f}", "SUCCESS" if pnl >= 0 else "WARNING")
+                            del held_map[symbol]
 
-                    if symbol not in held_map and has_position_slot:
-                        # 5x Leverage: Buying power = margin * 5.0 (20% margin requirement)
+                    # Otherwise, if we do not hold this stock and have a position slot, open a LONG trade
+                    elif symbol not in held_map and has_position_slot:
                         buying_power = self.allocation_per_trade * self.leverage
                         trade_qty = max(1, int(buying_power / price))
                         margin_needed = round((trade_qty * price) / self.leverage, 2)
@@ -841,12 +915,11 @@ class AutoTradingBot:
                                 available_cash -= margin_needed
                                 eval_res["action_executed"] = f"BOUGHT {trade_qty} (5x)"
                                 
-                                # Set Initial Stop-Loss and Take-Profit targets on position
                                 pos_rec = Position.query.filter_by(symbol=symbol).first()
                                 if pos_rec:
+                                    pos_rec.side = "LONG"
                                     atr_val = eval_res.get("atr_14") or (price * 0.025)
                                     if self.strategy == "123_REVERSAL":
-                                        # Strictly follow the target and stop loss as given by the 1-2-3 indicator (NO 1% applied)
                                         pos_rec.stop_loss = eval_res.get("suggested_sl") or round(price * 0.98, 2)
                                         pos_rec.take_profit = eval_res.get("suggested_tp") or round(price * 1.04, 2)
                                     elif eval_res.get("suggested_sl") and eval_res.get("suggested_tp"):
@@ -887,10 +960,10 @@ class AutoTradingBot:
                                 })
 
                                 chg_str = f" (Charges: ₹{chg_amt:.2f})" if chg_amt > 0 else ""
-                                self.add_log(f"⚡ AUTO-BOUGHT {trade_qty} shares of {display_name} @ ₹{price:.2f} (Total: ₹{total_cost:,.2f}{chg_str}) | Target: ₹{pos_rec.take_profit:.2f} | Stop: ₹{pos_rec.stop_loss:.2f}", "SUCCESS")
-                                # Add to local held map to prevent double-buys
+                                self.add_log(f"⚡ AUTO-BOUGHT {trade_qty} shares of {display_name} @ ₹{price:.2f} (Margin: ₹{margin_needed:,.2f}{chg_str}) | Target: ₹{pos_rec.take_profit:.2f} | Stop: ₹{pos_rec.stop_loss:.2f}", "SUCCESS")
                                 held_map[symbol] = Position(
                                     symbol=symbol,
+                                    side="LONG",
                                     quantity=trade_qty,
                                     average_price=price,
                                     peak_price=price,
@@ -898,15 +971,15 @@ class AutoTradingBot:
                                     take_profit=pos_rec.take_profit if pos_rec else 0.0
                                 )
                         else:
-                            self.add_log(f"BUY signal on {display_name}, but insufficient cash (Needed ₹{total_cost:,.2f}, Avail ₹{available_cash:,.2f})", "WARNING")
+                            self.add_log(f"BUY signal on {display_name}, but insufficient cash (Needed ₹{margin_needed:,.2f}, Avail ₹{available_cash:,.2f})", "WARNING")
                 else:
                     eval_res["action_executed"] = "OFFLINE (Bot Stopped)"
 
             elif sig == "SELL":
                 sells_found += 1
                 if can_execute_trades:
-                    # If we hold this stock, exit position
-                    if symbol in held_map:
+                    # Case A: If we already hold a LONG position in this stock, exit it
+                    if symbol in held_map and getattr(held_map[symbol], 'side', 'LONG') == 'LONG':
                         pos = held_map[symbol]
                         exec_res = PaperTradingEngine.execute_order(symbol, "SELL", pos.quantity, execution_price=price)
                         if exec_res.get("success"):
@@ -934,8 +1007,79 @@ class AutoTradingBot:
                             })
 
                             chg_str = f" (Charges: ₹{chg_amt:.2f})" if chg_amt > 0 else ""
-                            self.add_log(f"⚡ AUTO-SOLD {pos.quantity} shares of {display_name} @ ₹{price:.2f}{chg_str} | {eval_res['reason']}", "WARNING")
+                            self.add_log(f"⚡ AUTO-SOLD {pos.quantity} shares of {display_name} @ ₹{price:.2f} [Long Exit]{chg_str} | P&L: ₹{pnl:+,.2f}", "SUCCESS" if pnl >= 0 else "WARNING")
                             del held_map[symbol]
+
+                    # Case B: If we do NOT hold this stock, enter a SHORT position!
+                    elif symbol not in held_map and has_position_slot:
+                        buying_power = self.allocation_per_trade * self.leverage
+                        trade_qty = max(1, int(buying_power / price))
+                        margin_needed = round((trade_qty * price) / self.leverage, 2)
+
+                        if available_cash >= margin_needed:
+                            exec_res = PaperTradingEngine.execute_order(symbol, "SHORT", trade_qty, execution_price=price)
+                            if exec_res.get("success"):
+                                trades_executed += 1
+                                available_cash -= margin_needed
+                                eval_res["action_executed"] = f"SHORTED {trade_qty} (5x)"
+
+                                pos_rec = Position.query.filter_by(symbol=symbol).first()
+                                if pos_rec:
+                                    pos_rec.side = "SHORT"
+                                    atr_val = eval_res.get("atr_14") or (price * 0.025)
+                                    if self.strategy == "123_REVERSAL":
+                                        pos_rec.stop_loss = eval_res.get("suggested_sl") or round(price * 1.02, 2)
+                                        pos_rec.take_profit = eval_res.get("suggested_tp") or round(price * 0.96, 2)
+                                    elif eval_res.get("suggested_sl") and eval_res.get("suggested_tp"):
+                                        pos_rec.stop_loss = eval_res["suggested_sl"]
+                                        pos_rec.take_profit = eval_res["suggested_tp"]
+                                    elif self.use_atr_exits:
+                                        pos_rec.stop_loss = round(price + (self.atr_multiplier_sl * atr_val), 2)
+                                        pos_rec.take_profit = round(price - (self.atr_multiplier_tp * atr_val), 2)
+                                    else:
+                                        pos_rec.stop_loss = round(price * (1 + self.stop_loss_pct / 100), 2)
+                                        pos_rec.take_profit = round(price * (1 - self.take_profit_pct / 100), 2)
+                                    pos_rec.peak_price = price
+                                    pos_rec.trailing_active = False
+                                    try:
+                                        db.session.commit()
+                                    except Exception:
+                                        pass
+
+                                chg_amt = exec_res.get("charges", {}).get("total_charges", 0.0) if isinstance(exec_res.get("charges"), dict) else 0.0
+                                strat_tag = "1-2-3 Neckline Breakdown" if self.strategy == "123_REVERSAL" else ("Dual SMA Death Cross" if self.strategy == "SMA_CROSSOVER" else "RSI Overbought")
+                                self.record_session_trade({
+                                    "symbol": symbol,
+                                    "displayName": display_name,
+                                    "side": "SHORT",
+                                    "quantity": trade_qty,
+                                    "entry_price": price,
+                                    "price": price,
+                                    "total_value": round(trade_qty * price, 2),
+                                    "charges": chg_amt,
+                                    "realized_pnl": 0.0,
+                                    "roi_pct": 0.0,
+                                    "action": "SHORT",
+                                    "signal": self.strategy,
+                                    "suggested_sl": pos_rec.stop_loss if pos_rec else None,
+                                    "suggested_tp": pos_rec.take_profit if pos_rec else None,
+                                    "reason": f"⚡ [{strat_tag}] Entry @ ₹{price:.2f} | Stop: ₹{pos_rec.stop_loss if pos_rec else 0:.2f} | Target: ₹{pos_rec.take_profit if pos_rec else 0:.2f}",
+                                    "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                                })
+
+                                chg_str = f" (Charges: ₹{chg_amt:.2f})" if chg_amt > 0 else ""
+                                self.add_log(f"⚡ AUTO-SHORTED {trade_qty} shares of {display_name} @ ₹{price:.2f} (Margin: ₹{margin_needed:,.2f}{chg_str}) | Target: ₹{pos_rec.take_profit:.2f} | Stop: ₹{pos_rec.stop_loss:.2f}", "SUCCESS")
+                                held_map[symbol] = Position(
+                                    symbol=symbol,
+                                    side="SHORT",
+                                    quantity=trade_qty,
+                                    average_price=price,
+                                    peak_price=price,
+                                    stop_loss=pos_rec.stop_loss if pos_rec else 0.0,
+                                    take_profit=pos_rec.take_profit if pos_rec else 0.0
+                                )
+                        else:
+                            self.add_log(f"SELL/SHORT signal on {display_name}, but insufficient cash (Needed ₹{margin_needed:,.2f}, Avail ₹{available_cash:,.2f})", "WARNING")
                 else:
                     eval_res["action_executed"] = "OFFLINE (Bot Stopped)"
 

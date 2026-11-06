@@ -516,17 +516,21 @@ async function loadPortfolio() {
             const tr = document.createElement('tr');
             const pnlColor = pos.unrealized_pnl >= 0 ? 'text-green' : 'text-red';
             const pnlSign = pos.unrealized_pnl >= 0 ? '+' : '';
+            const isShort = (pos.side === 'SHORT');
+            const sideBadge = isShort
+                ? '<span class="badge" style="background: rgba(255, 51, 102, 0.15); color: var(--red); border: 1px solid rgba(255, 51, 102, 0.35); font-weight: 800; font-family: var(--font-code); font-size: 0.72rem; padding: 2px 7px; border-radius: 4px;">SHORT</span>'
+                : '<span class="badge" style="background: rgba(0, 240, 144, 0.15); color: var(--green); border: 1px solid rgba(0, 240, 144, 0.35); font-weight: 800; font-family: var(--font-code); font-size: 0.72rem; padding: 2px 7px; border-radius: 4px;">LONG</span>';
             
             tr.innerHTML = `
                 <td><strong>${pos.symbol}</strong></td>
-                <td><span class="badge" style="background: rgba(0, 240, 144, 0.15); color: var(--green); border: 1px solid rgba(0, 240, 144, 0.35); font-weight: 800; font-family: var(--font-code); font-size: 0.72rem; padding: 2px 7px; border-radius: 4px;">LONG</span></td>
+                <td>${sideBadge}</td>
                 <td>${pos.quantity}</td>
                 <td>₹${pos.average_price.toFixed(2)}</td>
                 <td>₹${pos.current_price.toFixed(2)}</td>
                 <td>₹${pos.market_value.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
                 <td class="${pnlColor}">${pnlSign}₹${pos.unrealized_pnl.toFixed(2)} (${pnlSign}${pos.unrealized_pnl_pct.toFixed(2)}%)</td>
                 <td>
-                    <button class="btn-action-close" onclick="closePosition('${pos.symbol}', ${pos.quantity})">Close Position</button>
+                    <button class="btn-action-close" onclick="closePosition('${pos.symbol}', ${pos.quantity}, '${pos.side || 'LONG'}')">${isShort ? 'Cover' : 'Close'}</button>
                 </td>
             `;
             tbody.appendChild(tr);
@@ -550,9 +554,10 @@ async function loadTrades() {
         tbody.innerHTML = '';
         trades.forEach(t => {
             const tr = document.createElement('tr');
-            const sideColor = t.side === 'BUY' ? 'text-green' : 'text-red';
-            const pnlDisplay = t.side === 'SELL' ? `₹${t.realized_pnl.toFixed(2)}` : '--';
-            const pnlClass = t.realized_pnl >= 0 ? 'text-green' : 'text-red';
+            const isEntry = (t.side === 'BUY' || t.side === 'SHORT');
+            const sideColor = (t.side === 'BUY' || t.side === 'COVER') ? 'text-green' : 'text-red';
+            const pnlDisplay = !isEntry ? `₹${(t.realized_pnl || 0).toFixed(2)}` : '--';
+            const pnlClass = (t.realized_pnl || 0) >= 0 ? 'text-green' : 'text-red';
             const charges = t.charges || 0.0;
             const chargeTooltip = `Brokerage: ₹${(t.brokerage||0).toFixed(2)} | STT: ₹${(t.stt||0).toFixed(2)} | Exch: ₹${(t.exchange_charges||0).toFixed(2)} | GST: ₹${(t.gst||0).toFixed(2)} | SEBI: ₹${(t.sebi_charges||0).toFixed(2)} | Stamp: ₹${(t.stamp_duty||0).toFixed(2)}`;
 
@@ -564,7 +569,7 @@ async function loadTrades() {
                 <td>₹${t.price.toFixed(2)}</td>
                 <td>₹${t.total.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
                 <td style="color: #fca5a5; cursor: help;" title="${chargeTooltip}">-₹${charges.toFixed(2)}</td>
-                <td class="${t.side === 'SELL' ? pnlClass : ''}">${pnlDisplay}</td>
+                <td class="${!isEntry ? pnlClass : ''}">${pnlDisplay}</td>
             `;
             tbody.appendChild(tr);
         });
@@ -573,13 +578,16 @@ async function loadTrades() {
     }
 }
 
-window.closePosition = async function(symbol, quantity) {
-    if (!confirm(`Liquidate all ${quantity} shares of ${symbol} at current market price?`)) return;
+window.closePosition = async function(symbol, quantity, side = 'LONG') {
+    const isShort = (side === 'SHORT');
+    const exitSide = isShort ? 'COVER' : 'SELL';
+    const label = isShort ? 'Cover short position' : 'Liquidate long position';
+    if (!confirm(`${label} in ${symbol} (${quantity} shares)?`)) return;
     try {
         const res = await fetch('/api/order', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ symbol, side: 'SELL', quantity })
+            body: JSON.stringify({ symbol, side: exitSide, quantity })
         });
         const data = await res.json();
         if (data.success) {
@@ -590,7 +598,7 @@ window.closePosition = async function(symbol, quantity) {
             showToast(data.message || 'Execution error', 'error');
         }
     } catch (err) {
-        showToast('Execution failure', 'error');
+        showToast('Execution failure: ' + err.message, 'error');
     }
 };
 

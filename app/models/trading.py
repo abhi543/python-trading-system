@@ -73,6 +73,7 @@ class Position(db.Model):
     __tablename__ = 'positions'
     id = db.Column(db.Integer, primary_key=True)
     symbol = db.Column(db.String(20), unique=True, nullable=False)
+    side = db.Column(db.String(10), nullable=False, default='LONG')  # 'LONG' or 'SHORT'
     quantity = db.Column(db.Float, nullable=False, default=0.0)
     average_price = db.Column(db.Float, nullable=False, default=0.0)
     peak_price = db.Column(db.Float, default=0.0)
