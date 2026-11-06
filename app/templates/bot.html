@@ -42,8 +42,11 @@
                 <button id="bot-scan-btn" class="btn-bot-scan" onclick="tickBotNow()">
                     <i class="fa-solid fa-arrows-rotate"></i> SCAN BASKET NOW
                 </button>
-                <button id="bot-reset-portfolio-btn" class="btn-bot-scan" style="border-color: rgba(255, 75, 75, 0.4); color: #ff7575;" onclick="resetPortfolioTo10Lakh()" title="Liquidate all positions and reset portfolio back to ₹50,000">
-                    <i class="fa-solid fa-rotate-left"></i> RESET PORTFOLIO (₹50k)
+                <button id="bot-square-off-btn" class="btn-bot-scan" style="border-color: rgba(255, 75, 75, 0.5); color: #ff7575; font-weight: 700;" onclick="manualSquareOffAll()" title="Immediately close and liquidate all open positions at live market prices">
+                    <i class="fa-solid fa-person-running"></i> EXIT ALL POSITIONS (<span id="hero-holdings-count">0</span>)
+                </button>
+                <button id="bot-reset-restart-btn" class="btn-bot-scan" style="border-color: rgba(167, 139, 250, 0.5); color: #c4b5fd; font-weight: 700;" onclick="resetAndRestartBot()" title="Square off all positions, reset desk to ₹50,000 and restart bot">
+                    <i class="fa-solid fa-arrows-rotate"></i> RESET &amp; RESTART BOT
                 </button>
             </div>
         </div>
@@ -282,6 +285,9 @@
                             </button>
                             <button id="btn-export-csv" class="btn-sm btn-outline" onclick="exportClosedTradesCSV()" style="display: none;">
                                 <i class="fa-solid fa-file-csv" style="color: #ffd166;"></i> Export All Closed
+                            </button>
+                            <button class="btn-sm btn-outline" style="color: #ff5252; border-color: rgba(255, 82, 82, 0.4); font-weight: 700;" onclick="manualSquareOffAll()" title="Manually exit and liquidate all active positions">
+                                <i class="fa-solid fa-person-running"></i> Exit All (<span id="tab-holdings-count">0</span>)
                             </button>
                             <button class="btn-sm btn-outline" onclick="refreshCurrentLedgerTab()">
                                 <i class="fa-solid fa-rotate"></i> Refresh
@@ -1940,6 +1946,17 @@
 
             const miniSparkline = generateMiniSparkline(s.change_pct || 0, s.trend_200 === 'BULLISH');
 
+            let exitBtn = '';
+            const heldPos = (window.cachedActivePositions || []).find(p => p.symbol === s.symbol);
+            if (heldPos && heldPos.quantity > 0) {
+                const isShort = (heldPos.side === 'SHORT');
+                exitBtn = `
+                    <button class="btn-sm" style="background: rgba(255, 75, 75, 0.2); color: #ff7575; border: 1px solid rgba(255, 75, 75, 0.4); font-weight: 700; padding: 4px 8px; font-size: 0.72rem; border-radius: 4px; cursor: pointer; display: inline-flex; align-items: center; gap: 4px;" onclick="exitBotPosition('${s.symbol}', ${heldPos.quantity}, '${heldPos.side || "LONG"}')" title="Manual Exit this position">
+                        <i class="fa-solid fa-xmark"></i> ${isShort ? 'Cover' : 'Exit'}
+                    </button>
+                `;
+            }
+
             tr.innerHTML = `
                 <td>
                     <div style="font-weight: 800; font-family: var(--font-code); color: #fff;">${s.displayName}</div>
@@ -1955,9 +1972,12 @@
                 <td style="font-size: 0.78rem; color: var(--text-muted);">${indText}</td>
                 <td>${actionBadge}</td>
                 <td>
-                    <a href="/?symbol=${s.symbol}" class="btn-sm btn-outline" style="text-decoration: none; display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px; font-size: 0.72rem;">
-                        <i class="fa-solid fa-chart-line"></i> Terminal
-                    </a>
+                    <div style="display: flex; gap: 4px; align-items: center;">
+                        <a href="/?symbol=${s.symbol}" class="btn-sm btn-outline" style="text-decoration: none; display: inline-flex; align-items: center; gap: 4px; padding: 4px 8px; font-size: 0.72rem;">
+                            <i class="fa-solid fa-chart-line"></i> Terminal
+                        </a>
+                        ${exitBtn}
+                    </div>
                 </td>
             `;
             tbody.appendChild(tr);
@@ -2189,6 +2209,10 @@
             }
             const badge = document.getElementById('holdings-badge-count');
             if (badge) badge.innerText = positions.length;
+            const heroCount = document.getElementById('hero-holdings-count');
+            if (heroCount) heroCount.innerText = positions.length;
+            const tabCount = document.getElementById('tab-holdings-count');
+            if (tabCount) tabCount.innerText = positions.length;
 
             const activeSymbols = positions.map(p => p.symbol);
             cleanClosedPositionsFromLock(activeSymbols);
@@ -2750,14 +2774,67 @@
             });
             const data = await res.json();
             if (data.success) {
+                try {
+                    let cache = JSON.parse(localStorage.getItem(POS_ENTRY_LOCK_KEY) || '{}');
+                    delete cache[symbol];
+                    localStorage.setItem(POS_ENTRY_LOCK_KEY, JSON.stringify(cache));
+                } catch(e){}
                 showToast(`${isShort ? 'Covered' : 'Liquidated'} ${quantity} shares of ${symbol}`, 'success');
                 loadBotHoldings();
                 loadAccountMetrics();
+                loadClosedTrades();
             } else {
                 showToast(`Order failed: ${data.message || data.error}`, 'error');
             }
         } catch (e) {
             showToast('Failed to submit order: ' + e.message, 'error');
+        }
+    }
+
+    async function manualSquareOffAll() {
+        const count = (window.cachedActivePositions || []).length;
+        if (count === 0) {
+            showToast('No active positions to exit.', 'info');
+            return;
+        }
+        if (!confirm(`Are you sure you want to manually exit / square off ALL ${count} open positions at live market prices?`)) return;
+
+        try {
+            const res = await fetch('/api/positions/exit-all', { method: 'POST' });
+            const data = await res.json();
+            if (data.success) {
+                try { localStorage.removeItem(POS_ENTRY_LOCK_KEY); } catch(e){}
+                showToast(`Successfully squared off ${data.exited_count} open positions!`, 'success');
+                loadBotHoldings();
+                loadAccountMetrics();
+                loadClosedTrades();
+            } else {
+                showToast(`Square-off failed: ${data.message || data.error}`, 'error');
+            }
+        } catch (e) {
+            showToast('Square-off request failed: ' + e.message, 'error');
+        }
+    }
+
+    async function resetAndRestartBot() {
+        if (!confirm('Are you sure you want to RESET & RESTART the bot?\n\n• All open positions will be squared off\n• Desk capital restored to ₹50,000 cash\n• Intraday limits cleared\n• Fresh bot session initiated\n• Bot will immediately restart autonomous scanning')) return;
+
+        try {
+            const res = await fetch('/api/bot/reset-and-restart', { method: 'POST' });
+            const data = await res.json();
+            if (data.success) {
+                try { localStorage.removeItem(POS_ENTRY_LOCK_KEY); } catch(e){}
+                resetBotSessionReport(false);
+                showToast('Bot reset and successfully restarted fresh with ₹50,000 capital!', 'success');
+                loadAccountMetrics();
+                loadBotHoldings();
+                loadClosedTrades();
+                fetchBotStatus();
+            } else {
+                showToast(`Reset & Restart failed: ${data.message || data.error}`, 'error');
+            }
+        } catch (e) {
+            showToast('Reset & Restart request failed: ' + e.message, 'error');
         }
     }
 

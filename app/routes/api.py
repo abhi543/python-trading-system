@@ -239,6 +239,103 @@ def reset_account():
         "total_equity": 50000.0
     })
 
+@api_bp.route('/positions/exit-all', methods=['POST'])
+def exit_all_positions():
+    """
+    Manually exits/liquidates all open positions at current market quotes,
+    calculates realized P&L, records trade history and session exits,
+    and returns freed margin to cash balance.
+    """
+    from app.services.bot import bot_instance
+    from datetime import datetime
+
+    positions = Position.query.filter(Position.quantity > 0).all()
+    if not positions:
+        return jsonify({"success": True, "message": "No open positions to exit.", "exited_count": 0, "results": []})
+
+    results = []
+    for pos in positions:
+        sym = pos.symbol
+        qty = pos.quantity
+        side = getattr(pos, 'side', 'LONG') or 'LONG'
+        exit_side = "COVER" if side == "SHORT" else "SELL"
+        
+        res = PaperTradingEngine.execute_order(sym, exit_side, qty)
+        if res.get("success"):
+            pnl = res.get("realized_pnl", 0.0)
+            chg = res.get("charges", {}).get("total_charges", 0.0) if isinstance(res.get("charges"), dict) else 0.0
+            bot_instance.record_session_trade({
+                "symbol": sym,
+                "displayName": sym.replace('.NS', ''),
+                "side": exit_side,
+                "quantity": qty,
+                "entry_price": res.get("entry_price", pos.average_price),
+                "exit_price": res.get("price", 0.0),
+                "price": res.get("price", 0.0),
+                "total_value": round(qty * (res.get("price") or 0.0), 2),
+                "charges": chg,
+                "realized_pnl": pnl,
+                "roi_pct": round((pnl / (qty * (pos.average_price or 1.0))) * 100, 2),
+                "action": exit_side,
+                "signal": "MANUAL_SQUARE_OFF",
+                "reason": f"Manual Square-Off by Operator ({exit_side})",
+                "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            })
+            bot_instance.add_log(f"🛑 [MANUAL SQUARE OFF] Exited {qty} shares of {sym.replace('.NS', '')} @ ₹{res.get('price'):.2f} | P&L: ₹{pnl:+,.2f}", "SUCCESS" if pnl >= 0 else "WARNING")
+            results.append({"symbol": sym, "success": True, "pnl": pnl})
+        else:
+            results.append({"symbol": sym, "success": False, "message": res.get("message")})
+
+    return jsonify({
+        "success": True,
+        "message": f"Successfully squared off {len([r for r in results if r['success']])} open positions.",
+        "exited_count": len([r for r in results if r['success']]),
+        "results": results
+    })
+
+@api_bp.route('/bot/reset-and-restart', methods=['POST'])
+def reset_and_restart_bot():
+    """
+    Squares off any open positions, resets intraday limits, restores cash to ₹50,000,
+    starts a fresh session report, and restarts the bot cleanly.
+    """
+    open_positions = Position.query.filter(Position.quantity > 0).all()
+    for pos in open_positions:
+        exit_side = "COVER" if getattr(pos, 'side', 'LONG') == "SHORT" else "SELL"
+        PaperTradingEngine.execute_order(pos.symbol, exit_side, pos.quantity)
+    
+    Position.query.delete()
+    TradeHistory.query.delete()
+    WatchlistItem.query.delete()
+    from app.models.trading import NIFTY_50_DEFAULT
+    for s in NIFTY_50_DEFAULT:
+        db.session.add(WatchlistItem(symbol=s))
+    account = Account.query.first()
+    if account:
+        account.cash_balance = 50000.0
+    else:
+        account = Account(cash_balance=50000.0)
+        db.session.add(account)
+    db.session.commit()
+
+    from app.services.bot import bot_instance
+    bot_instance.logs = []
+    bot_instance.last_scan_summary = {
+        "total_scanned": 0,
+        "buys_found": 0,
+        "sells_found": 0,
+        "trades_executed": 0,
+        "scanner_results": []
+    }
+    bot_instance.start()
+    return jsonify({
+        "success": True,
+        "message": "Bot successfully reset back to ₹50,000 and restarted fresh!",
+        "cash_balance": 50000.0,
+        "total_equity": 50000.0,
+        "is_running": bot_instance.is_running
+    })
+
 @api_bp.route('/bot/status', methods=['GET'])
 def get_bot_status():
     from app.services.bot import bot_instance
