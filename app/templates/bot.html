@@ -207,20 +207,26 @@
                     </div>
                 </div>
 
-                <!-- PORTFOLIO LEDGER: ACTIVE HOLDINGS & CLOSED TRADES REPORT -->
+                <!-- PORTFOLIO LEDGER: BOT SESSION REPORT, ACTIVE HOLDINGS & CLOSED TRADES -->
                 <div class="bot-section-card" style="margin-top: 1.5rem;">
                     <div class="section-card-header" style="flex-wrap: wrap; gap: 0.75rem;">
-                        <div class="ledger-tab-buttons" style="display: flex; gap: 0.5rem;">
-                            <button id="tab-btn-active-holdings" class="ledger-tab-btn active" onclick="switchLedgerTab('active')">
-                                <i class="fa-solid fa-briefcase" style="color: var(--green);"></i> Active Holdings (<span id="holdings-badge-count">0</span>)
+                        <div class="ledger-tab-buttons" style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                            <button id="tab-btn-session-report" class="ledger-tab-btn active" onclick="switchLedgerTab('session')">
+                                <i class="fa-solid fa-chart-pie" style="color: var(--green);"></i> Bot Session Report (<span id="session-trades-badge-count">0</span>)
+                            </button>
+                            <button id="tab-btn-active-holdings" class="ledger-tab-btn" onclick="switchLedgerTab('active')">
+                                <i class="fa-solid fa-briefcase" style="color: var(--blue);"></i> Active Holdings (<span id="holdings-badge-count">0</span>)
                             </button>
                             <button id="tab-btn-closed-trades" class="ledger-tab-btn" onclick="switchLedgerTab('closed')">
-                                <i class="fa-solid fa-receipt" style="color: #ffd166;"></i> Closed Trades Report (<span id="closed-trades-badge-count">0</span>)
+                                <i class="fa-solid fa-receipt" style="color: #ffd166;"></i> All Closed Trades (<span id="closed-trades-badge-count">0</span>)
                             </button>
                         </div>
-                        <div style="display: flex; gap: 0.5rem; align-items: center;">
+                        <div style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
+                            <button id="btn-export-session-csv" class="btn-sm btn-outline" onclick="exportSessionTradesCSV()">
+                                <i class="fa-solid fa-file-csv" style="color: var(--green);"></i> Export Session CSV
+                            </button>
                             <button id="btn-export-csv" class="btn-sm btn-outline" onclick="exportClosedTradesCSV()" style="display: none;">
-                                <i class="fa-solid fa-file-csv" style="color: var(--green);"></i> Export CSV
+                                <i class="fa-solid fa-file-csv" style="color: #ffd166;"></i> Export All Closed
                             </button>
                             <button class="btn-sm btn-outline" onclick="refreshCurrentLedgerTab()">
                                 <i class="fa-solid fa-rotate"></i> Refresh
@@ -231,8 +237,90 @@
                         </div>
                     </div>
 
+                    <!-- TAB 0: BOT SESSION TRADES REPORT (PRESERVED UNTIL BOT RESTART) -->
+                    <div id="view-session-report" style="display: block; padding: 1rem 1.25rem;">
+                        <!-- SESSION STATUS STRIP -->
+                        <div class="session-banner" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.75rem; background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 8px; padding: 0.75rem 1rem; margin-bottom: 1rem;">
+                            <div>
+                                <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
+                                    <span class="badge" id="session-status-badge" style="background: rgba(255, 209, 102, 0.15); color: #ffd166; border: 1px solid rgba(255, 209, 102, 0.3); font-weight: 700; font-size: 0.75rem;">
+                                        <i class="fa-solid fa-circle-pause"></i> SESSION STOPPED (REPORT PRESERVED)
+                                    </span>
+                                    <span style="font-size: 0.82rem; font-weight: 700; color: #fff;" id="session-id-display">Session #1</span>
+                                    <span style="font-size: 0.75rem; color: var(--text-muted);" id="session-time-range">Waiting to start</span>
+                                </div>
+                                <p style="font-size: 0.72rem; color: var(--text-muted); margin: 4px 0 0 0;">
+                                    <i class="fa-solid fa-shield-halved" style="color: var(--green);"></i>
+                                    <span id="session-banner-note">Trades executed by your bot remain preserved here until you restart the bot. When restarted, a fresh report will begin.</span>
+                                </p>
+                            </div>
+                            <div style="display: flex; gap: 0.5rem; align-items: center;">
+                                <button class="btn-sm btn-outline" onclick="resetBotSessionReport(true)" style="font-size: 0.75rem; color: #ff7575; border-color: rgba(255, 75, 75, 0.3);" title="Clear current session report and start fresh">
+                                    <i class="fa-solid fa-rotate-left"></i> Reset Report
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- SCORECARD METRICS STRIP -->
+                        <div class="closed-trades-scorecard">
+                            <div class="score-card-item">
+                                <span class="score-label">SESSION TRADES</span>
+                                <span class="score-val" id="sess-total-trades" style="color: #fff;">0</span>
+                                <span class="score-sub" id="sess-buys-sells">0 Buys / 0 Exits</span>
+                            </div>
+                            <div class="score-card-item">
+                                <span class="score-label">SESSION REALIZED P&L</span>
+                                <span class="score-val text-green" id="sess-net-pnl">₹0.00</span>
+                                <span class="score-sub">From closed positions</span>
+                            </div>
+                            <div class="score-card-item">
+                                <span class="score-label">SESSION WIN RATE</span>
+                                <span class="score-val" id="sess-win-rate">0.0%</span>
+                                <span class="score-sub" id="sess-wins-losses">0 Wins / 0 Losses</span>
+                            </div>
+                            <div class="score-card-item">
+                                <span class="score-label">SESSION CHARGES &amp; TAXES</span>
+                                <span class="score-val" id="sess-charges" style="color: #fca5a5;">₹0.00</span>
+                                <span class="score-sub">Brokerage + STT + GST</span>
+                            </div>
+                            <div class="score-card-item">
+                                <span class="score-label">SESSION STATE</span>
+                                <span class="score-val" id="sess-status-pill" style="font-size: 0.95rem; color: #ffd166;">STOPPED</span>
+                                <span class="score-sub" id="sess-status-sub">Report Preserved</span>
+                            </div>
+                        </div>
+
+                        <!-- SESSION TRADES TABLE -->
+                        <div class="table-wrapper" style="margin-top: 1rem;">
+                            <table class="data-table">
+                                <thead>
+                                    <tr>
+                                        <th>TIME</th>
+                                        <th>STOCK</th>
+                                        <th>ACTION</th>
+                                        <th>QTY</th>
+                                        <th>PRICE (₹)</th>
+                                        <th>NOTIONAL (₹)</th>
+                                        <th>CHARGES (₹)</th>
+                                        <th>REALIZED P&L (₹)</th>
+                                        <th>RETURN (%)</th>
+                                        <th>STRATEGY / SIGNAL REASON</th>
+                                        <th>STATUS</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="bot-session-trades-tbody">
+                                    <tr>
+                                        <td colspan="11" class="text-center" style="padding: 1.5rem; color: var(--text-muted);">
+                                            No bot trades executed in this session yet. When you activate your bot, every BUY order and SELL exit (stop-loss / target / trailing stop) will be logged here and preserved until you stop the bot.
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
                     <!-- TAB 1: ACTIVE HOLDINGS -->
-                    <div id="view-active-holdings" class="table-wrapper">
+                    <div id="view-active-holdings" class="table-wrapper" style="display: none;">
                         <table class="data-table">
                             <thead>
                                 <tr>
@@ -1031,6 +1119,7 @@
     let allScannerData = [];
 
     document.addEventListener('DOMContentLoaded', () => {
+        loadStoredBotSession();
         syncStrategyUIHints();
         fetchBotStatus();
         loadBotHoldings();
@@ -1039,7 +1128,11 @@
         const savedState = localStorage.getItem('nifty_bot_active') === 'true';
         if (savedState) {
             setBotActiveState(true, false);
+            botSession.status = 'RUNNING';
+        } else {
+            botSession.status = 'STOPPED';
         }
+        renderBotSessionReport();
 
         botPoller = setInterval(() => {
             fetchBotStatus(true);
@@ -1219,9 +1312,20 @@
         document.getElementById('kpi-scanned').innerText = `${scannedCount} / ${totalUniverse}`;
         document.getElementById('kpi-buys').innerText = summary.buys_found || 0;
         document.getElementById('kpi-sells').innerText = summary.sells_found || 0;
-        document.getElementById('kpi-trades').innerText = summary.trades_executed || 0;
         
-        if (data.last_run_time) {
+        // Sync server session report if present
+        if (data.session) {
+            syncSessionWithServer(data.session);
+        }
+
+        const sessTradeCount = (botSession && botSession.trades) ? botSession.trades.length : (summary.trades_executed || 0);
+        document.getElementById('kpi-trades').innerText = sessTradeCount;
+        
+        if (botSession && botSession.status === 'RUNNING') {
+            document.getElementById('kpi-last-run').innerText = `🟢 Session Running (${sessTradeCount} Trades)`;
+        } else if (botSession) {
+            document.getElementById('kpi-last-run').innerText = `🛑 Session Stopped (${sessTradeCount} Trades Preserved)`;
+        } else if (data.last_run_time) {
             document.getElementById('kpi-last-run').innerText = `Last sweep: ${data.last_run_time.split(' ')[1] || data.last_run_time}`;
         }
 
@@ -1383,13 +1487,41 @@
     async function toggleBot() {
         if (isBotActive) {
             setBotActiveState(false);
+            botSession.status = 'STOPPED';
+            botSession.stop_time = new Date().toLocaleTimeString('en-IN', { hour12: false }) + ' IST';
+            saveBotSession();
+            renderBotSessionReport();
+
             try {
                 const res = await fetch('/api/bot/stop', { method: 'POST' });
                 const data = await res.json();
                 if (data.status) updateBotUI(data.status);
             } catch (err) {}
-            showToast('NIFTY 50 Auto-Bot paused', 'warning');
+            showToast(`NIFTY 50 Auto-Bot paused. Session #${botSession.session_count || 1} report preserved (${botSession.trades.length} trades)!`, 'warning');
         } else {
+            // User restarted/started the bot: start with a fresh new session report only!
+            if (botSession.trades && botSession.trades.length > 0) {
+                botSession.session_count = (botSession.session_count || 1) + 1;
+            }
+            botSession.session_id = 'sess_' + Date.now();
+            botSession.status = 'RUNNING';
+            botSession.start_time = new Date().toLocaleTimeString('en-IN', { hour12: false }) + ' IST';
+            botSession.stop_time = null;
+            botSession.trades = [];
+            botSession.metrics = {
+                total_trades: 0,
+                total_buys: 0,
+                total_sells: 0,
+                net_realized_pnl: 0.0,
+                total_charges: 0.0,
+                win_rate: 0.0,
+                wins: 0,
+                losses: 0
+            };
+            saveBotSession();
+            renderBotSessionReport();
+            switchLedgerTab('session');
+
             setBotActiveState(true);
             const config = {
                 scan_mode: document.getElementById('bot-scan-mode').value,
@@ -1415,7 +1547,7 @@
                 const data = await res.json();
                 if (data.status) updateBotUI(data.status);
             } catch (err) {}
-            showToast('NIFTY 50 Auto-Bot Activated!', 'success');
+            showToast(`NIFTY 50 Auto-Bot Activated! Started Session #${botSession.session_count || 1} fresh report`, 'success');
             tickBotNow();
         }
     }
@@ -1568,36 +1700,364 @@
         } catch (e) {}
     }
 
-    let currentLedgerTab = 'active';
+    // ==========================================
+    // BOT SESSION TRADES REPORT & PERSISTENCE
+    // ==========================================
+    const BOT_SESSION_STORAGE_KEY = 'nifty_bot_session_v3';
+
+    let botSession = {
+        session_id: 'sess_' + Date.now(),
+        session_count: 1,
+        status: 'STOPPED', // 'RUNNING' or 'STOPPED'
+        start_time: null,
+        stop_time: null,
+        trades: [],
+        metrics: {
+            total_trades: 0,
+            total_buys: 0,
+            total_sells: 0,
+            net_realized_pnl: 0.0,
+            total_charges: 0.0,
+            win_rate: 0.0,
+            wins: 0,
+            losses: 0
+        }
+    };
+
+    function loadStoredBotSession() {
+        try {
+            const raw = localStorage.getItem(BOT_SESSION_STORAGE_KEY);
+            if (raw) {
+                const parsed = JSON.parse(raw);
+                if (parsed && Array.isArray(parsed.trades)) {
+                    botSession = parsed;
+                }
+            }
+        } catch (e) {}
+        renderBotSessionReport();
+    }
+
+    function saveBotSession() {
+        try {
+            localStorage.setItem(BOT_SESSION_STORAGE_KEY, JSON.stringify(botSession));
+        } catch (e) {}
+    }
+
+    function recalcSessionMetrics() {
+        let buys = 0;
+        let sells = 0;
+        let pnl = 0.0;
+        let charges = 0.0;
+        let wins = 0;
+        let losses = 0;
+
+        botSession.trades.forEach(t => {
+            charges += parseFloat(t.charges || 0.0);
+            if (t.side === 'BUY') {
+                buys++;
+            } else if (t.side === 'SELL') {
+                sells++;
+                const tradePnl = parseFloat(t.realized_pnl || 0.0);
+                pnl += tradePnl;
+                if (tradePnl > 0) wins++;
+                else if (tradePnl < 0) losses++;
+            }
+        });
+
+        const closed = wins + losses;
+        botSession.metrics = {
+            total_trades: botSession.trades.length,
+            total_buys: buys,
+            total_sells: sells,
+            net_realized_pnl: Math.round(pnl * 100) / 100,
+            total_charges: Math.round(charges * 100) / 100,
+            win_rate: closed > 0 ? Math.round((wins / closed) * 1000) / 10 : 0.0,
+            wins: wins,
+            losses: losses
+        };
+    }
+
+    function syncSessionWithServer(serverSession) {
+        if (!serverSession) return;
+        let dirty = false;
+
+        if (serverSession.session_count > (botSession.session_count || 1)) {
+            botSession.session_count = serverSession.session_count;
+            botSession.session_id = serverSession.session_id || botSession.session_id;
+            botSession.start_time = serverSession.start_time || botSession.start_time;
+            botSession.stop_time = serverSession.stop_time || botSession.stop_time;
+            botSession.status = serverSession.status || botSession.status;
+            botSession.trades = serverSession.trades || [];
+            dirty = true;
+        } else if (serverSession.trades && Array.isArray(serverSession.trades)) {
+            const existingKeys = new Set(botSession.trades.map(t => (t.id || '') + '_' + (t.timestamp || '') + '_' + (t.symbol || '') + '_' + (t.side || '')));
+            serverSession.trades.forEach(st => {
+                const key = (st.id || '') + '_' + (st.timestamp || '') + '_' + (st.symbol || '') + '_' + (st.side || '');
+                if (!existingKeys.has(key)) {
+                    botSession.trades.unshift(st);
+                    existingKeys.add(key);
+                    dirty = true;
+                }
+            });
+        }
+
+        if (dirty) {
+            recalcSessionMetrics();
+            saveBotSession();
+            renderBotSessionReport();
+        }
+    }
+
+    function renderBotSessionReport() {
+        const isRunning = (botSession.status === 'RUNNING');
+
+        const badgeEl = document.getElementById('session-status-badge');
+        if (badgeEl) {
+            if (isRunning) {
+                badgeEl.className = 'badge';
+                badgeEl.style.background = 'rgba(0, 240, 144, 0.15)';
+                badgeEl.style.color = 'var(--green)';
+                badgeEl.style.borderColor = 'rgba(0, 240, 144, 0.3)';
+                badgeEl.innerHTML = '<span class="bot-dot" style="display:inline-block; margin-right:4px;"></span> SESSION ACTIVE (RECORDING)';
+            } else {
+                badgeEl.className = 'badge';
+                badgeEl.style.background = 'rgba(255, 209, 102, 0.15)';
+                badgeEl.style.color = '#ffd166';
+                badgeEl.style.borderColor = 'rgba(255, 209, 102, 0.3)';
+                badgeEl.innerHTML = '<i class="fa-solid fa-lock"></i> SESSION STOPPED (REPORT PRESERVED)';
+            }
+        }
+
+        const sessIdEl = document.getElementById('session-id-display');
+        if (sessIdEl) sessIdEl.innerText = `Session #${botSession.session_count || 1}`;
+
+        const timeRangeEl = document.getElementById('session-time-range');
+        if (timeRangeEl) {
+            if (isRunning) {
+                timeRangeEl.innerText = `Started at ${botSession.start_time || 'Just now'}`;
+            } else if (botSession.start_time) {
+                timeRangeEl.innerText = `Started: ${botSession.start_time} | Stopped: ${botSession.stop_time || 'Paused'}`;
+            } else {
+                timeRangeEl.innerText = 'Ready to start. Click START NIFTY BOT to begin.';
+            }
+        }
+
+        const noteEl = document.getElementById('session-banner-note');
+        if (noteEl) {
+            if (isRunning) {
+                noteEl.innerText = 'Your bot is running and actively recording all order entries, stop-losses, and profit targets. Stopping the bot will lock and preserve this report.';
+            } else {
+                noteEl.innerText = 'This report contains all trades executed during this run and is permanently preserved until you restart the bot. When you click START, a fresh new session report will begin.';
+            }
+        }
+
+        const m = botSession.metrics || {};
+        const countBadge = document.getElementById('session-trades-badge-count');
+        if (countBadge) countBadge.innerText = botSession.trades.length;
+
+        const kpiTrades = document.getElementById('kpi-trades');
+        if (kpiTrades) kpiTrades.innerText = botSession.trades.length;
+
+        const kpiStatus = document.getElementById('kpi-last-run');
+        if (kpiStatus) {
+            kpiStatus.innerText = isRunning ? '🟢 Session Running' : `🛑 Session Stopped (${botSession.trades.length} trades preserved)`;
+        }
+
+        const totalTradesEl = document.getElementById('sess-total-trades');
+        if (totalTradesEl) totalTradesEl.innerText = botSession.trades.length;
+
+        const buysSellsEl = document.getElementById('sess-buys-sells');
+        if (buysSellsEl) buysSellsEl.innerText = `${m.total_buys || 0} Buys / ${m.total_sells || 0} Exits`;
+
+        const netPnlEl = document.getElementById('sess-net-pnl');
+        if (netPnlEl) {
+            const pnl = m.net_realized_pnl || 0.0;
+            netPnlEl.innerText = `${pnl >= 0 ? '+' : ''}₹${pnl.toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+            netPnlEl.className = pnl >= 0 ? 'score-val text-green' : 'score-val text-red';
+        }
+
+        const winRateEl = document.getElementById('sess-win-rate');
+        if (winRateEl) {
+            winRateEl.innerText = `${m.win_rate || 0}%`;
+            winRateEl.className = (m.win_rate || 0) >= 50 ? 'score-val text-green' : 'score-val text-red';
+        }
+
+        const winsLossesEl = document.getElementById('sess-wins-losses');
+        if (winsLossesEl) winsLossesEl.innerText = `${m.wins || 0} Wins / ${m.losses || 0} Losses`;
+
+        const chargesEl = document.getElementById('sess-charges');
+        if (chargesEl) chargesEl.innerText = `₹${(m.total_charges || 0).toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+
+        const pillEl = document.getElementById('sess-status-pill');
+        if (pillEl) {
+            pillEl.innerText = isRunning ? 'RUNNING' : 'STOPPED';
+            pillEl.style.color = isRunning ? 'var(--green)' : '#ffd166';
+        }
+
+        const subEl = document.getElementById('sess-status-sub');
+        if (subEl) subEl.innerText = isRunning ? 'Recording Live Trades' : 'Report Preserved';
+
+        const tbody = document.getElementById('bot-session-trades-tbody');
+        if (!tbody) return;
+
+        if (botSession.trades.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="11" class="text-center" style="padding: 1.5rem; color: var(--text-muted);">${isRunning ? '<i class="fa-solid fa-spinner fa-spin" style="color: var(--green); margin-right: 6px;"></i> Bot is actively scanning. As soon as a trade is placed or closed, it will appear here in real time.' : 'No trades executed in this session yet. Activate your bot above to start a live session.'}</td></tr>`;
+            return;
+        }
+
+        tbody.innerHTML = '';
+        botSession.trades.forEach(t => {
+            const tr = document.createElement('tr');
+            const isBuy = t.side === 'BUY';
+            const actionBadge = isBuy
+                ? '<span class="side-badge side-long"><i class="fa-solid fa-arrow-trend-up"></i> BUY (ENTRY)</span>'
+                : '<span class="side-badge side-short" style="background: rgba(255, 75, 75, 0.15); color: #ff7575; border-color: rgba(255, 75, 75, 0.3);"><i class="fa-solid fa-arrow-trend-down"></i> SELL (EXIT)</span>';
+
+            const pnl = parseFloat(t.realized_pnl || 0.0);
+            const isWin = pnl >= 0;
+            const pnlClass = isWin ? 'text-green' : 'text-red';
+            const pnlSign = isWin ? '+' : '';
+            const pnlText = isBuy ? '<span style="color: var(--text-muted);">--</span>' : `<span class="${pnlClass}" style="font-weight: 700;">${pnlSign}₹${pnl.toFixed(2)}</span>`;
+            const roiText = isBuy ? '<span style="color: var(--text-muted);">--</span>' : `<span class="${pnlClass}" style="font-weight: 700;">${pnlSign}${(t.roi_pct || 0).toFixed(2)}%</span>`;
+
+            let statusBadge = '';
+            if (isBuy) {
+                statusBadge = '<span class="signal-badge" style="background: rgba(0,240,144,0.12); color: var(--green); border: 1px solid rgba(0,240,144,0.25); font-size: 0.68rem;"><i class="fa-solid fa-check"></i> FILLED</span>';
+            } else if (t.signal === 'TAKE_PROFIT') {
+                statusBadge = '<span class="signal-badge" style="background: rgba(0,240,144,0.15); color: var(--green); border: 1px solid rgba(0,240,144,0.3); font-size: 0.68rem;"><i class="fa-solid fa-trophy"></i> TARGET HIT</span>';
+            } else if (t.signal === 'STOP_LOSS') {
+                statusBadge = '<span class="signal-badge" style="background: rgba(255,75,75,0.15); color: #ff7575; border: 1px solid rgba(255,75,75,0.3); font-size: 0.68rem;"><i class="fa-solid fa-shield-halved"></i> STOP HIT</span>';
+            } else {
+                statusBadge = '<span class="signal-badge" style="background: rgba(255,209,102,0.15); color: #ffd166; border: 1px solid rgba(255,209,102,0.3); font-size: 0.68rem;"><i class="fa-solid fa-receipt"></i> CLOSED</span>';
+            }
+
+            const chargesVal = parseFloat(t.charges || 0.0);
+
+            tr.innerHTML = `
+                <td style="font-size: 0.76rem; color: var(--text-muted); font-family: var(--font-code);">${t.timestamp || '--'}</td>
+                <td>
+                    <strong style="font-family: var(--font-code); color: #fff;">${t.displayName || (t.symbol ? t.symbol.replace('.NS', '') : '--')}</strong>
+                    <span style="font-size: 0.68rem; color: var(--text-muted); display: block;">${t.symbol || ''}</span>
+                </td>
+                <td>${actionBadge}</td>
+                <td style="font-weight: 700;">${t.quantity || 0}</td>
+                <td style="font-weight: 700;">₹${(parseFloat(t.price || t.entry_price || 0)).toFixed(2)}</td>
+                <td>₹${(parseFloat(t.total_value || 0)).toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                <td style="color: #fca5a5; font-family: var(--font-code);">-₹${chargesVal.toFixed(2)}</td>
+                <td>${pnlText}</td>
+                <td>${roiText}</td>
+                <td style="font-size: 0.78rem; max-width: 260px; line-height: 1.35;">${t.reason || 'Strategy Signal'}</td>
+                <td>${statusBadge}</td>
+            `;
+            tbody.appendChild(tr);
+        });
+    }
+
+    function exportSessionTradesCSV() {
+        if (!botSession.trades || botSession.trades.length === 0) {
+            showToast('No trades in this session to export', 'warning');
+            return;
+        }
+        let csv = 'Timestamp,Stock,Side,Quantity,Price,NotionalTotal,Charges,RealizedPnL,ROIPct,SignalReason,Status\n';
+        botSession.trades.forEach(t => {
+            const isBuy = t.side === 'BUY';
+            const status = isBuy ? 'FILLED' : ((t.realized_pnl || 0) >= 0 ? 'PROFIT' : 'LOSS');
+            csv += `"${t.timestamp || ''}","${t.displayName || t.symbol}","${t.side}",${t.quantity},${t.price || t.entry_price || 0},${t.total_value || 0},${t.charges || 0},${t.realized_pnl || 0},"${t.roi_pct || 0}%","${(t.reason || '').replace(/"/g, '""')}","${status}"\n`;
+        });
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `bot_session_${botSession.session_count || 1}_trades_${new Date().toISOString().slice(0, 10)}.csv`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        showToast(`Session #${botSession.session_count || 1} trades CSV downloaded`, 'success');
+    }
+
+    async function resetBotSessionReport(promptUser = true) {
+        if (promptUser && !confirm('Reset and clear current session report? This will start a fresh empty report for your next run.')) {
+            return;
+        }
+        try {
+            await fetch('/api/bot/session-report', { method: 'DELETE' });
+        } catch (e) {}
+
+        botSession.session_count = (botSession.session_count || 1) + 1;
+        botSession.session_id = 'sess_' + Date.now();
+        botSession.status = 'STOPPED';
+        botSession.start_time = null;
+        botSession.stop_time = null;
+        botSession.trades = [];
+        botSession.metrics = {
+            total_trades: 0,
+            total_buys: 0,
+            total_sells: 0,
+            net_realized_pnl: 0.0,
+            total_charges: 0.0,
+            win_rate: 0.0,
+            wins: 0,
+            losses: 0
+        };
+        saveBotSession();
+        renderBotSessionReport();
+        showToast('Bot session report reset successfully', 'success');
+    }
+
+    let currentLedgerTab = 'session';
     let cachedClosedTrades = [];
 
     function switchLedgerTab(tab) {
         currentLedgerTab = tab;
+        const btnSession = document.getElementById('tab-btn-session-report');
         const btnActive = document.getElementById('tab-btn-active-holdings');
         const btnClosed = document.getElementById('tab-btn-closed-trades');
+        const viewSession = document.getElementById('view-session-report');
         const viewActive = document.getElementById('view-active-holdings');
         const viewClosed = document.getElementById('view-closed-trades');
+        const btnSessionCsv = document.getElementById('btn-export-session-csv');
         const btnCsv = document.getElementById('btn-export-csv');
 
-        if (tab === 'active') {
-            btnActive.classList.add('active');
-            btnClosed.classList.remove('active');
-            viewActive.style.display = 'block';
-            viewClosed.style.display = 'none';
-            if (btnCsv) btnCsv.style.display = 'none';
+        // Reset tab buttons
+        if (btnSession) btnSession.classList.remove('active');
+        if (btnActive) btnActive.classList.remove('active');
+        if (btnClosed) btnClosed.classList.remove('active');
+
+        // Reset views
+        if (viewSession) viewSession.style.display = 'none';
+        if (viewActive) viewActive.style.display = 'none';
+        if (viewClosed) viewClosed.style.display = 'none';
+
+        if (btnSessionCsv) btnSessionCsv.style.display = 'none';
+        if (btnCsv) btnCsv.style.display = 'none';
+
+        if (tab === 'session') {
+            if (btnSession) btnSession.classList.add('active');
+            if (viewSession) viewSession.style.display = 'block';
+            if (btnSessionCsv) btnSessionCsv.style.display = 'inline-flex';
+            renderBotSessionReport();
+        } else if (tab === 'active') {
+            if (btnActive) btnActive.classList.add('active');
+            if (viewActive) viewActive.style.display = 'block';
             loadBotHoldings();
-        } else {
-            btnActive.classList.remove('active');
-            btnClosed.classList.add('active');
-            viewActive.style.display = 'none';
-            viewClosed.style.display = 'block';
+        } else if (tab === 'closed') {
+            if (btnClosed) btnClosed.classList.add('active');
+            if (viewClosed) viewClosed.style.display = 'block';
             if (btnCsv) btnCsv.style.display = 'inline-flex';
             loadClosedTrades();
         }
     }
 
     function refreshCurrentLedgerTab() {
-        if (currentLedgerTab === 'active') {
+        if (currentLedgerTab === 'session') {
+            renderBotSessionReport();
+            fetch('/api/bot/session-report')
+                .then(r => r.json())
+                .then(d => {
+                    if (d && d.session) syncSessionWithServer(d.session);
+                }).catch(() => {});
+        } else if (currentLedgerTab === 'active') {
             loadBotHoldings();
         } else {
             loadClosedTrades();
@@ -1737,16 +2197,17 @@
     }
 
     async function resetPortfolioTo10Lakh() {
-        if (!confirm('Are you sure you want to reset your portfolio back to ₹10,00,000?\n\n• Cash balance will be restored to ₹10,00,000\n• All open positions will be cleared\n• Trade history and closed trades report will be reset')) return;
+        if (!confirm('Are you sure you want to reset your portfolio back to ₹10,00,000?\n\n• Cash balance will be restored to ₹10,00,000\n• All open positions will be cleared\n• Trade history and closed trades report will be reset\n• Bot session trades report will be reset')) return;
 
         try {
             const res = await fetch('/api/reset-account', { method: 'POST' });
             const data = await res.json();
             if (data.success) {
                 showToast('Portfolio successfully reset back to ₹10,00,000 cash!', 'success');
+                resetBotSessionReport(false);
                 loadAccountMetrics();
                 loadBotHoldings();
-                loadClosedTradesReport();
+                loadClosedTrades();
                 fetchBotStatus();
             } else {
                 showToast('Reset failed: ' + (data.message || 'Error'), 'error');

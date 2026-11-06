@@ -23,7 +23,7 @@ def _save_persistent_bot_state(data: dict):
     try:
         path = _get_bot_state_file()
         with open(path, 'w') as f:
-            json.dump(data, f)
+            json.dump(data, f, default=str)
     except Exception:
         pass
 
@@ -76,43 +76,91 @@ def get_after_hours_price(symbol: str, base_price: float, pos=None) -> float:
 
 class AutoTradingBot:
     def __init__(self):
-        self.is_running = False
-        self.scan_mode = "ALL_NIFTY_200"  # "ALL_NIFTY_200", "ALL_NIFTY_50", or "SINGLE"
-        self.single_symbol = "RELIANCE.NS"
-        self.strategy = "SMA_CROSSOVER"  # "SMA_CROSSOVER" or "RSI_MOMENTUM"
-        self.allocation_per_trade = 15000.0  # ₹15,000 allocated per stock
-        self.max_positions = 3               # Max 3 concurrent active positions
-        self.interval_seconds = 60           # Scan interval: 1 minute (60s)
+        persisted = _load_persistent_bot_state()
+        self.is_running = persisted.get("is_running", False)
+        self.scan_mode = persisted.get("scan_mode", "ALL_NIFTY_200")
+        self.single_symbol = persisted.get("single_symbol", "RELIANCE.NS")
+        self.strategy = persisted.get("strategy", "123_REVERSAL")
+        self.allocation_per_trade = float(persisted.get("allocation_per_trade", 15000.0))
+        self.max_positions = int(persisted.get("max_positions", 3))
+        self.interval_seconds = 60
         self.fast_period = 9
         self.slow_period = 21
         self.rsi_period = 14
         self.rsi_oversold = 35
         self.rsi_overbought = 65
-        self.stop_loss_pct = 1.0             # 1.0% Stop loss
-        self.take_profit_pct = 1.0           # 1.0% Take profit
+        self.stop_loss_pct = float(persisted.get("stop_loss_pct", 1.0))
+        self.take_profit_pct = float(persisted.get("take_profit_pct", 1.0))
         
         # Option A: Macro Trend & Volume Confirmation
-        self.use_ema200_filter = True        # Only BUY if price >= 200 EMA
-        self.use_volume_filter = False       # Volume surge confirmation
+        self.use_ema200_filter = persisted.get("use_ema200_filter", True)
+        self.use_volume_filter = persisted.get("use_volume_filter", False)
         
         # Option B: Trailing Stop-Loss & Dynamic ATR Exits
-        self.use_trailing_stop = True        # Breakeven & Trailing stop
-        self.trailing_trigger_pct = 1.0      # Breakeven ratchet triggered at +1.0%
-        self.use_atr_exits = False           # Dynamic ATR-based exits
-        self.atr_multiplier_sl = 1.5         # 1.5x ATR initial stop
-        self.atr_multiplier_tp = 3.0         # 3.0x ATR profit target
+        self.use_trailing_stop = persisted.get("use_trailing_stop", True)
+        self.trailing_trigger_pct = 1.0
+        self.use_atr_exits = persisted.get("use_atr_exits", False)
+        self.atr_multiplier_sl = 1.5
+        self.atr_multiplier_tp = 3.0
         
+        # Session Management & Trade Report State (Preserved across stops & reboots)
+        self.session_count = persisted.get("session_count", 1)
+        self.session_id = persisted.get("session_id") or f"sess_{int(time.time())}"
+        self.session_start_time = persisted.get("session_start_time")
+        self.session_stop_time = persisted.get("session_stop_time")
+        self.session_status = persisted.get("session_status", "STOPPED")
+        self.session_trades = persisted.get("session_trades", [])
+        self.session_metrics = persisted.get("session_metrics", {
+            "total_trades": len(self.session_trades),
+            "total_buys": sum(1 for t in self.session_trades if t.get("side") == "BUY"),
+            "total_sells": sum(1 for t in self.session_trades if t.get("side") == "SELL"),
+            "net_realized_pnl": round(sum(float(t.get("realized_pnl") or 0.0) for t in self.session_trades), 2),
+            "total_charges": round(sum(float(t.get("charges") or 0.0) for t in self.session_trades), 2),
+            "win_rate": 0.0,
+            "wins": sum(1 for t in self.session_trades if float(t.get("realized_pnl") or 0.0) > 0),
+            "losses": sum(1 for t in self.session_trades if float(t.get("realized_pnl") or 0.0) < 0)
+        })
+        self.past_sessions = persisted.get("past_sessions", [])
+
         self.logs = []
         self.last_run_time = None
         self.last_scan_summary = {
             "total_scanned": 0,
             "buys_found": 0,
             "sells_found": 0,
-            "trades_executed": 0,
+            "trades_executed": len(self.session_trades),
             "scanner_results": []
         }
         self.thread = None
         self.lock = threading.Lock()
+
+    def persist_state(self):
+        try:
+            data = {
+                "is_running": self.is_running,
+                "scan_mode": self.scan_mode,
+                "single_symbol": self.single_symbol,
+                "strategy": self.strategy,
+                "allocation_per_trade": self.allocation_per_trade,
+                "max_positions": self.max_positions,
+                "stop_loss_pct": self.stop_loss_pct,
+                "take_profit_pct": self.take_profit_pct,
+                "use_ema200_filter": self.use_ema200_filter,
+                "use_volume_filter": self.use_volume_filter,
+                "use_trailing_stop": self.use_trailing_stop,
+                "use_atr_exits": self.use_atr_exits,
+                "session_id": self.session_id,
+                "session_count": self.session_count,
+                "session_start_time": self.session_start_time,
+                "session_stop_time": self.session_stop_time,
+                "session_status": self.session_status,
+                "session_trades": self.session_trades[:200],
+                "session_metrics": self.session_metrics,
+                "past_sessions": self.past_sessions[:5]
+            }
+            _save_persistent_bot_state(data)
+        except Exception:
+            pass
 
     def add_log(self, message: str, level: str = "INFO"):
         now_str = datetime.now().strftime("%H:%M:%S")
@@ -126,10 +174,52 @@ class AutoTradingBot:
             if len(self.logs) > 100:
                 self.logs.pop()
 
+    def record_session_trade(self, trade_data: dict):
+        """Records an executed trade into the current bot session report and updates metrics"""
+        with self.lock:
+            if not trade_data.get("timestamp"):
+                trade_data["timestamp"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            if not trade_data.get("id"):
+                trade_data["id"] = f"tr_{int(time.time()*1000)}_{len(self.session_trades)+1}"
+
+            self.session_trades.insert(0, trade_data)
+
+            sm = self.session_metrics
+            sm["total_trades"] = len(self.session_trades)
+            if trade_data.get("side") == "BUY":
+                sm["total_buys"] = sm.get("total_buys", 0) + 1
+            elif trade_data.get("side") == "SELL":
+                sm["total_sells"] = sm.get("total_sells", 0) + 1
+                pnl = float(trade_data.get("realized_pnl") or 0.0)
+                sm["net_realized_pnl"] = round(sm.get("net_realized_pnl", 0.0) + pnl, 2)
+                if pnl > 0:
+                    sm["wins"] = sm.get("wins", 0) + 1
+                elif pnl < 0:
+                    sm["losses"] = sm.get("losses", 0) + 1
+                
+                total_closed = sm.get("wins", 0) + sm.get("losses", 0)
+                if total_closed > 0:
+                    sm["win_rate"] = round((sm.get("wins", 0) / total_closed) * 100, 1)
+
+            sm["total_charges"] = round(sm.get("total_charges", 0.0) + float(trade_data.get("charges") or 0.0), 2)
+            self.last_scan_summary["trades_executed"] = len(self.session_trades)
+            self.persist_state()
+
     def get_status(self) -> dict:
         persisted = _load_persistent_bot_state()
         is_active = self.is_running or persisted.get("is_running", False)
         after_hours = not is_nse_market_open()
+
+        # Sync session state from persisted if memory was restarted
+        if not self.session_trades and persisted.get("session_trades"):
+            self.session_trades = persisted.get("session_trades", [])
+            self.session_metrics = persisted.get("session_metrics", self.session_metrics)
+            self.session_id = persisted.get("session_id", self.session_id)
+            self.session_count = persisted.get("session_count", self.session_count)
+            self.session_status = persisted.get("session_status", self.session_status)
+            self.session_start_time = persisted.get("session_start_time", self.session_start_time)
+            self.session_stop_time = persisted.get("session_stop_time", self.session_stop_time)
+
         return {
             "is_running": is_active,
             "is_after_hours": after_hours,
@@ -154,6 +244,15 @@ class AutoTradingBot:
             "atr_multiplier_sl": self.atr_multiplier_sl,
             "atr_multiplier_tp": self.atr_multiplier_tp,
             "last_run_time": self.last_run_time,
+            "session": {
+                "session_id": self.session_id,
+                "session_count": self.session_count,
+                "status": "RUNNING" if is_active else self.session_status,
+                "start_time": self.session_start_time,
+                "stop_time": self.session_stop_time,
+                "metrics": self.session_metrics,
+                "trades": self.session_trades[:100]
+            },
             "scan_summary": self.last_scan_summary,
             "logs": self.logs[:30]
         }
@@ -196,38 +295,73 @@ class AutoTradingBot:
         if "use_atr_exits" in config:
             self.use_atr_exits = bool(config["use_atr_exits"])
 
+    def start_new_session(self, config: dict = None):
+        """Initializes a fresh new trading session report when the bot is started/restarted"""
+        if config:
+            self.update_config(config)
+
+        now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+        # Archive prior session if it contained trades
+        if self.session_trades:
+            self.past_sessions.insert(0, {
+                "session_id": self.session_id,
+                "session_count": self.session_count,
+                "start_time": self.session_start_time,
+                "stop_time": self.session_stop_time or now_str,
+                "trades": list(self.session_trades),
+                "metrics": dict(self.session_metrics)
+            })
+            if len(self.past_sessions) > 5:
+                self.past_sessions.pop()
+            self.session_count = (self.session_count or 1) + 1
+
+        self.session_id = f"sess_{int(time.time())}"
+        self.session_start_time = now_str
+        self.session_stop_time = None
+        self.session_status = "RUNNING"
+        self.session_trades = []
+        self.session_metrics = {
+            "total_trades": 0,
+            "total_buys": 0,
+            "total_sells": 0,
+            "net_realized_pnl": 0.0,
+            "total_charges": 0.0,
+            "win_rate": 0.0,
+            "wins": 0,
+            "losses": 0
+        }
+        self.is_running = True
+        self.persist_state()
+
     def start(self, config: dict = None):
         if config:
             self.update_config(config)
 
-        self.is_running = True
+        # Start a brand new session report on restart/start
+        self.start_new_session()
+
         after_hours = not is_nse_market_open()
-        _save_persistent_bot_state({
-            "is_running": True,
-            "scan_mode": self.scan_mode,
-            "strategy": self.strategy,
-            "allocation_per_trade": self.allocation_per_trade,
-            "use_ema200_filter": self.use_ema200_filter,
-            "use_trailing_stop": self.use_trailing_stop,
-            "use_atr_exits": self.use_atr_exits
-        })
-        mode_label = "ALL NIFTY 50 STOCKS" if self.scan_mode == "ALL_NIFTY_50" else self.single_symbol
+        mode_label = "ALL NIFTY 200 STOCKS" if self.scan_mode == "ALL_NIFTY_200" else ("ALL NIFTY 50 STOCKS" if self.scan_mode == "ALL_NIFTY_50" else self.single_symbol)
         ema_tag = "200 EMA Filter [ON]" if self.use_ema200_filter else "200 EMA Filter [OFF]"
         trail_tag = "Trailing Stop [ON]" if self.use_trailing_stop else "Trailing Stop [OFF]"
         session_tag = "🌙 AFTER-MARKET HOURS (ACTIVE 24/7)" if after_hours else "☀️ LIVE NSE MARKET SESSION"
-        self.add_log(f"Auto-Bot ACTIVATED in {session_tag} on {mode_label} | {self.strategy} | {ema_tag} | {trail_tag} | Alloc: ₹{self.allocation_per_trade:,.0f}", "SUCCESS")
+        self.add_log(f"Auto-Bot ACTIVATED (Session #{self.session_count}) in {session_tag} on {mode_label} | {self.strategy} | {ema_tag} | {trail_tag} | Alloc: ₹{self.allocation_per_trade:,.0f}", "SUCCESS")
 
         if not self.thread or not self.thread.is_alive():
             self.thread = threading.Thread(target=self._run_loop, daemon=True)
             self.thread.start()
 
-        return {"success": True, "message": f"Bot activated on {mode_label}", "status": self.get_status()}
+        return {"success": True, "message": f"Bot activated on {mode_label} (Session #{self.session_count})", "status": self.get_status()}
 
     def stop(self):
         self.is_running = False
-        _save_persistent_bot_state({"is_running": False})
-        self.add_log("🛑 Auto-Bot PAUSED and STOPPED by operator. All automated sweeps and order executions are strictly halted.", "WARNING")
-        return {"success": True, "message": "Bot stopped", "status": self.get_status()}
+        self.session_status = "STOPPED"
+        self.session_stop_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        self.persist_state()
+        trade_count = len(self.session_trades)
+        self.add_log(f"🛑 Auto-Bot PAUSED and STOPPED by operator. Session #{self.session_count} report finalized ({trade_count} trades preserved).", "WARNING")
+        return {"success": True, "message": f"Bot stopped. Session #{self.session_count} report preserved ({trade_count} trades).", "status": self.get_status()}
 
     def evaluate_single_stock(self, symbol: str, held_positions_map: dict, stock_data: dict = None, allow_order_execution: bool = True) -> dict:
         """Evaluates indicators, checks risk exits, and computes buy/sell signal for a stock"""
@@ -292,6 +426,26 @@ class AutoTradingBot:
                 if allow_order_execution:
                     self.add_log(f"🛑 [STOP HIT] {display_name}: Liquidated @ ₹{current_price:.2f} (Stop was ₹{sl_level:.2f}, Result: {lock_pnl:+.2f}%)", "ERROR" if lock_pnl < 0 else "SUCCESS")
                     exec_res = PaperTradingEngine.execute_order(symbol, "SELL", pos.quantity, execution_price=current_price)
+                    if exec_res.get("success"):
+                        pnl = exec_res.get("realized_pnl", round((current_price - avg_price) * pos.quantity, 2))
+                        chg = exec_res.get("charges", {}).get("total_charges", 0.0) if isinstance(exec_res.get("charges"), dict) else 0.0
+                        self.record_session_trade({
+                            "symbol": symbol,
+                            "displayName": display_name,
+                            "side": "SELL",
+                            "quantity": pos.quantity,
+                            "entry_price": avg_price,
+                            "exit_price": current_price,
+                            "price": current_price,
+                            "total_value": round(pos.quantity * current_price, 2),
+                            "charges": chg,
+                            "realized_pnl": pnl,
+                            "roi_pct": round(lock_pnl, 2),
+                            "action": "SELL",
+                            "signal": "STOP_LOSS",
+                            "reason": f"Stop-Loss hit @ ₹{current_price:.2f} (SL: ₹{sl_level:.2f})",
+                            "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                        })
                 return {
                     "symbol": symbol, "displayName": display_name, "price": current_price,
                     "change_pct": change_pct, "signal": "STOP_LOSS", "reason": f"Indicator Stop-Loss hit @ ₹{current_price:.2f} (SL: ₹{sl_level:.2f}, {lock_pnl:+.2f}%)",
@@ -303,6 +457,26 @@ class AutoTradingBot:
                 if allow_order_execution:
                     self.add_log(f"[STOP-LOSS] {display_name}: Hit -{abs(pnl_pct):.2f}% <= -{self.stop_loss_pct}%. Liquidating {pos.quantity} shares @ ₹{current_price:.2f}", "ERROR")
                     exec_res = PaperTradingEngine.execute_order(symbol, "SELL", pos.quantity, execution_price=current_price)
+                    if exec_res.get("success"):
+                        pnl = exec_res.get("realized_pnl", round((current_price - avg_price) * pos.quantity, 2))
+                        chg = exec_res.get("charges", {}).get("total_charges", 0.0) if isinstance(exec_res.get("charges"), dict) else 0.0
+                        self.record_session_trade({
+                            "symbol": symbol,
+                            "displayName": display_name,
+                            "side": "SELL",
+                            "quantity": pos.quantity,
+                            "entry_price": avg_price,
+                            "exit_price": current_price,
+                            "price": current_price,
+                            "total_value": round(pos.quantity * current_price, 2),
+                            "charges": chg,
+                            "realized_pnl": pnl,
+                            "roi_pct": round(pnl_pct, 2),
+                            "action": "SELL",
+                            "signal": "STOP_LOSS",
+                            "reason": f"Fixed Stop-Loss hit at {pnl_pct:.2f}%",
+                            "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                        })
                 return {
                     "symbol": symbol, "displayName": display_name, "price": current_price,
                     "change_pct": change_pct, "signal": "STOP_LOSS", "reason": f"Stop-Loss triggered at {pnl_pct:.2f}%",
@@ -324,6 +498,26 @@ class AutoTradingBot:
                 if allow_order_execution:
                     self.add_log(f"🎯 [TAKE-PROFIT] {display_name}: Hit +{pnl_pct:.2f}%. Selling {pos.quantity} shares @ ₹{current_price:.2f} to lock gains! ({tp_reason})", "SUCCESS")
                     exec_res = PaperTradingEngine.execute_order(symbol, "SELL", pos.quantity, execution_price=current_price)
+                    if exec_res.get("success"):
+                        pnl = exec_res.get("realized_pnl", round((current_price - avg_price) * pos.quantity, 2))
+                        chg = exec_res.get("charges", {}).get("total_charges", 0.0) if isinstance(exec_res.get("charges"), dict) else 0.0
+                        self.record_session_trade({
+                            "symbol": symbol,
+                            "displayName": display_name,
+                            "side": "SELL",
+                            "quantity": pos.quantity,
+                            "entry_price": avg_price,
+                            "exit_price": current_price,
+                            "price": current_price,
+                            "total_value": round(pos.quantity * current_price, 2),
+                            "charges": chg,
+                            "realized_pnl": pnl,
+                            "roi_pct": round(pnl_pct, 2),
+                            "action": "SELL",
+                            "signal": "TAKE_PROFIT",
+                            "reason": tp_reason,
+                            "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                        })
                 return {
                     "symbol": symbol, "displayName": display_name, "price": current_price,
                     "change_pct": change_pct, "signal": "TAKE_PROFIT", "reason": tp_reason,
@@ -458,7 +652,7 @@ class AutoTradingBot:
             quote = MarketDataService.get_quote(force_sym)
             p = quote.get("price", 1500.0) if "error" not in quote else 1500.0
             trade_qty = max(1, int(self.allocation_per_trade / p))
-            PaperTradingEngine.execute_order(force_sym, "BUY", trade_qty, execution_price=p)
+            exec_res = PaperTradingEngine.execute_order(force_sym, "BUY", trade_qty, execution_price=p)
             pos_rec = Position.query.filter_by(symbol=force_sym).first()
             if pos_rec:
                 pos_rec.stop_loss = round(p * (1 - self.stop_loss_pct / 100), 2)
@@ -469,6 +663,25 @@ class AutoTradingBot:
                     db.session.commit()
                 except Exception:
                     pass
+            chg = exec_res.get("charges", {}).get("total_charges", 0.0) if isinstance(exec_res, dict) and isinstance(exec_res.get("charges"), dict) else 0.0
+            self.record_session_trade({
+                "symbol": force_sym,
+                "displayName": force_sym.replace('.NS', ''),
+                "side": "BUY",
+                "quantity": trade_qty,
+                "entry_price": p,
+                "price": p,
+                "total_value": round(trade_qty * p, 2),
+                "charges": chg,
+                "realized_pnl": 0.0,
+                "roi_pct": 0.0,
+                "action": "BUY",
+                "signal": "FORCE_BUY",
+                "suggested_sl": pos_rec.stop_loss if pos_rec else None,
+                "suggested_tp": pos_rec.take_profit if pos_rec else None,
+                "reason": f"Manual/Test Instant BUY Order | Stop: ₹{pos_rec.stop_loss if pos_rec else 0:.2f} | Target: ₹{pos_rec.take_profit if pos_rec else 0:.2f}",
+                "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            })
             self.add_log(f"⚡ [TEST SIGNAL] Instant BUY executed: {trade_qty} shares of {force_sym.replace('.NS', '')} @ ₹{p:.2f} (Total: ₹{trade_qty*p:,.2f})", "SUCCESS")
 
         elif simulation_event in ["BULL_SURGE", "TRAIL_PUSH", "STOP_SHOCK"]:
@@ -479,7 +692,7 @@ class AutoTradingBot:
                 quote = MarketDataService.get_quote(seed_sym)
                 p = quote.get("price", 1500.0) if "error" not in quote else 1500.0
                 trade_qty = max(1, int(self.allocation_per_trade / p))
-                PaperTradingEngine.execute_order(seed_sym, "BUY", trade_qty, execution_price=p)
+                exec_res = PaperTradingEngine.execute_order(seed_sym, "BUY", trade_qty, execution_price=p)
                 pos_rec = Position.query.filter_by(symbol=seed_sym).first()
                 if pos_rec:
                     pos_rec.stop_loss = round(p * (1 - self.stop_loss_pct / 100), 2)
@@ -490,6 +703,25 @@ class AutoTradingBot:
                         db.session.commit()
                     except Exception:
                         pass
+                chg = exec_res.get("charges", {}).get("total_charges", 0.0) if isinstance(exec_res, dict) and isinstance(exec_res.get("charges"), dict) else 0.0
+                self.record_session_trade({
+                    "symbol": seed_sym,
+                    "displayName": seed_sym.replace('.NS', ''),
+                    "side": "BUY",
+                    "quantity": trade_qty,
+                    "entry_price": p,
+                    "price": p,
+                    "total_value": round(trade_qty * p, 2),
+                    "charges": chg,
+                    "realized_pnl": 0.0,
+                    "roi_pct": 0.0,
+                    "action": "BUY",
+                    "signal": "TEST_SEED",
+                    "suggested_sl": pos_rec.stop_loss if pos_rec else None,
+                    "suggested_tp": pos_rec.take_profit if pos_rec else None,
+                    "reason": f"Simulator Auto-Seeded Test Position | Target: ₹{pos_rec.take_profit if pos_rec else 0:.2f} | Stop: ₹{pos_rec.stop_loss if pos_rec else 0:.2f}",
+                    "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                })
                 self.add_log(f"💡 [SIMULATOR] Auto-seeded 1 test position ({seed_sym.replace('.NS','')}) for instant guard verification.", "INFO")
 
         # Get existing positions & cash balance
@@ -626,7 +858,28 @@ class AutoTradingBot:
                                     except Exception:
                                         pass
 
-                                chg_str = f" (Charges: ₹{exec_res['charges']['total_charges']:.2f})" if "charges" in exec_res else ""
+                                chg_amt = exec_res.get("charges", {}).get("total_charges", 0.0) if isinstance(exec_res.get("charges"), dict) else 0.0
+                                strat_tag = "1-2-3 Neckline Break" if self.strategy == "123_REVERSAL" else ("Dual SMA Cross" if self.strategy == "SMA_CROSSOVER" else "RSI Reversal")
+                                self.record_session_trade({
+                                    "symbol": symbol,
+                                    "displayName": display_name,
+                                    "side": "BUY",
+                                    "quantity": trade_qty,
+                                    "entry_price": price,
+                                    "price": price,
+                                    "total_value": round(trade_qty * price, 2),
+                                    "charges": chg_amt,
+                                    "realized_pnl": 0.0,
+                                    "roi_pct": 0.0,
+                                    "action": "BUY",
+                                    "signal": self.strategy,
+                                    "suggested_sl": pos_rec.stop_loss if pos_rec else None,
+                                    "suggested_tp": pos_rec.take_profit if pos_rec else None,
+                                    "reason": f"⚡ [{strat_tag}] Entry @ ₹{price:.2f} | Stop: ₹{pos_rec.stop_loss if pos_rec else 0:.2f} | Target: ₹{pos_rec.take_profit if pos_rec else 0:.2f}",
+                                    "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                                })
+
+                                chg_str = f" (Charges: ₹{chg_amt:.2f})" if chg_amt > 0 else ""
                                 self.add_log(f"⚡ AUTO-BOUGHT {trade_qty} shares of {display_name} @ ₹{price:.2f} (Total: ₹{total_cost:,.2f}{chg_str}) | Target: ₹{pos_rec.take_profit:.2f} | Stop: ₹{pos_rec.stop_loss:.2f}", "SUCCESS")
                                 # Add to local held map to prevent double-buys
                                 held_map[symbol] = Position(
@@ -652,7 +905,28 @@ class AutoTradingBot:
                         if exec_res.get("success"):
                             trades_executed += 1
                             eval_res["action_executed"] = f"SOLD {pos.quantity} SHARES"
-                            chg_str = f" (Charges: ₹{exec_res['charges']['total_charges']:.2f})" if "charges" in exec_res else ""
+                            pnl = exec_res.get("realized_pnl", round((price - pos.average_price) * pos.quantity, 2))
+                            roi = round((price - pos.average_price) / pos.average_price * 100, 2) if pos.average_price > 0 else 0.0
+                            chg_amt = exec_res.get("charges", {}).get("total_charges", 0.0) if isinstance(exec_res.get("charges"), dict) else 0.0
+                            self.record_session_trade({
+                                "symbol": symbol,
+                                "displayName": display_name,
+                                "side": "SELL",
+                                "quantity": pos.quantity,
+                                "entry_price": pos.average_price,
+                                "exit_price": price,
+                                "price": price,
+                                "total_value": round(pos.quantity * price, 2),
+                                "charges": chg_amt,
+                                "realized_pnl": pnl,
+                                "roi_pct": roi,
+                                "action": "SELL",
+                                "signal": "STRATEGY_EXIT",
+                                "reason": eval_res.get("reason", "Strategy Bearish Exit Signal"),
+                                "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                            })
+
+                            chg_str = f" (Charges: ₹{chg_amt:.2f})" if chg_amt > 0 else ""
                             self.add_log(f"⚡ AUTO-SOLD {pos.quantity} shares of {display_name} @ ₹{price:.2f}{chg_str} | {eval_res['reason']}", "WARNING")
                             del held_map[symbol]
                 else:
@@ -667,7 +941,8 @@ class AutoTradingBot:
             "total_scanned": len(scanner_results),
             "buys_found": buys_found,
             "sells_found": sells_found,
-            "trades_executed": trades_executed,
+            "trades_executed": len(self.session_trades),
+            "recent_sweep_trades": trades_executed,
             "active_positions_count": len(held_map),
             "max_positions_limit": self.max_positions,
             "scanner_results": scanner_results

@@ -36,6 +36,32 @@ def place_order():
     result = PaperTradingEngine.execute_order(symbol, side, quantity)
     if not result.get("success"):
         return jsonify(result), 400
+        
+    # Record manual exit or entry into bot session report if active
+    try:
+        from app.services.bot import bot_instance
+        from datetime import datetime
+        pnl = result.get("realized_pnl", 0.0)
+        bot_instance.record_session_trade({
+            "symbol": symbol,
+            "displayName": symbol.replace('.NS', ''),
+            "side": side,
+            "quantity": quantity,
+            "entry_price": result.get("entry_price", result.get("price", 0.0)),
+            "exit_price": result.get("price", 0.0) if side == "SELL" else None,
+            "price": result.get("price", 0.0),
+            "total_value": round(quantity * (result.get("price") or 0.0), 2),
+            "charges": result.get("charges", {}).get("total_charges", 0.0) if isinstance(result.get("charges"), dict) else 0.0,
+            "realized_pnl": pnl,
+            "roi_pct": round((pnl / (quantity * (result.get("price") or 1.0))) * 100, 2) if (side == "SELL" and quantity > 0) else 0.0,
+            "action": side,
+            "signal": "MANUAL_EXIT" if side == "SELL" else "MANUAL_ORDER",
+            "reason": f"Manual {side} order executed by operator",
+            "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        })
+    except Exception:
+        pass
+
     return jsonify(result)
 
 @api_bp.route('/trades', methods=['GET'])
@@ -204,6 +230,7 @@ def reset_account():
         "trades_executed": 0,
         "scanner_results": []
     }
+    bot_instance.start_new_session()
     return jsonify({
         "success": True, 
         "message": "Account reset to ₹10,00,000 and NIFTY 50 watchlist restored",
@@ -215,6 +242,32 @@ def reset_account():
 def get_bot_status():
     from app.services.bot import bot_instance
     return jsonify(bot_instance.get_status())
+
+@api_bp.route('/bot/session-report', methods=['GET', 'POST', 'DELETE'])
+def bot_session_report():
+    from app.services.bot import bot_instance
+    if request.method == 'GET':
+        status = bot_instance.get_status()
+        return jsonify({
+            "success": True,
+            "session": status.get("session", {}),
+            "is_running": bot_instance.is_running
+        })
+    elif request.method == 'POST':
+        body = request.get_json(silent=True) or {}
+        if "trade" in body:
+            bot_instance.record_session_trade(body["trade"])
+        return jsonify({
+            "success": True,
+            "session": bot_instance.get_status().get("session", {})
+        })
+    elif request.method == 'DELETE':
+        bot_instance.start_new_session()
+        return jsonify({
+            "success": True,
+            "message": "Session trades report reset for new run",
+            "session": bot_instance.get_status().get("session", {})
+        })
 
 @api_bp.route('/bot/start', methods=['POST'])
 def start_bot():
