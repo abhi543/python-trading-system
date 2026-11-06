@@ -79,12 +79,30 @@ class AutoTradingBot:
         self.state_filename = state_filename
         self.name = name
         self.is_after_hours_forced = is_after_hours_forced
+
+        if self.is_after_hours_forced:
+            default_alloc = 200000.0  # ₹2 Lakhs per trade for ₹1 Crore Desk
+            from app.models.trading import AfterHoursPosition, AfterHoursTradeHistory, AfterHoursAccount
+            from app.services.paper_trader import AfterHoursPaperTradingEngine
+            self.pos_model = AfterHoursPosition
+            self.trade_model = AfterHoursTradeHistory
+            self.account_model = AfterHoursAccount
+            self.engine = AfterHoursPaperTradingEngine
+        else:
+            default_alloc = 5000.0   # ₹5,000 per trade for ₹50,000 Desk
+            from app.models.trading import Position, TradeHistory, Account
+            from app.services.paper_trader import PaperTradingEngine
+            self.pos_model = Position
+            self.trade_model = TradeHistory
+            self.account_model = Account
+            self.engine = PaperTradingEngine
+
         persisted = _load_persistent_bot_state(self.state_filename)
         self.is_running = persisted.get("is_running", False)
         self.scan_mode = persisted.get("scan_mode", "ALL_NIFTY_200")
         self.single_symbol = persisted.get("single_symbol", "RELIANCE.NS")
         self.strategy = persisted.get("strategy", "123_REVERSAL")
-        self.allocation_per_trade = float(persisted.get("allocation_per_trade", 5000.0))
+        self.allocation_per_trade = float(persisted.get("allocation_per_trade", default_alloc))
         self.leverage = float(persisted.get("leverage", 5.0))  # 5x NSE Intraday MIS Leverage
         self.max_positions = int(persisted.get("max_positions", 3))
         self.interval_seconds = 60  # 1 minute (60 seconds)
@@ -216,12 +234,11 @@ class AutoTradingBot:
     def get_intraday_traded_symbols(self) -> set:
         """Returns set of symbols that have already had an entry trade today during the current IST session"""
         from datetime import datetime, timezone, timedelta
-        from app.models.trading import TradeHistory, Position
         
         traded = set()
         # 1. Any currently held open position
         try:
-            open_positions = Position.query.filter(Position.quantity > 0).all()
+            open_positions = self.pos_model.query.filter(self.pos_model.quantity > 0).all()
             for p in open_positions:
                 traded.add(p.symbol)
         except Exception:
@@ -233,9 +250,9 @@ class AutoTradingBot:
             now_ist = now_utc + timedelta(hours=5, minutes=30)
             start_of_ist_day_utc = datetime(now_ist.year, now_ist.month, now_ist.day, 0, 0, 0) - timedelta(hours=5, minutes=30)
             
-            today_trades = TradeHistory.query.filter(
-                TradeHistory.timestamp >= start_of_ist_day_utc,
-                TradeHistory.side.in_(["BUY", "SHORT"])
+            today_trades = self.trade_model.query.filter(
+                self.trade_model.timestamp >= start_of_ist_day_utc,
+                self.trade_model.side.in_(["BUY", "SHORT"])
             ).all()
             for t in today_trades:
                 traded.add(t.symbol)
@@ -551,7 +568,7 @@ class AutoTradingBot:
                 lock_pnl = pnl_pct
                 if allow_order_execution:
                     self.add_log(f"🛑 [STOP HIT] {display_name} ({pos_side}): Liquidated @ ₹{current_price:.2f} (Stop was ₹{sl_level:.2f}, Result: {lock_pnl:+.2f}%)", "ERROR" if lock_pnl < 0 else "SUCCESS")
-                    exec_res = PaperTradingEngine.execute_order(symbol, exit_order_side, pos.quantity, execution_price=current_price)
+                    exec_res = self.engine.execute_order(symbol, exit_order_side, pos.quantity, execution_price=current_price)
                     if exec_res.get("success"):
                         pnl = exec_res.get("realized_pnl", round(((current_price - avg_price) if not is_short else (avg_price - current_price)) * pos.quantity, 2))
                         chg = exec_res.get("charges", {}).get("total_charges", 0.0) if isinstance(exec_res.get("charges"), dict) else 0.0
@@ -582,7 +599,7 @@ class AutoTradingBot:
             if self.strategy != "123_REVERSAL" and pnl_pct <= -abs(self.stop_loss_pct):
                 if allow_order_execution:
                     self.add_log(f"[STOP-LOSS] {display_name} ({pos_side}): Hit -{abs(pnl_pct):.2f}% <= -{self.stop_loss_pct}%. Closing {pos.quantity} shares @ ₹{current_price:.2f}", "ERROR")
-                    exec_res = PaperTradingEngine.execute_order(symbol, exit_order_side, pos.quantity, execution_price=current_price)
+                    exec_res = self.engine.execute_order(symbol, exit_order_side, pos.quantity, execution_price=current_price)
                     if exec_res.get("success"):
                         pnl = exec_res.get("realized_pnl", round(((current_price - avg_price) if not is_short else (avg_price - current_price)) * pos.quantity, 2))
                         chg = exec_res.get("charges", {}).get("total_charges", 0.0) if isinstance(exec_res.get("charges"), dict) else 0.0
@@ -624,7 +641,7 @@ class AutoTradingBot:
             if is_tp_hit:
                 if allow_order_execution:
                     self.add_log(f"🎯 [TAKE-PROFIT] {display_name} ({pos_side}): Hit +{pnl_pct:.2f}%. Closing {pos.quantity} shares @ ₹{current_price:.2f} to lock gains! ({tp_reason})", "SUCCESS")
-                    exec_res = PaperTradingEngine.execute_order(symbol, exit_order_side, pos.quantity, execution_price=current_price)
+                    exec_res = self.engine.execute_order(symbol, exit_order_side, pos.quantity, execution_price=current_price)
                     if exec_res.get("success"):
                         pnl = exec_res.get("realized_pnl", round(((current_price - avg_price) if not is_short else (avg_price - current_price)) * pos.quantity, 2))
                         chg = exec_res.get("charges", {}).get("total_charges", 0.0) if isinstance(exec_res.get("charges"), dict) else 0.0
@@ -821,8 +838,8 @@ class AutoTradingBot:
             quote = MarketDataService.get_quote(force_sym)
             p = quote.get("price", 1500.0) if "error" not in quote else 1500.0
             trade_qty = max(1, int((self.allocation_per_trade * self.leverage) / p))
-            exec_res = PaperTradingEngine.execute_order(force_sym, "BUY", trade_qty, execution_price=p)
-            pos_rec = Position.query.filter_by(symbol=force_sym).first()
+            exec_res = self.engine.execute_order(force_sym, "BUY", trade_qty, execution_price=p)
+            pos_rec = self.pos_model.query.filter_by(symbol=force_sym).first()
             if pos_rec:
                 pos_rec.stop_loss = round(p * (1 - self.stop_loss_pct / 100), 2)
                 pos_rec.take_profit = round(p * (1 + self.take_profit_pct / 100), 2)
@@ -855,14 +872,14 @@ class AutoTradingBot:
 
         elif simulation_event in ["BULL_SURGE", "TRAIL_PUSH", "STOP_SHOCK"]:
             # If no open positions exist, automatically seed one so the user can immediately observe the risk exit!
-            held_positions = Position.query.filter(Position.quantity > 0).all()
+            held_positions = self.pos_model.query.filter(self.pos_model.quantity > 0).all()
             if not held_positions:
                 seed_sym = "RELIANCE.NS"
                 quote = MarketDataService.get_quote(seed_sym)
                 p = quote.get("price", 1500.0) if "error" not in quote else 1500.0
                 trade_qty = max(1, int((self.allocation_per_trade * self.leverage) / p))
-                exec_res = PaperTradingEngine.execute_order(seed_sym, "BUY", trade_qty, execution_price=p)
-                pos_rec = Position.query.filter_by(symbol=seed_sym).first()
+                exec_res = self.engine.execute_order(seed_sym, "BUY", trade_qty, execution_price=p)
+                pos_rec = self.pos_model.query.filter_by(symbol=seed_sym).first()
                 if pos_rec:
                     pos_rec.stop_loss = round(p * (1 - self.stop_loss_pct / 100), 2)
                     pos_rec.take_profit = round(p * (1 + self.take_profit_pct / 100), 2)
@@ -894,9 +911,9 @@ class AutoTradingBot:
                 self.add_log(f"💡 [SIMULATOR] Auto-seeded 1 test position ({seed_sym.replace('.NS','')}) for instant guard verification.", "INFO")
 
         # Get existing positions & cash balance
-        held_positions = Position.query.filter(Position.quantity > 0).all()
+        held_positions = self.pos_model.query.filter(self.pos_model.quantity > 0).all()
         held_map = {p.symbol: p for p in held_positions}
-        account = PaperTradingEngine.reconcile_account_balance()
+        account = self.engine.reconcile_account_balance()
         available_cash = account.cash_balance if account else 0.0
         already_traded_today = self.get_intraday_traded_symbols()
 
@@ -996,7 +1013,7 @@ class AutoTradingBot:
                     # If we currently hold a SHORT position, BUY is a BUY TO COVER (exit short)
                     if symbol in held_map and getattr(held_map[symbol], 'side', 'LONG') == 'SHORT':
                         pos = held_map[symbol]
-                        exec_res = PaperTradingEngine.execute_order(symbol, "COVER", pos.quantity, execution_price=price)
+                        exec_res = self.engine.execute_order(symbol, "COVER", pos.quantity, execution_price=price)
                         if exec_res.get("success"):
                             trades_executed += 1
                             eval_res["action_executed"] = f"COVERED {pos.quantity} SHARES"
@@ -1035,14 +1052,14 @@ class AutoTradingBot:
                             margin_needed = round((trade_qty * price) / self.leverage, 2)
 
                             if available_cash >= margin_needed:
-                                exec_res = PaperTradingEngine.execute_order(symbol, "BUY", trade_qty, execution_price=price)
+                                exec_res = self.engine.execute_order(symbol, "BUY", trade_qty, execution_price=price)
                                 if exec_res.get("success"):
                                     already_traded_today.add(symbol)
                                     trades_executed += 1
                                     available_cash -= margin_needed
                                     eval_res["action_executed"] = f"BOUGHT {trade_qty} (5x)"
                                 
-                                pos_rec = Position.query.filter_by(symbol=symbol).first()
+                                pos_rec = self.pos_model.query.filter_by(symbol=symbol).first()
                                 if pos_rec:
                                     pos_rec.side = "LONG"
                                     atr_val = eval_res.get("atr_14") or (price * 0.025)
@@ -1088,7 +1105,7 @@ class AutoTradingBot:
 
                                 chg_str = f" (Charges: ₹{chg_amt:.2f})" if chg_amt > 0 else ""
                                 self.add_log(f"⚡ AUTO-BOUGHT {trade_qty} shares of {display_name} @ ₹{price:.2f} (Margin: ₹{margin_needed:,.2f}{chg_str}) | Target: ₹{pos_rec.take_profit:.2f} | Stop: ₹{pos_rec.stop_loss:.2f}", "SUCCESS")
-                                held_map[symbol] = Position(
+                                held_map[symbol] = self.pos_model(
                                     symbol=symbol,
                                     side="LONG",
                                     quantity=trade_qty,
@@ -1108,7 +1125,7 @@ class AutoTradingBot:
                     # Case A: If we already hold a LONG position in this stock, exit it
                     if symbol in held_map and getattr(held_map[symbol], 'side', 'LONG') == 'LONG':
                         pos = held_map[symbol]
-                        exec_res = PaperTradingEngine.execute_order(symbol, "SELL", pos.quantity, execution_price=price)
+                        exec_res = self.engine.execute_order(symbol, "SELL", pos.quantity, execution_price=price)
                         if exec_res.get("success"):
                             trades_executed += 1
                             eval_res["action_executed"] = f"SOLD {pos.quantity} SHARES"
@@ -1148,14 +1165,14 @@ class AutoTradingBot:
                             margin_needed = round((trade_qty * price) / self.leverage, 2)
 
                             if available_cash >= margin_needed:
-                                exec_res = PaperTradingEngine.execute_order(symbol, "SHORT", trade_qty, execution_price=price)
+                                exec_res = self.engine.execute_order(symbol, "SHORT", trade_qty, execution_price=price)
                                 if exec_res.get("success"):
                                     already_traded_today.add(symbol)
                                     trades_executed += 1
                                     available_cash -= margin_needed
                                     eval_res["action_executed"] = f"SHORTED {trade_qty} (5x)"
 
-                                pos_rec = Position.query.filter_by(symbol=symbol).first()
+                                pos_rec = self.pos_model.query.filter_by(symbol=symbol).first()
                                 if pos_rec:
                                     pos_rec.side = "SHORT"
                                     atr_val = eval_res.get("atr_14") or (price * 0.025)
@@ -1201,7 +1218,7 @@ class AutoTradingBot:
 
                                 chg_str = f" (Charges: ₹{chg_amt:.2f})" if chg_amt > 0 else ""
                                 self.add_log(f"⚡ AUTO-SHORTED {trade_qty} shares of {display_name} @ ₹{price:.2f} (Margin: ₹{margin_needed:,.2f}{chg_str}) | Target: ₹{pos_rec.take_profit:.2f} | Stop: ₹{pos_rec.stop_loss:.2f}", "SUCCESS")
-                                held_map[symbol] = Position(
+                                held_map[symbol] = self.pos_model(
                                     symbol=symbol,
                                     side="SHORT",
                                     quantity=trade_qty,

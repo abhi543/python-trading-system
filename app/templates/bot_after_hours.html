@@ -119,8 +119,8 @@
 
                 <div class="config-item">
                     <label><i class="fa-solid fa-indian-rupee-sign"></i> MARGIN PER TRADE (₹) [5X LEVERAGE]</label>
-                    <input type="number" id="bot-allocation" class="config-input" value="5000" step="1000" min="1000" onchange="onStrategyChange()">
-                    <span class="badge" style="font-size: 0.68rem; background: rgba(0, 240, 144, 0.15); color: var(--green); border: 1px solid rgba(0, 240, 144, 0.3); margin-top: 4px; display: inline-block;">⚡ 5x Buying Power: ₹25,000 Exposure</span>
+                    <input type="number" id="bot-allocation" class="config-input" value="200000" step="10000" min="5000" onchange="onStrategyChange()">
+                    <span class="badge" style="font-size: 0.68rem; background: rgba(255, 209, 102, 0.15); color: #ffd166; border: 1px solid rgba(255, 209, 102, 0.3); margin-top: 4px; display: inline-block;">⚡ 5x Buying Power: ₹10,00,000 Exposure (Desk: ₹1 Crore)</span>
                 </div>
 
                 <div class="config-item" id="cfg-item-max-positions">
@@ -309,8 +309,8 @@
                             <button class="btn-sm btn-outline" onclick="refreshCurrentLedgerTab()">
                                 <i class="fa-solid fa-rotate"></i> Refresh
                             </button>
-                            <button class="btn-sm btn-outline" style="color: #ff7575; border-color: rgba(255, 75, 75, 0.4); font-weight: 700;" onclick="resetPortfolioTo10Lakh()" title="Reset portfolio cash to ₹50,000 and clear holdings">
-                                <i class="fa-solid fa-rotate-left"></i> Reset to ₹50k
+                            <button class="btn-sm btn-outline" style="color: #ffd166; border-color: rgba(255, 209, 102, 0.4); font-weight: 700;" onclick="resetPortfolioTo1Crore()" title="Reset NIGHTHAWK portfolio cash to ₹1,00,00,000 (1 Crore) and clear holdings">
+                                <i class="fa-solid fa-rotate-left"></i> Reset to ₹1 Crore
                             </button>
                         </div>
                     </div>
@@ -541,10 +541,10 @@
                         </div>
 
                         <div class="rule-item">
-                            <div class="rule-icon"><i class="fa-solid fa-bolt" style="color: #00f090;"></i></div>
+                            <div class="rule-icon"><i class="fa-solid fa-bolt" style="color: #ffd166;"></i></div>
                             <div>
-                                <h4>₹50,000 Capital &amp; 5x NSE Leverage</h4>
-                                <p>Trades with standard <strong>5x intraday leverage (20% margin)</strong> on NSE equities. Allocates <strong>₹5,000 margin</strong> to control <strong>₹25,000 buying power</strong> per position, backed by ₹50,000 cash balance.</p>
+                                <h4>₹1,00,00,000 (1 Crore) Capital &amp; 5x Leverage</h4>
+                                <p>Trades with isolated <strong>₹1 Crore cash desk</strong> with standard <strong>5x leverage (20% margin)</strong> on NSE equities. Allocates <strong>₹2,00,000 margin</strong> to control <strong>₹10,00,000 buying power</strong> per position, completely decoupled from Bot ALPHA.</p>
                             </div>
                         </div>
                     </div>
@@ -1585,17 +1585,17 @@
             const localPositions = (typeof getStoredActivePositions === 'function') ? getStoredActivePositions() : [];
             let res;
             if (localPositions.length > 0) {
-                res = await fetch('/api/portfolio', {
+                res = await fetch('/api/after-hours/portfolio', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ client_positions: localPositions })
                 });
             } else {
-                res = await fetch('/api/portfolio');
+                res = await fetch('/api/after-hours/portfolio');
             }
             const data = await res.json();
-            const cash = (data.cash_balance !== undefined) ? data.cash_balance : (data.account ? data.account.cash_balance : 50000);
-            const equity = (data.total_equity !== undefined) ? data.total_equity : (data.account ? data.account.total_equity : 50000);
+            const cash = (data.cash_balance !== undefined) ? data.cash_balance : (data.account ? data.account.cash_balance : 10000000);
+            const equity = (data.total_equity !== undefined) ? data.total_equity : (data.account ? data.account.total_equity : 10000000);
             const pnl = (data.unrealized_pnl !== undefined) ? data.unrealized_pnl : (data.account ? data.account.unrealized_pnl : 0);
 
             document.getElementById('nav-total-equity').innerText = `₹${equity.toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
@@ -2118,7 +2118,7 @@
             scan_mode: document.getElementById('bot-scan-mode')?.value || 'ALL_NIFTY_200',
             single_symbol: document.getElementById('bot-symbol')?.value?.trim()?.toUpperCase() || 'RELIANCE.NS',
             strategy: document.getElementById('bot-strategy')?.value || '123_REVERSAL',
-            allocation_per_trade: parseFloat(document.getElementById('bot-allocation')?.value) || 5000,
+            allocation_per_trade: parseFloat(document.getElementById('bot-allocation')?.value) || 200000,
             max_positions: parseInt(document.getElementById('bot-max-positions')?.value) || 3,
             interval_seconds: 60,
             stop_loss_pct: parseFloat(document.getElementById('bot-stop-loss')?.value) || 1.0,
@@ -2274,16 +2274,16 @@
             let res;
             if (localPositions.length > 0) {
                 try {
-                    res = await fetch('/api/portfolio', {
+                    res = await fetch('/api/after-hours/portfolio', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ client_positions: localPositions })
                     });
                 } catch (netErr) {
-                    res = await fetch('/api/portfolio');
+                    res = await fetch('/api/after-hours/portfolio');
                 }
             } else {
-                res = await fetch('/api/portfolio');
+                res = await fetch('/api/after-hours/portfolio');
             }
             const data = await res.json();
             const tbody = document.getElementById('bot-holdings-tbody');
@@ -2760,7 +2760,7 @@
 
     async function loadClosedTrades() {
         try {
-            const res = await fetch('/api/trades/closed');
+            const res = await fetch('/api/after-hours/trades/closed');
             const data = await res.json();
             const trades = data.trades || [];
             cachedClosedTrades = trades;
@@ -2876,7 +2876,7 @@
         try {
             const exitOrderSide = isShort ? 'COVER' : 'SELL';
             const currentAvg = getLockedEntryPrice(symbol, 0);
-            const res = await fetch('/api/order', {
+            const res = await fetch('/api/after-hours/order', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ 
@@ -2922,7 +2922,7 @@
         if (!confirm(`Are you sure you want to manually exit / square off ALL ${count} open positions at live market prices?`)) return;
 
         try {
-            const res = await fetch('/api/positions/exit-all', { 
+            const res = await fetch('/api/after-hours/positions/exit-all', { 
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ client_positions: localPositions })
@@ -2945,17 +2945,17 @@
     }
 
     async function resetAndRestartBot() {
-        if (!confirm('Are you sure you want to RESET & RESTART the bot?\n\n• All open positions will be squared off\n• Desk capital restored to ₹50,000 cash\n• Intraday limits cleared\n• Fresh bot session initiated\n• Bot will immediately restart autonomous scanning')) return;
+        if (!confirm('Are you sure you want to RESET & RESTART NIGHTHAWK?\n\n• All open positions will be squared off\n• Desk capital restored to ₹1,00,00,000 (1 Crore) cash\n• Intraday limits cleared\n• Fresh bot session initiated\n• Bot will immediately restart autonomous scanning')) return;
 
         try {
-            const res = await fetch('/api/after-hours/reset', { method: 'POST' });
+            const res = await fetch('/api/after-hours/reset-and-restart', { method: 'POST' });
             const data = await res.json();
             if (data.success) {
                 try { localStorage.removeItem(POS_ENTRY_LOCK_KEY); } catch(e){}
                 saveStoredActivePositions([]);
                 window.cachedActivePositions = [];
                 resetBotSessionReport(false);
-                showToast('Bot reset and successfully restarted fresh with ₹50,000 capital!', 'success');
+                showToast('NIGHTHAWK reset and restarted with fresh ₹1 Crore capital!', 'success');
                 loadAccountMetrics();
                 loadBotHoldings();
                 loadClosedTrades();
@@ -2968,17 +2968,17 @@
         }
     }
 
-    async function resetPortfolioTo10Lakh() {
-        if (!confirm('Are you sure you want to reset your portfolio back to ₹50,000?\n\n• Cash balance will be restored to ₹50,000\n• All open positions will be cleared\n• Trade history and closed trades report will be reset\n• Bot session trades report will be reset')) return;
+    async function resetPortfolioTo1Crore() {
+        if (!confirm('Are you sure you want to reset NIGHTHAWK portfolio back to ₹1,00,00,000 (1 Crore)?\n\n• Cash balance will be restored to ₹1 Crore\n• All open positions will be cleared\n• Trade history and closed trades report will be reset\n• Bot session trades report will be reset')) return;
 
         try {
-            const res = await fetch('/api/reset-account', { method: 'POST' });
+            const res = await fetch('/api/after-hours/reset-account', { method: 'POST' });
             const data = await res.json();
             if (data.success) {
                 try { localStorage.removeItem(POS_ENTRY_LOCK_KEY); } catch(e){}
                 saveStoredActivePositions([]);
                 window.cachedActivePositions = [];
-                showToast('Portfolio successfully reset back to ₹50,000 cash!', 'success');
+                showToast('NIGHTHAWK portfolio successfully reset back to ₹1,00,00,000 (1 Crore) cash!', 'success');
                 resetBotSessionReport(false);
                 loadAccountMetrics();
                 loadBotHoldings();

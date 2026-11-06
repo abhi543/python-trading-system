@@ -767,6 +767,27 @@
             </nav>
         </div>
         <div class="nav-metrics">
+            {% if request.path == '/bot-after-hours' or request.path == '/after-hours' %}
+            <div class="metric-box">
+                <span class="metric-title"><i class="fa-solid fa-moon" style="color: #ffd166;"></i> NIGHTHAWK EQUITY</span>
+                <span class="metric-value text-green" id="nav-total-equity">₹1,00,00,000.00</span>
+            </div>
+            <div class="metric-box">
+                <span class="metric-title">NIGHTHAWK CASH</span>
+                <span class="metric-value" id="nav-cash-balance">₹1,00,00,000.00</span>
+            </div>
+            <div class="metric-box">
+                <span class="metric-title">5X BUYING POWER</span>
+                <span class="metric-value text-green" id="nav-buying-power">₹5,00,00,000.00</span>
+            </div>
+            <div class="metric-box">
+                <span class="metric-title">UNREALIZED P&amp;L</span>
+                <span class="metric-value" id="nav-pnl">₹0.00</span>
+            </div>
+            <button id="reset-account-btn" class="btn-reset" style="background: rgba(255, 209, 102, 0.15); color: #ffd166; border: 1px solid rgba(255, 209, 102, 0.4); font-weight: 700; padding: 0.45rem 0.85rem;" title="Reset NIGHTHAWK balance back to ₹1,00,00,000 (1 Crore)">
+                <i class="fa-solid fa-rotate-left"></i> Reset to ₹1 Crore
+            </button>
+            {% else %}
             <div class="metric-box">
                 <span class="metric-title">TOTAL PORTFOLIO EQUITY</span>
                 <span class="metric-value text-green" id="nav-total-equity">₹50,000.00</span>
@@ -777,7 +798,7 @@
             </div>
             <div class="metric-box">
                 <span class="metric-title">5X BUYING POWER</span>
-                <span class="metric-value text-green" id="nav-buying-power">₹2,50,000.00</span>
+                <span class="metric-value text-green" id="nav-buying-power">₹2,50,00,00.00</span>
             </div>
             <div class="metric-box">
                 <span class="metric-title">UNREALIZED P&amp;L</span>
@@ -786,6 +807,7 @@
             <button id="reset-account-btn" class="btn-reset" style="background: rgba(255, 75, 75, 0.15); color: #ff7575; border: 1px solid rgba(255, 75, 75, 0.4); font-weight: 700; padding: 0.45rem 0.85rem;" title="Reset portfolio balance back to ₹50,000">
                 <i class="fa-solid fa-rotate-left"></i> Reset to ₹50k
             </button>
+            {% endif %}
         </div>
     </header>
 
@@ -800,15 +822,23 @@
             const resetBtn = document.getElementById('reset-account-btn');
             if (resetBtn) {
                 resetBtn.addEventListener('click', async () => {
-                    if (!confirm('Reset paper desk to ₹50,000 cash and restore fresh NIFTY 50 watchlist?')) return;
+                    const isAH = window.location.pathname.includes('after-hours');
+                    const resetUrl = isAH ? '/api/after-hours/reset-account' : '/api/reset-account';
+                    const defaultCashStr = isAH ? '₹1,00,00,000.00' : '₹50,000.00';
+                    const defaultBpStr = isAH ? '₹5,00,00,000.00' : '₹2,50,000.00';
+                    const confirmMsg = isAH ?
+                        'Reset NIGHTHAWK paper desk to ₹1,00,00,000 (1 Crore) cash capital?' :
+                        'Reset paper desk to ₹50,000 cash and restore fresh NIFTY 50 watchlist?';
+
+                    if (!confirm(confirmMsg)) return;
                     try {
-                        const res = await fetch('/api/reset-account', { method: 'POST' });
+                        const res = await fetch(resetUrl, { method: 'POST' });
                         const data = await res.json();
                         if (data.success) {
-                            document.getElementById('nav-total-equity').innerText = '₹50,000.00';
-                            document.getElementById('nav-cash-balance').innerText = '₹50,000.00';
+                            document.getElementById('nav-total-equity').innerText = defaultCashStr;
+                            document.getElementById('nav-cash-balance').innerText = defaultCashStr;
                             const bpEl = document.getElementById('nav-buying-power');
-                            if (bpEl) bpEl.innerText = '₹2,50,000.00';
+                            if (bpEl) bpEl.innerText = defaultBpStr;
                             document.getElementById('nav-pnl').innerText = '₹0.00';
                             document.getElementById('nav-pnl').className = 'metric-value text-green';
                             
@@ -819,7 +849,7 @@
                             if (typeof loadWatchlist === 'function') loadWatchlist();
                             
                             if (typeof showToast === 'function') {
-                                showToast('Desk reset to ₹50,000 cash capital!', 'success');
+                                showToast(isAH ? 'NIGHTHAWK desk reset to ₹1 Crore cash capital!' : 'Desk reset to ₹50,000 cash capital!', 'success');
                             }
                         }
                     } catch (e) {
