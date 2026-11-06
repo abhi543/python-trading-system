@@ -25,12 +25,19 @@ def get_candles(symbol):
     return jsonify({"symbol": symbol.upper(), "candles": candles})
 
 def sync_positions_from_client(client_positions):
-    if not client_positions or not isinstance(client_positions, list) or len(client_positions) == 0:
+    if client_positions is None or not isinstance(client_positions, list):
         return
     try:
         from app.models.trading import Position
         from app import db
         from app.services.paper_trader import PaperTradingEngine
+
+        if len(client_positions) == 0:
+            Position.query.delete()
+            db.session.commit()
+            PaperTradingEngine.reconcile_account_balance()
+            return
+
         existing = {p.symbol: p for p in Position.query.all()}
         client_symbols = set()
         for cp in client_positions:
@@ -68,12 +75,20 @@ def sync_positions_from_client(client_positions):
         pass
 
 def sync_after_hours_positions_from_client(client_positions):
-    if not client_positions or not isinstance(client_positions, list) or len(client_positions) == 0:
+    if client_positions is None or not isinstance(client_positions, list):
         return
     try:
         from app.models.trading import AfterHoursPosition
         from app import db
         from app.services.paper_trader import AfterHoursPaperTradingEngine
+
+        # If client explicitly provides 0 positions, wipe all AfterHoursPosition to guarantee 0 P&L
+        if len(client_positions) == 0:
+            AfterHoursPosition.query.delete()
+            db.session.commit()
+            AfterHoursPaperTradingEngine.reconcile_account_balance()
+            return
+
         existing = {p.symbol: p for p in AfterHoursPosition.query.all()}
         client_symbols = set()
         for cp in client_positions:
@@ -640,7 +655,7 @@ def get_after_hours_portfolio():
     if request.method == 'POST':
         data = request.get_json(silent=True) or {}
         client_positions = data.get('client_positions')
-        if client_positions and isinstance(client_positions, list):
+        if client_positions is not None and isinstance(client_positions, list):
             sync_after_hours_positions_from_client(client_positions)
 
     summary = AfterHoursPaperTradingEngine.get_portfolio_summary()

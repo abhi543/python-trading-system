@@ -62,7 +62,7 @@
                 <button id="bot-square-off-btn" class="btn-bot-scan" style="border-color: rgba(255, 75, 75, 0.5); color: #ff7575; font-weight: 700;" onclick="manualSquareOffAll()" title="Immediately close and liquidate all open positions at live market prices">
                     <i class="fa-solid fa-person-running"></i> EXIT ALL POSITIONS (<span id="hero-holdings-count">0</span>)
                 </button>
-                <button id="bot-reset-restart-btn" class="btn-bot-scan" style="border-color: rgba(167, 139, 250, 0.5); color: #c4b5fd; font-weight: 700;" onclick="resetAndRestartBot()" title="Square off all positions, reset desk to ₹50,000 and restart bot">
+                <button id="bot-reset-restart-btn" class="btn-bot-scan" style="border-color: rgba(167, 139, 250, 0.5); color: #c4b5fd; font-weight: 700;" onclick="resetAndRestartBot()" title="Square off all positions, reset desk to ₹1,00,00,000 (1 Crore) and restart bot">
                     <i class="fa-solid fa-arrows-rotate"></i> RESET &amp; RESTART BOT
                 </button>
             </div>
@@ -1428,7 +1428,7 @@
     window.cachedActivePositions = [];
 
     document.addEventListener('DOMContentLoaded', () => {
-        const savedStrat = localStorage.getItem('nifty_bot_strategy') || '123_REVERSAL';
+        const savedStrat = localStorage.getItem('ah_bot_strategy') || '123_REVERSAL';
         const stratEl = document.getElementById('bot-strategy');
         if (stratEl) stratEl.value = savedStrat;
 
@@ -1473,6 +1473,7 @@
         botPoller = setInterval(() => {
             fetchBotStatus(true);
             loadBotHoldings();
+            loadAccountMetrics();
         }, 4000);
     });
 
@@ -1591,12 +1592,19 @@
                     body: JSON.stringify({ client_positions: localPositions })
                 });
             } else {
-                res = await fetch('/api/after-hours/portfolio');
+                res = await fetch('/api/after-hours/portfolio', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ client_positions: [] })
+                });
             }
             const data = await res.json();
             const cash = (data.cash_balance !== undefined) ? data.cash_balance : (data.account ? data.account.cash_balance : 10000000);
             const equity = (data.total_equity !== undefined) ? data.total_equity : (data.account ? data.account.total_equity : 10000000);
-            const pnl = (data.unrealized_pnl !== undefined) ? data.unrealized_pnl : (data.account ? data.account.unrealized_pnl : 0);
+            let pnl = (data.unrealized_pnl !== undefined) ? data.unrealized_pnl : (data.account ? data.account.unrealized_pnl : 0);
+            if (localPositions.length === 0 && (!data.positions || data.positions.length === 0)) {
+                pnl = 0.0;
+            }
 
             document.getElementById('nav-total-equity').innerText = `₹${equity.toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
             document.getElementById('nav-cash-balance').innerText = `₹${cash.toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
@@ -1672,7 +1680,7 @@
         if (data.single_symbol && !document.getElementById('bot-symbol').matches(':focus')) {
             document.getElementById('bot-symbol').value = data.single_symbol;
         }
-        const savedStrat = localStorage.getItem('nifty_bot_strategy');
+        const savedStrat = localStorage.getItem('ah_bot_strategy');
         if (savedStrat) {
             document.getElementById('bot-strategy').value = savedStrat;
         } else if (data.strategy && !document.getElementById('bot-strategy').matches(':focus')) {
@@ -2136,7 +2144,7 @@
         const stratSelect = document.getElementById('bot-strategy');
         if (!stratSelect) return;
         const selectedStrat = stratSelect.value;
-        localStorage.setItem('nifty_bot_strategy', selectedStrat);
+        localStorage.setItem('ah_bot_strategy', selectedStrat);
         const cfg = getCurrentBotConfig();
         cfg.strategy = selectedStrat;
         showToast(`Updating strategy to: ${selectedStrat}...`, 'info');
@@ -2319,8 +2327,14 @@
 
             if (count === 0) {
                 tbody.innerHTML = '<tr><td colspan="10" class="text-center" style="padding: 1.5rem; color: var(--text-muted);">No open positions held. Bot will execute buys when signals trigger.</td></tr>';
+                const pnlEl = document.getElementById('nav-pnl');
+                if (pnlEl) {
+                    pnlEl.innerText = '₹0.00';
+                    pnlEl.className = 'metric-value text-green';
+                }
             } else {
                 tbody.innerHTML = '';
+                let totalHoldingsPnl = 0.0;
                 positions.forEach(p => {
                     // Update current_price from scanner data or radar if available
                     if (allScannerData && allScannerData.length > 0) {
@@ -2341,6 +2355,7 @@
                     const calcPnlPct = marginUsed > 0 ? (calcPnl / marginUsed * 100) : 0.0;
                     p.unrealized_pnl = calcPnl;
                     p.unrealized_pnl_pct = calcPnlPct;
+                    totalHoldingsPnl += calcPnl;
 
                     const tr = document.createElement('tr');
                     const pnlClass = p.unrealized_pnl >= 0 ? 'text-green' : 'text-red';
@@ -2381,6 +2396,12 @@
                     `;
                     tbody.appendChild(tr);
                 });
+
+                const pnlEl = document.getElementById('nav-pnl');
+                if (pnlEl) {
+                    pnlEl.innerText = `${totalHoldingsPnl >= 0 ? '+' : ''}₹${totalHoldingsPnl.toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+                    pnlEl.className = totalHoldingsPnl >= 0 ? 'metric-value text-green' : 'metric-value text-red';
+                }
             }
             // Background sync closed trades badge
             loadClosedTrades();

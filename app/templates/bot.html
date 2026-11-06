@@ -1473,6 +1473,7 @@
         botPoller = setInterval(() => {
             fetchBotStatus(true);
             loadBotHoldings();
+            loadAccountMetrics();
         }, 4000);
     });
 
@@ -1591,12 +1592,19 @@
                     body: JSON.stringify({ client_positions: localPositions })
                 });
             } else {
-                res = await fetch('/api/portfolio');
+                res = await fetch('/api/portfolio', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ client_positions: [] })
+                });
             }
             const data = await res.json();
             const cash = (data.cash_balance !== undefined) ? data.cash_balance : (data.account ? data.account.cash_balance : 50000);
             const equity = (data.total_equity !== undefined) ? data.total_equity : (data.account ? data.account.total_equity : 50000);
-            const pnl = (data.unrealized_pnl !== undefined) ? data.unrealized_pnl : (data.account ? data.account.unrealized_pnl : 0);
+            let pnl = (data.unrealized_pnl !== undefined) ? data.unrealized_pnl : (data.account ? data.account.unrealized_pnl : 0);
+            if (localPositions.length === 0 && (!data.positions || data.positions.length === 0)) {
+                pnl = 0.0;
+            }
 
             document.getElementById('nav-total-equity').innerText = `₹${equity.toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
             document.getElementById('nav-cash-balance').innerText = `₹${cash.toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
@@ -2319,6 +2327,11 @@
 
             if (count === 0) {
                 tbody.innerHTML = '<tr><td colspan="10" class="text-center" style="padding: 1.5rem; color: var(--text-muted);">No open positions held. Bot will execute buys when signals trigger.</td></tr>';
+                const pnlEl = document.getElementById('nav-pnl');
+                if (pnlEl) {
+                    pnlEl.innerText = '₹0.00';
+                    pnlEl.className = 'metric-value text-green';
+                }
             } else {
                 tbody.innerHTML = '';
                 positions.forEach(p => {
