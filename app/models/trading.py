@@ -106,54 +106,9 @@ class WatchlistItem(db.Model):
     symbol = db.Column(db.String(20), unique=True, nullable=False)
     added_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
-CRYPTO_DEFAULT_PAIRS = [
-    'BTC-USD', 'ETH-USD', 'SOL-USD', 'BNB-USD',
-    'XRP-USD', 'DOGE-USD', 'ADA-USD', 'AVAX-USD',
-    'LINK-USD', 'NEAR-USD', 'DOT-USD', 'LTC-USD'
-]
-
-class CryptoAccount(db.Model):
-    __tablename__ = 'crypto_accounts'
-    id = db.Column(db.Integer, primary_key=True)
-    usdt_balance = db.Column(db.Float, nullable=False, default=50000.0)
-    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
-    updated_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
-
-class CryptoPosition(db.Model):
-    __tablename__ = 'crypto_positions'
-    id = db.Column(db.Integer, primary_key=True)
-    symbol = db.Column(db.String(20), nullable=False)
-    side = db.Column(db.String(10), nullable=False, default='LONG')  # LONG or SHORT
-    quantity = db.Column(db.Float, nullable=False, default=0.0)
-    entry_price = db.Column(db.Float, nullable=False, default=0.0)
-    leverage = db.Column(db.Integer, default=1)
-    margin = db.Column(db.Float, default=0.0)
-    liquidation_price = db.Column(db.Float, default=0.0)
-    stop_loss = db.Column(db.Float, default=0.0)
-    take_profit = db.Column(db.Float, default=0.0)
-    updated_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
-
-class CryptoTradeHistory(db.Model):
-    __tablename__ = 'crypto_trade_history'
-    id = db.Column(db.Integer, primary_key=True)
-    symbol = db.Column(db.String(20), nullable=False)
-    side = db.Column(db.String(10), nullable=False)  # BUY, SELL, SHORT, CLOSE
-    quantity = db.Column(db.Float, nullable=False)
-    price = db.Column(db.Float, nullable=False)
-    leverage = db.Column(db.Integer, default=1)
-    total = db.Column(db.Float, nullable=False)
-    margin = db.Column(db.Float, default=0.0)
-    fee = db.Column(db.Float, default=0.0)
-    realized_pnl = db.Column(db.Float, default=0.0)
-    timestamp = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
-
-def init_default_data(initial_cash=1000000.0, initial_crypto_cash=50000.0):
+def init_default_data(initial_cash=1000000.0):
     if not Account.query.first():
         db.session.add(Account(cash_balance=initial_cash))
-        db.session.commit()
-
-    if not CryptoAccount.query.first():
-        db.session.add(CryptoAccount(usdt_balance=initial_crypto_cash))
         db.session.commit()
 
     existing = WatchlistItem.query.all()

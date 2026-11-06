@@ -1,9 +1,8 @@
 from flask import Blueprint, request, jsonify
 from app import db
-from app.models.trading import Account, WatchlistItem, TradeHistory, Position, CryptoAccount, CryptoPosition, CryptoTradeHistory
+from app.models.trading import Account, WatchlistItem, TradeHistory, Position
 from app.services.market_data import MarketDataService
 from app.services.paper_trader import PaperTradingEngine
-from app.services.crypto_trader import CryptoTradingEngine
 from app.services.strategy import StrategyBacktester
 
 api_bp = Blueprint('api', __name__)
@@ -268,22 +267,18 @@ def tick_bot():
 def bot_cron():
     """
     Automated Background Cron trigger called every 1 minute by Vercel Cron or GitHub Actions.
-    Triggers autonomous scanning, after-hours simulation, and order executions.
+    Triggers autonomous scanning, after-hours simulation, and order executions for NIFTY Bot.
     """
     from datetime import datetime
     from app.services.bot import bot_instance
-    from app.services.crypto_bot import crypto_bot_instance
 
     nifty_res = bot_instance.evaluate_signals()
-    crypto_res = crypto_bot_instance.evaluate_signals()
 
     return jsonify({
         "status": "cron_executed",
         "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         "nifty_scanned": len(nifty_res),
-        "crypto_scanned": len(crypto_res),
-        "nifty_bot_running": bot_instance.is_running,
-        "crypto_bot_running": crypto_bot_instance.is_running
+        "nifty_bot_running": bot_instance.is_running
     })
 
 @api_bp.route('/bot/simulate', methods=['POST'])
@@ -314,148 +309,5 @@ def get_replay_data():
         return jsonify(data), 404
     return jsonify(data)
 
-# ==========================================
-# CRYPTO TRADING API ENDPOINTS
-# ==========================================
-@api_bp.route('/crypto/markets', methods=['GET'])
-def get_crypto_markets():
-    markets = CryptoTradingEngine.get_crypto_markets()
-    return jsonify(markets)
-
-@api_bp.route('/crypto/portfolio', methods=['GET'])
-def get_crypto_portfolio():
-    summary = CryptoTradingEngine.get_portfolio_summary()
-    return jsonify(summary)
-
-@api_bp.route('/crypto/order', methods=['POST'])
-def place_crypto_order():
-    body = request.get_json(silent=True) or {}
-    symbol = body.get('symbol', 'BTC-USD')
-    side = body.get('side', 'BUY')
-    quantity = float(body.get('quantity', 0.0))
-    leverage = int(body.get('leverage', 1))
-    order_type = body.get('order_type', 'MARKET')
-    limit_price = float(body.get('limit_price', 0.0))
-    stop_loss = float(body.get('stop_loss', 0.0))
-    take_profit = float(body.get('take_profit', 0.0))
-
-    res = CryptoTradingEngine.execute_order(
-        symbol=symbol,
-        side=side,
-        quantity=quantity,
-        leverage=leverage,
-        order_type=order_type,
-        limit_price=limit_price,
-        stop_loss=stop_loss,
-        take_profit=take_profit
-    )
-    if not res.get("success"):
-        return jsonify(res), 400
-    return jsonify(res)
-
-@api_bp.route('/crypto/close/<int:position_id>', methods=['POST'])
-def close_crypto_position(position_id):
-    res = CryptoTradingEngine.close_position_by_id(position_id)
-    if not res.get("success"):
-        return jsonify(res), 400
-    return jsonify(res)
-
-@api_bp.route('/crypto/trades', methods=['GET'])
-def get_crypto_trades():
-    trades = CryptoTradeHistory.query.order_by(CryptoTradeHistory.timestamp.desc()).limit(100).all()
-    res = []
-    for t in trades:
-        res.append({
-            "id": t.id,
-            "symbol": t.symbol,
-            "displayName": t.symbol.replace('-USD', ''),
-            "side": t.side,
-            "quantity": round(float(t.quantity), 6),
-            "price": round(float(t.price), 4 if t.price < 1 else 2),
-            "leverage": t.leverage,
-            "total": round(float(t.total), 2),
-            "margin": round(float(t.margin), 2),
-            "fee": round(float(t.fee), 4),
-            "realized_pnl": round(float(t.realized_pnl or 0.0), 2),
-            "timestamp": t.timestamp.strftime("%Y-%m-%d %H:%M:%S")
-        })
-    return jsonify(res)
-
-@api_bp.route('/crypto/reset', methods=['POST'])
-def reset_crypto_account():
-    res = CryptoTradingEngine.reset_account()
-    return jsonify(res)
-
-# ==========================================
-# CRYPTO AUTO-TRADING BOT API ENDPOINTS
-# ==========================================
-@api_bp.route('/crypto/bot/status', methods=['GET'])
-def get_crypto_bot_status():
-    from app.services.crypto_bot import crypto_bot_instance
-    return jsonify(crypto_bot_instance.get_status())
-
-@api_bp.route('/crypto/bot/config', methods=['POST'])
-def update_crypto_bot_config():
-    from app.services.crypto_bot import crypto_bot_instance
-    body = request.get_json(silent=True) or {}
-    crypto_bot_instance.update_config(body)
-    return jsonify({"success": True, "status": crypto_bot_instance.get_status()})
-
-@api_bp.route('/crypto/bot/toggle', methods=['POST'])
-def toggle_crypto_bot():
-    from app.services.crypto_bot import crypto_bot_instance
-    body = request.get_json(silent=True) or {}
-    start_req = body.get('start', not crypto_bot_instance.is_running)
-    cfg = body.get('config')
-    if start_req:
-        res = crypto_bot_instance.start(cfg)
-    else:
-        res = crypto_bot_instance.stop()
-    return jsonify(res)
-
-@api_bp.route('/crypto/bot/scan', methods=['POST'])
-def scan_crypto_bot():
-    from app.services.crypto_bot import crypto_bot_instance
-    body = request.get_json(silent=True) or {}
-    cfg = body.get('config')
-    if cfg:
-        crypto_bot_instance.update_config(cfg)
-    target = body.get('symbol')
-    results = crypto_bot_instance.evaluate_signals(target_symbol=target)
-    return jsonify({
-        "success": True,
-        "scanned": len(results),
-        "results": results,
-        "bot_state": crypto_bot_instance.get_status()
-    })
-
-@api_bp.route('/crypto/bot/tick', methods=['POST'])
-def tick_crypto_bot():
-    from app.services.crypto_bot import crypto_bot_instance
-    body = request.get_json(silent=True) or {}
-    cfg = body.get("config") or body
-    if cfg and isinstance(cfg, dict):
-        crypto_bot_instance.update_config(cfg)
-
-    client_running = body.get('is_running')
-    if client_running is None and isinstance(cfg, dict):
-        client_running = cfg.get('is_running')
-    if client_running is not None:
-        crypto_bot_instance.is_running = bool(client_running)
-
-    target = body.get('symbol')
-    results = crypto_bot_instance.evaluate_signals(target_symbol=target)
-    return jsonify({
-        "status": "evaluated",
-        "result": results,
-        "bot_state": crypto_bot_instance.get_status()
-    })
-
-@api_bp.route('/crypto/bot/scanner', methods=['GET'])
-def get_crypto_scanner_results():
-    from app.services.crypto_bot import crypto_bot_instance
-    if not crypto_bot_instance.scanner_results:
-        crypto_bot_instance.evaluate_signals()
-    return jsonify(crypto_bot_instance.scanner_results)
 
 

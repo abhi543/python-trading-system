@@ -10,7 +10,7 @@ jobs:
   ping-bot:
     runs-on: ubuntu-latest
     steps:
-      - name: Trigger NIFTY & Crypto Bot Cron
+      - name: Trigger NIFTY Bot Cron
         run: |
           curl -s -X POST https://python-trading-system.vercel.app/api/bot/cron \
             -H "Content-Type: application/json" \
