@@ -2143,6 +2143,38 @@
     let continuousSimTimer = null;
     let isContinuousSim = false;
 
+    const POS_ENTRY_LOCK_KEY = 'nifty_positions_entry_lock_v1';
+
+    function getLockedEntryPrice(symbol, incomingAvgPrice) {
+        try {
+            let cache = JSON.parse(localStorage.getItem(POS_ENTRY_LOCK_KEY) || '{}');
+            if (cache[symbol] && typeof cache[symbol] === 'number' && cache[symbol] > 0) {
+                return cache[symbol];
+            }
+            cache[symbol] = incomingAvgPrice;
+            localStorage.setItem(POS_ENTRY_LOCK_KEY, JSON.stringify(cache));
+            return incomingAvgPrice;
+        } catch (e) {
+            return incomingAvgPrice;
+        }
+    }
+
+    function cleanClosedPositionsFromLock(activeSymbols) {
+        try {
+            let cache = JSON.parse(localStorage.getItem(POS_ENTRY_LOCK_KEY) || '{}');
+            let changed = false;
+            for (let sym of Object.keys(cache)) {
+                if (!activeSymbols.includes(sym)) {
+                    delete cache[sym];
+                    changed = true;
+                }
+            }
+            if (changed) {
+                localStorage.setItem(POS_ENTRY_LOCK_KEY, JSON.stringify(cache));
+            }
+        } catch (e) {}
+    }
+
     async function loadBotHoldings() {
         try {
             const res = await fetch('/api/portfolio');
@@ -2158,15 +2190,29 @@
             const badge = document.getElementById('holdings-badge-count');
             if (badge) badge.innerText = positions.length;
 
+            const activeSymbols = positions.map(p => p.symbol);
+            cleanClosedPositionsFromLock(activeSymbols);
+
             if (positions.length === 0) {
                 tbody.innerHTML = '<tr><td colspan="10" class="text-center" style="padding: 1.5rem; color: var(--text-muted);">No open positions held. Bot will execute buys when signals trigger.</td></tr>';
             } else {
                 tbody.innerHTML = '';
                 positions.forEach(p => {
+                    // Strictly lock average price to eliminate multi-container serverless fluctuation
+                    p.average_price = getLockedEntryPrice(p.symbol, p.average_price);
+
+                    const isShort = (p.side === 'SHORT');
+                    const costBasis = p.quantity * p.average_price;
+                    const marketVal = p.quantity * p.current_price;
+                    const marginUsed = costBasis / (p.leverage || 5);
+                    const calcPnl = isShort ? (costBasis - marketVal) : (marketVal - costBasis);
+                    const calcPnlPct = marginUsed > 0 ? (calcPnl / marginUsed * 100) : 0.0;
+                    p.unrealized_pnl = calcPnl;
+                    p.unrealized_pnl_pct = calcPnlPct;
+
                     const tr = document.createElement('tr');
                     const pnlClass = p.unrealized_pnl >= 0 ? 'text-green' : 'text-red';
                     const pnlSign = p.unrealized_pnl >= 0 ? '+' : '';
-                    const isShort = (p.side === 'SHORT');
                     const sideBadge = isShort 
                         ? '<span class="side-badge side-short" style="background: rgba(255, 51, 102, 0.15); color: var(--red); border: 1px solid rgba(255, 51, 102, 0.3); padding: 3px 8px; border-radius: 4px; font-weight: 700; font-size: 0.72rem;"><i class="fa-solid fa-arrow-trend-down"></i> SHORT</span>'
                         : '<span class="side-badge side-long" style="background: rgba(0, 240, 144, 0.15); color: var(--green); border: 1px solid rgba(0, 240, 144, 0.3); padding: 3px 8px; border-radius: 4px; font-weight: 700; font-size: 0.72rem;"><i class="fa-solid fa-arrow-trend-up"></i> LONG</span>';
@@ -2189,7 +2235,7 @@
                             ${sideBadge}
                         </td>
                         <td style="font-weight: 700;">${p.quantity}</td>
-                        <td>₹${p.average_price.toFixed(2)}</td>
+                        <td style="font-weight: 700;">₹${p.average_price.toFixed(2)}</td>
                         <td style="font-weight: 700;">₹${p.current_price.toFixed(2)}</td>
                         <td class="${pnlClass}" style="font-weight: 700;">${pnlSign}₹${p.unrealized_pnl.toFixed(2)}</td>
                         <td class="${pnlClass}" style="font-weight: 700;">${pnlSign}${p.unrealized_pnl_pct.toFixed(2)}%</td>
@@ -2722,6 +2768,7 @@
             const res = await fetch('/api/reset-account', { method: 'POST' });
             const data = await res.json();
             if (data.success) {
+                try { localStorage.removeItem(POS_ENTRY_LOCK_KEY); } catch(e){}
                 showToast('Portfolio successfully reset back to ₹50,000 cash!', 'success');
                 resetBotSessionReport(false);
                 loadAccountMetrics();

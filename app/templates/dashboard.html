@@ -512,11 +512,28 @@ async function loadPortfolio() {
         }
 
         tbody.innerHTML = '';
+        const DASH_POS_LOCK_KEY = 'nifty_positions_entry_lock_v1';
+        let dashLock = {};
+        try { dashLock = JSON.parse(localStorage.getItem(DASH_POS_LOCK_KEY) || '{}'); } catch(e){}
+
         data.positions.forEach(pos => {
+            if (dashLock[pos.symbol] && typeof dashLock[pos.symbol] === 'number') {
+                pos.average_price = dashLock[pos.symbol];
+            } else {
+                dashLock[pos.symbol] = pos.average_price;
+            }
+            try { localStorage.setItem(DASH_POS_LOCK_KEY, JSON.stringify(dashLock)); } catch(e){}
+
+            const isShort = (pos.side === 'SHORT');
+            const costBasis = pos.quantity * pos.average_price;
+            const marketVal = pos.quantity * pos.current_price;
+            const marginUsed = costBasis / (pos.leverage || 5);
+            pos.unrealized_pnl = isShort ? (costBasis - marketVal) : (marketVal - costBasis);
+            pos.unrealized_pnl_pct = marginUsed > 0 ? (pos.unrealized_pnl / marginUsed * 100) : 0.0;
+
             const tr = document.createElement('tr');
             const pnlColor = pos.unrealized_pnl >= 0 ? 'text-green' : 'text-red';
             const pnlSign = pos.unrealized_pnl >= 0 ? '+' : '';
-            const isShort = (pos.side === 'SHORT');
             const sideBadge = isShort
                 ? '<span class="badge" style="background: rgba(255, 51, 102, 0.15); color: var(--red); border: 1px solid rgba(255, 51, 102, 0.35); font-weight: 800; font-family: var(--font-code); font-size: 0.72rem; padding: 2px 7px; border-radius: 4px;">SHORT</span>'
                 : '<span class="badge" style="background: rgba(0, 240, 144, 0.15); color: var(--green); border: 1px solid rgba(0, 240, 144, 0.35); font-weight: 800; font-family: var(--font-code); font-size: 0.72rem; padding: 2px 7px; border-radius: 4px;">LONG</span>';
@@ -525,7 +542,7 @@ async function loadPortfolio() {
                 <td><strong>${pos.symbol}</strong></td>
                 <td>${sideBadge}</td>
                 <td>${pos.quantity}</td>
-                <td>₹${pos.average_price.toFixed(2)}</td>
+                <td style="font-weight: 700;">₹${pos.average_price.toFixed(2)}</td>
                 <td>₹${pos.current_price.toFixed(2)}</td>
                 <td>₹${pos.market_value.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
                 <td class="${pnlColor}">${pnlSign}₹${pos.unrealized_pnl.toFixed(2)} (${pnlSign}${pos.unrealized_pnl_pct.toFixed(2)}%)</td>
@@ -687,6 +704,7 @@ function setupEventListeners() {
             const res = await fetch('/api/reset-account', { method: 'POST' });
             const data = await res.json();
             if (data.success) {
+                try { localStorage.removeItem('nifty_positions_entry_lock_v1'); } catch(e){}
                 showToast('Portfolio reset to ₹50,000', 'success');
                 loadPortfolio();
                 loadTrades();
