@@ -269,9 +269,20 @@ class AutoTradingBot:
             self.session_start_time = persisted.get("session_start_time", self.session_start_time)
             self.session_stop_time = persisted.get("session_stop_time", self.session_stop_time)
 
+        market_open = is_nse_market_open()
+        can_run = market_open if self.name == "ALPHA" else not market_open
+        time_restriction_msg = ""
+        if self.name == "ALPHA" and not market_open:
+            time_restriction_msg = "ALPHA runs exclusively during live NSE market hours (09:15 AM – 03:30 PM IST). Market is currently closed. Switch to NIGHTHAWK for after-hours trading."
+        elif self.name == "NIGHTHAWK" and market_open:
+            time_restriction_msg = "NIGHTHAWK runs exclusively after market hours (after 03:30 PM IST & weekends). Live market is currently OPEN. Switch to ALPHA for live day trading."
+
         return {
             "name": self.name,
             "is_running": is_active,
+            "can_run": can_run,
+            "is_market_open": market_open,
+            "time_restriction_msg": time_restriction_msg,
             "is_after_hours": after_hours,
             "is_after_hours_bot": self.is_after_hours_forced,
             "market_status": "AFTER_HOURS_SIMULATION" if after_hours else "LIVE_NSE_MARKET",
@@ -393,6 +404,35 @@ class AutoTradingBot:
         if config:
             self.update_config(config)
 
+        # Enforce Operating Hours:
+        # 1. ALPHA runs ONLY during live market hours (09:15 AM – 03:30 PM IST Mon-Fri)
+        # 2. NIGHTHAWK runs ONLY after market hours (after 03:30 PM IST & weekends)
+        market_open = is_nse_market_open()
+
+        if self.name == "ALPHA" and not market_open:
+            msg = "ALPHA is restricted to LIVE NSE Market hours (09:15 AM – 03:30 PM IST Mon-Fri). Market is currently closed. Please use NIGHTHAWK for after-hours trading!"
+            self.add_log(f"🛑 [ALPHA BLOCKED] {msg}", "WARNING")
+            return {
+                "success": False,
+                "error": msg,
+                "is_market_closed": True,
+                "allowed_engine": "NIGHTHAWK",
+                "switch_url": "/bot-after-hours",
+                "status": self.get_status()
+            }
+
+        if self.name == "NIGHTHAWK" and market_open:
+            msg = "NIGHTHAWK operates strictly after market close (after 03:30 PM IST or weekends). The live NSE Market is currently OPEN! Please use ALPHA for live day trading."
+            self.add_log(f"🛑 [NIGHTHAWK BLOCKED] {msg}", "WARNING")
+            return {
+                "success": False,
+                "error": msg,
+                "is_market_open": True,
+                "allowed_engine": "ALPHA",
+                "switch_url": "/bot",
+                "status": self.get_status()
+            }
+
         # Start a brand new session report on restart/start
         self.start_new_session()
 
@@ -401,7 +441,7 @@ class AutoTradingBot:
         ema_tag = "200 EMA Filter [ON]" if self.use_ema200_filter else "200 EMA Filter [OFF]"
         trail_tag = "Trailing Stop [ON]" if self.use_trailing_stop else "Trailing Stop [OFF]"
         session_tag = "🌙 AFTER-MARKET HOURS (ACTIVE 24/7)" if after_hours else "☀️ LIVE NSE MARKET SESSION"
-        self.add_log(f"Auto-Bot ACTIVATED (Session #{self.session_count}) in {session_tag} on {mode_label} | {self.strategy} | {ema_tag} | {trail_tag} | Margin: ₹{self.allocation_per_trade:,.0f} [5X LEVERAGE: ₹{self.allocation_per_trade * self.leverage:,.0f} Exposure]", "SUCCESS")
+        self.add_log(f"Bot {self.name} ACTIVATED (Session #{self.session_count}) in {session_tag} on {mode_label} | {self.strategy} | {ema_tag} | {trail_tag} | Margin: ₹{self.allocation_per_trade:,.0f} [5X LEVERAGE: ₹{self.allocation_per_trade * self.leverage:,.0f} Exposure]", "SUCCESS")
 
         if not self.thread or not self.thread.is_alive():
             self.thread = threading.Thread(target=self._run_loop, daemon=True)
@@ -742,6 +782,38 @@ class AutoTradingBot:
         """Runs the scanner across all Nifty 50 constituents (or single stock) and auto-trades"""
         import random
         self.last_run_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+        # 0. Enforce Operating Hours: ALPHA strictly during Live Market, NIGHTHAWK strictly After Hours
+        market_open = is_nse_market_open()
+        is_explicit_test = simulation_event in ["FORCE_BUY", "STOP_SHOCK", "BULL_SURGE", "TRAIL_PUSH"]
+
+        if self.name == "ALPHA" and not market_open and not is_explicit_test:
+            if self.is_running:
+                self.is_running = False
+                self.session_status = "MARKET_CLOSED_PAUSED"
+                self.persist_state()
+                self.add_log("⏸️ [ALPHA SLEEP] NSE Market is closed. ALPHA paused until 09:15 AM tomorrow. Use NIGHTHAWK for after-market trading.", "WARNING")
+            return {
+                "total_scanned": 0, "buys_found": 0, "sells_found": 0, "trades_executed": 0,
+                "message": "Market Closed: ALPHA runs exclusively during live NSE market hours (09:15 AM – 03:30 PM IST Mon-Fri).",
+                "is_market_closed": True,
+                "allowed_engine": "NIGHTHAWK",
+                "switch_url": "/bot-after-hours"
+            }
+
+        if self.name == "NIGHTHAWK" and market_open and not is_explicit_test:
+            if self.is_running:
+                self.is_running = False
+                self.session_status = "LIVE_MARKET_PAUSED"
+                self.persist_state()
+                self.add_log("⏸️ [NIGHTHAWK SLEEP] NSE Live Market is currently OPEN. NIGHTHAWK paused. Use ALPHA for live day trading.", "WARNING")
+            return {
+                "total_scanned": 0, "buys_found": 0, "sells_found": 0, "trades_executed": 0,
+                "message": "Live Market Open: NIGHTHAWK runs exclusively after market hours (after 03:30 PM IST or weekends).",
+                "is_market_open": True,
+                "allowed_engine": "ALPHA",
+                "switch_url": "/bot"
+            }
 
         # 1. Handle After-Hours Instant Test Triggers
         if simulation_event == "FORCE_BUY":

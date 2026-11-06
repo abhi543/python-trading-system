@@ -7,6 +7,22 @@
 
     <div id="scanner-view-container">
 
+        <!-- OPERATING HOURS RESTRICTION BANNER FOR ALPHA -->
+        <div id="alpha-market-closed-banner" style="display: none; background: rgba(255, 75, 75, 0.12); border: 1px solid rgba(255, 75, 75, 0.4); border-radius: 12px; padding: 14px 20px; margin-bottom: 1.25rem; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap;">
+            <div style="display: flex; align-items: center; gap: 14px;">
+                <div style="width: 40px; height: 40px; border-radius: 8px; background: rgba(255, 75, 75, 0.2); display: flex; align-items: center; justify-content: center; color: #ff7575; font-size: 1.25rem;">
+                    <i class="fa-solid fa-moon"></i>
+                </div>
+                <div>
+                    <div style="font-weight: 800; font-size: 0.95rem; color: #ff7575; letter-spacing: 0.03em;">NSE MARKET IS CLOSED — BOT ALPHA IS SLEEPING</div>
+                    <div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 2px;">ALPHA can run <strong>ONLY</strong> during live market hours (Mon–Fri 09:15 AM – 03:30 PM IST). To run strategies and simulations after hours, switch to <strong>NIGHTHAWK</strong>.</div>
+                </div>
+            </div>
+            <a href="/bot-after-hours" class="btn-sm" style="background: linear-gradient(135deg, #ffd166, #f39c12); color: #07090e; font-weight: 800; text-decoration: none; padding: 9px 18px; border-radius: 8px; white-space: nowrap; box-shadow: 0 4px 12px rgba(255, 209, 102, 0.25);">
+                <i class="fa-solid fa-moon"></i> OPEN NIGHTHAWK (NIGHT BOT) &rarr;
+            </a>
+        </div>
+
         <!-- HERO / BOT CONTROL HEADER -->
         <div class="bot-hero-card">
             <div class="bot-hero-info">
@@ -1614,13 +1630,20 @@
             setBotActiveState(false, false);
         }
 
-        window.isMarketAfterHours = !!data.is_after_hours;
+        window.isMarketOpen = (data.is_market_open !== undefined) ? !!data.is_market_open : !data.is_after_hours;
+        window.isMarketAfterHours = !window.isMarketOpen;
+
+        const closedBanner = document.getElementById('alpha-market-closed-banner');
+        if (closedBanner) {
+            closedBanner.style.display = (!window.isMarketOpen) ? 'flex' : 'none';
+        }
+
         const sessBadge = document.getElementById('bot-session-badge');
         if (sessBadge) {
-            if (data.is_after_hours) {
-                sessBadge.innerHTML = '<i class="fa-solid fa-moon" style="color: #ffd166;"></i> SESSION: AFTER-HOURS ENGINE (24/7)';
-                sessBadge.style.borderColor = 'rgba(255, 209, 102, 0.4)';
-                sessBadge.style.color = '#ffd166';
+            if (!window.isMarketOpen) {
+                sessBadge.innerHTML = '<i class="fa-solid fa-moon" style="color: #ff7575;"></i> MARKET CLOSED (ALPHA SLEEPING — 09:15 - 15:30 IST)';
+                sessBadge.style.borderColor = 'rgba(255, 75, 75, 0.4)';
+                sessBadge.style.color = '#ff7575';
             } else {
                 sessBadge.innerHTML = '<i class="fa-solid fa-sun" style="color: var(--green);"></i> SESSION: LIVE NSE MARKET SESSION (09:15 - 15:30 IST)';
                 sessBadge.style.borderColor = 'rgba(0, 240, 144, 0.4)';
@@ -1631,9 +1654,14 @@
         if (isBotActive) {
             const statusText = document.getElementById('bot-status-text');
             if (statusText) {
-                statusText.innerHTML = data.is_after_hours ?
-                    '<i class="fa-solid fa-moon"></i> AFTER-MARKET AUTONOMOUS TRADER (24/7 ACTIVE)' :
+                statusText.innerHTML = (!window.isMarketOpen) ?
+                    '<i class="fa-solid fa-moon" style="color: #ff7575;"></i> MARKET CLOSED (ALPHA PAUSED)' :
                     '<i class="fa-solid fa-sun" style="color: var(--green);"></i> LIVE NSE MARKET TRADER (REAL-TIME ACTIVE)';
+            }
+        } else if (!window.isMarketOpen) {
+            const statusText = document.getElementById('bot-status-text');
+            if (statusText) {
+                statusText.innerHTML = '<i class="fa-solid fa-moon" style="color: #ff7575;"></i> MARKET CLOSED (ALPHA SLEEPING)';
             }
         }
 
@@ -2059,7 +2087,6 @@
             renderBotSessionReport();
             switchLedgerTab('session');
 
-            setBotActiveState(true);
             const config = getCurrentBotConfig();
             config.is_running = true;
 
@@ -2070,9 +2097,17 @@
                     body: JSON.stringify(config)
                 });
                 const data = await res.json();
+                if (data.success === false) {
+                    setBotActiveState(false);
+                    if (data.status) updateBotUI(data.status);
+                    showToast(data.error || 'ALPHA operates exclusively during Live Market hours (09:15 AM – 03:30 PM IST).', 'warning');
+                    return;
+                }
                 if (data.status) updateBotUI(data.status);
             } catch (err) {}
-            showToast(`NIFTY 50 Auto-Bot Activated! Started Session #${botSession.session_count || 1} fresh report`, 'success');
+
+            setBotActiveState(true);
+            showToast(`BOT ALPHA Activated! Started Session #${botSession.session_count || 1} fresh report`, 'success');
             tickBotNow();
         }
     }

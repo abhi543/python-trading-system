@@ -7,6 +7,22 @@
 
     <div id="scanner-view-container">
 
+        <!-- OPERATING HOURS RESTRICTION BANNER FOR NIGHTHAWK -->
+        <div id="nighthawk-market-open-banner" style="display: none; background: rgba(0, 240, 144, 0.12); border: 1px solid rgba(0, 240, 144, 0.4); border-radius: 12px; padding: 14px 20px; margin-bottom: 1.25rem; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap;">
+            <div style="display: flex; align-items: center; gap: 14px;">
+                <div style="width: 40px; height: 40px; border-radius: 8px; background: rgba(0, 240, 144, 0.2); display: flex; align-items: center; justify-content: center; color: #00f090; font-size: 1.25rem;">
+                    <i class="fa-solid fa-sun"></i>
+                </div>
+                <div>
+                    <div style="font-weight: 800; font-size: 0.95rem; color: #00f090; letter-spacing: 0.03em;">NSE LIVE MARKET IS CURRENTLY OPEN — NIGHTHAWK IS STANDING BY</div>
+                    <div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 2px;">NIGHTHAWK operates <strong>AFTER MARKET HOURS</strong> (after 03:30 PM IST & weekends). For live day trading on real quotes right now, switch to <strong>ALPHA</strong>.</div>
+                </div>
+            </div>
+            <a href="/bot" class="btn-sm" style="background: linear-gradient(135deg, #00f090, #00c070); color: #07090e; font-weight: 800; text-decoration: none; padding: 9px 18px; border-radius: 8px; white-space: nowrap; box-shadow: 0 4px 12px rgba(0, 240, 144, 0.25);">
+                <i class="fa-solid fa-sun"></i> OPEN ALPHA (DAY BOT) &rarr;
+            </a>
+        </div>
+
         <!-- HERO / BOT CONTROL HEADER -->
         <div class="bot-hero-card">
             <div class="bot-hero-info">
@@ -1614,18 +1630,38 @@
             setBotActiveState(false, false);
         }
 
-        window.isMarketAfterHours = true;
+        window.isMarketOpen = (data.is_market_open !== undefined) ? !!data.is_market_open : !data.is_after_hours;
+        window.isMarketAfterHours = !window.isMarketOpen;
+
+        const openBanner = document.getElementById('nighthawk-market-open-banner');
+        if (openBanner) {
+            openBanner.style.display = (window.isMarketOpen) ? 'flex' : 'none';
+        }
+
         const sessBadge = document.getElementById('bot-session-badge');
         if (sessBadge) {
-            sessBadge.innerHTML = '<i class="fa-solid fa-moon" style="color: #ffd166;"></i> SESSION: AFTER-HOURS ENGINE (24/7 SANDBOX)';
-            sessBadge.style.borderColor = 'rgba(255, 209, 102, 0.4)';
-            sessBadge.style.color = '#ffd166';
+            if (window.isMarketOpen) {
+                sessBadge.innerHTML = '<i class="fa-solid fa-sun" style="color: #00f090;"></i> LIVE MARKET OPEN (NIGHTHAWK STANDING BY — 15:30 IST)';
+                sessBadge.style.borderColor = 'rgba(0, 240, 144, 0.4)';
+                sessBadge.style.color = '#00f090';
+            } else {
+                sessBadge.innerHTML = '<i class="fa-solid fa-moon" style="color: #ffd166;"></i> SESSION: AFTER-HOURS ENGINE (24/7 SANDBOX)';
+                sessBadge.style.borderColor = 'rgba(255, 209, 102, 0.4)';
+                sessBadge.style.color = '#ffd166';
+            }
         }
 
         if (isBotActive) {
             const statusText = document.getElementById('bot-status-text');
             if (statusText) {
-                statusText.innerHTML = '<i class="fa-solid fa-moon" style="color: #ffd166;"></i> AFTER-HOURS TRADER (24/7 ACTIVE)';
+                statusText.innerHTML = window.isMarketOpen ?
+                    '<i class="fa-solid fa-sun" style="color: #00f090;"></i> LIVE MARKET OPEN (NIGHTHAWK PAUSED)' :
+                    '<i class="fa-solid fa-moon" style="color: #ffd166;"></i> AFTER-HOURS TRADER (24/7 ACTIVE)';
+            }
+        } else if (window.isMarketOpen) {
+            const statusText = document.getElementById('bot-status-text');
+            if (statusText) {
+                statusText.innerHTML = '<i class="fa-solid fa-sun" style="color: #00f090;"></i> LIVE MARKET OPEN (NIGHTHAWK STANDING BY)';
             }
         }
 
@@ -2051,7 +2087,6 @@
             renderBotSessionReport();
             switchLedgerTab('session');
 
-            setBotActiveState(true);
             const config = getCurrentBotConfig();
             config.is_running = true;
 
@@ -2062,9 +2097,17 @@
                     body: JSON.stringify(config)
                 });
                 const data = await res.json();
+                if (data.success === false) {
+                    setBotActiveState(false);
+                    if (data.status) updateBotUI(data.status);
+                    showToast(data.error || 'NIGHTHAWK operates exclusively after market hours (after 03:30 PM IST).', 'warning');
+                    return;
+                }
                 if (data.status) updateBotUI(data.status);
             } catch (err) {}
-            showToast(`NIFTY 50 Auto-Bot Activated! Started Session #${botSession.session_count || 1} fresh report`, 'success');
+
+            setBotActiveState(true);
+            showToast(`BOT NIGHTHAWK Activated! Started Session #${botSession.session_count || 1} fresh report`, 'success');
             tickBotNow();
         }
     }
