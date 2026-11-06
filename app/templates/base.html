@@ -757,8 +757,12 @@
                     <i class="fa-solid fa-desktop"></i> Terminal
                 </a>
                 <a href="/bot" class="nav-link {% if request.path == '/bot' %}active{% endif %}">
-                    <i class="fa-solid fa-robot"></i> NIFTY 50 Bot
+                    <i class="fa-solid fa-robot"></i> NIFTY Bot (Live)
                     <span class="bot-nav-dot"></span>
+                </a>
+                <a href="/bot-after-hours" class="nav-link {% if request.path == '/bot-after-hours' or request.path == '/after-hours' %}active{% endif %}" style="border: 1px solid rgba(255, 209, 102, 0.35); background: rgba(255, 209, 102, 0.08);">
+                    <i class="fa-solid fa-moon" style="color: #ffd166;"></i> After-Hours Bot
+                    <span class="bot-nav-dot" style="background: #ffd166;"></span>
                 </a>
             </nav>
         </div>

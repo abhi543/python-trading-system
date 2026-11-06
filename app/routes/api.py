@@ -534,5 +534,96 @@ def get_replay_data():
         return jsonify(data), 404
     return jsonify(data)
 
+# ==============================================================================
+# DEDICATED AFTER-HOURS BOT API ENDPOINTS (ISOLATED RULES & ENGINE)
+# ==============================================================================
+@api_bp.route('/after-hours/status', methods=['GET'])
+def get_after_hours_status():
+    from app.services.bot import after_hours_bot_instance
+    return jsonify(after_hours_bot_instance.get_status())
+
+@api_bp.route('/after-hours/config', methods=['POST'])
+def update_after_hours_config():
+    from app.services.bot import after_hours_bot_instance
+    config = request.get_json(silent=True) or {}
+    after_hours_bot_instance.update_config(config)
+    return jsonify({
+        "status": "config_updated",
+        "bot_state": after_hours_bot_instance.get_status()
+    })
+
+@api_bp.route('/after-hours/start', methods=['POST'])
+def start_after_hours_bot():
+    from app.services.bot import after_hours_bot_instance
+    config = request.get_json(silent=True) or {}
+    res = after_hours_bot_instance.start(config)
+    return jsonify(res)
+
+@api_bp.route('/after-hours/stop', methods=['POST'])
+def stop_after_hours_bot():
+    from app.services.bot import after_hours_bot_instance
+    res = after_hours_bot_instance.stop()
+    return jsonify(res)
+
+@api_bp.route('/after-hours/tick', methods=['POST'])
+def tick_after_hours_bot():
+    from app.services.bot import after_hours_bot_instance
+    body = request.get_json(silent=True) or {}
+    cfg = body.get("config") or body
+    if cfg and isinstance(cfg, dict):
+        after_hours_bot_instance.update_config(cfg)
+
+    client_running = body.get('is_running')
+    if client_running is not None:
+        after_hours_bot_instance.is_running = bool(client_running)
+
+    client_positions = body.get('client_positions')
+    sync_positions_from_client(client_positions)
+
+    event = body.get('event') or 'AFTER_HOURS_WALK'
+    symbol = body.get('symbol')
+    res = after_hours_bot_instance.evaluate_signals(simulation_event=event, target_symbol=symbol)
+    return jsonify({
+        "status": "evaluated",
+        "result": res,
+        "bot_state": after_hours_bot_instance.get_status()
+    })
+
+@api_bp.route('/after-hours/reset', methods=['POST'])
+def reset_after_hours_bot():
+    from app.services.bot import after_hours_bot_instance
+    after_hours_bot_instance.start_new_session()
+    after_hours_bot_instance.logs = []
+    after_hours_bot_instance.last_scan_summary = {
+        "total_scanned": 0,
+        "buys_found": 0,
+        "sells_found": 0,
+        "trades_executed": 0,
+        "scanner_results": []
+    }
+    after_hours_bot_instance.persist_state()
+    return jsonify({
+        "success": True,
+        "message": "After-Hours Bot session and logs reset successfully!",
+        "bot_state": after_hours_bot_instance.get_status()
+    })
+
+@api_bp.route('/after-hours/session-report', methods=['GET'])
+def get_after_hours_session_report():
+    from app.services.bot import after_hours_bot_instance
+    return jsonify({
+        "session": {
+            "session_id": after_hours_bot_instance.session_id,
+            "session_count": after_hours_bot_instance.session_count,
+            "status": after_hours_bot_instance.session_status,
+            "start_time": after_hours_bot_instance.session_start_time,
+            "stop_time": after_hours_bot_instance.session_stop_time,
+            "trades": after_hours_bot_instance.session_trades,
+            "metrics": after_hours_bot_instance.session_metrics,
+            "past_sessions": after_hours_bot_instance.past_sessions
+        }
+    })
+
+
 
 

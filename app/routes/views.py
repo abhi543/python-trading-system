@@ -12,6 +12,11 @@ def dashboard():
 def bot_page():
     return render_template('bot.html')
 
+@views_bp.route('/bot-after-hours')
+@views_bp.route('/after-hours')
+def bot_after_hours_page():
+    return render_template('bot_after_hours.html')
+
 @views_bp.route('/debug-env')
 def debug_env():
     from flask import request

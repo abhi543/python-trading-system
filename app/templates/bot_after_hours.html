@@ -1,0 +1,2961 @@
+{% extends "base.html" %}
+
+{% block title %}NIFTY After-Hours Bot | ALGO-TRADE Pro{% endblock %}
+
+{% block content %}
+<div class="bot-page-container">
+
+    <div id="scanner-view-container">
+
+        <!-- HERO / BOT CONTROL HEADER -->
+        <div class="bot-hero-card">
+            <div class="bot-hero-info">
+                <div class="bot-status-header">
+                    <span class="bot-status-badge status-stopped" id="bot-status-indicator">
+                        <span class="bot-dot"></span>
+                        <span id="bot-status-text">OFFLINE / STOPPED</span>
+                    </span>
+                    <span class="bot-badge-outline"><i class="fa-solid fa-bolt"></i> NIFTY 200 / 50 MULTI-BASKET ENGINE</span>
+                    <span class="bot-badge-outline" style="color: #00f090; border-color: rgba(0, 240, 144, 0.4);"><i class="fa-solid fa-bolt"></i> 5X NSE LEVERAGE</span>
+                    <span class="bot-badge-outline" id="bot-session-badge" style="color: #ffd166; border-color: rgba(255, 209, 102, 0.4);"><i class="fa-solid fa-moon" style="color: #ffd166;"></i> SESSION: AFTER-HOURS ENGINE (24/7 SANDBOX)</span>
+                    <span class="bot-badge-outline" id="bot-interval-badge"><i class="fa-solid fa-clock"></i> CYCLE: 60s (1m)</span>
+                </div>
+                <h1 class="bot-title"><i class="fa-solid fa-moon" style="color: #ffd166;"></i> NIFTY After-Hours Strategy Lab</h1>
+                <p class="bot-subtitle">Dedicated 24/7 testing environment for after-hours rules, custom strategies, and simulated price walks. 100% isolated from the Live Market Bot.</p>
+
+                <!-- 1-MINUTE LIVE SWEEP PROGRESS BAR -->
+                <div class="sweep-progress-container" id="sweep-progress-box">
+                    <div class="sweep-progress-header">
+                        <span class="sweep-progress-title"><i class="fa-solid fa-gauge-high"></i> BASKET SWEEP ENGINE</span>
+                        <span class="sweep-progress-status" id="sweep-countdown-text"><i class="fa-solid fa-pause"></i> BOT PAUSED — 60s CADENCE</span>
+                    </div>
+                    <div class="sweep-progress-track">
+                        <div class="sweep-progress-bar" id="sweep-progress-fill" style="width: 0%;"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bot-hero-actions">
+                <button id="bot-primary-btn" class="btn-bot-start" onclick="toggleBot()">
+                    <i class="fa-solid fa-play"></i> START AFTER-HOURS BOT
+                </button>
+                <button id="bot-scan-btn" class="btn-bot-scan" onclick="tickBotNow()">
+                    <i class="fa-solid fa-arrows-rotate"></i> SIMULATE BASKET SWEEP
+                </button>
+                <button id="bot-square-off-btn" class="btn-bot-scan" style="border-color: rgba(255, 75, 75, 0.5); color: #ff7575; font-weight: 700;" onclick="manualSquareOffAll()" title="Immediately close and liquidate all open positions at live market prices">
+                    <i class="fa-solid fa-person-running"></i> EXIT ALL POSITIONS (<span id="hero-holdings-count">0</span>)
+                </button>
+                <button id="bot-reset-restart-btn" class="btn-bot-scan" style="border-color: rgba(167, 139, 250, 0.5); color: #c4b5fd; font-weight: 700;" onclick="resetAndRestartBot()" title="Square off all positions, reset desk to ₹50,000 and restart bot">
+                    <i class="fa-solid fa-arrows-rotate"></i> RESET &amp; RESTART BOT
+                </button>
+            </div>
+        </div>
+
+        <!-- STRATEGY & RISK PARAMETERS CONTROLS -->
+        <div class="bot-config-card">
+            <div class="config-header" onclick="toggleConfigDrawer()" style="cursor: pointer;">
+                <div>
+                    <h3><i class="fa-solid fa-sliders"></i> Strategy Configuration &amp; Risk Cockpit</h3>
+                    <span class="config-tip"><i class="fa-solid fa-shield-halved"></i> Automated Stop-Loss &amp; Take-Profit guards trigger immediately on signal execution</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 0.75rem;">
+                    <button type="button" id="btn-toggle-config-drawer" class="btn-config-toggle">
+                        <i class="fa-solid fa-sliders"></i> <span id="config-drawer-toggle-text">Show Parameters</span> <i class="fa-solid fa-chevron-down" id="config-drawer-chevron"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- LIVE CONFIG SUMMARY RIBBON (VISIBLE ALWAYS) -->
+            <div class="config-summary-ribbon" id="config-summary-ribbon">
+                <span class="cfg-pill pill-strat" id="ribbon-strat"><i class="fa-solid fa-brain"></i> Strategy: <strong>1-2-3 Reversal Map</strong></span>
+                <span class="cfg-pill pill-universe" id="ribbon-universe"><i class="fa-solid fa-layer-group"></i> Universe: <strong>NIFTY 200</strong></span>
+                <span class="cfg-pill pill-capital" id="ribbon-capital"><i class="fa-solid fa-bolt" style="color: var(--green);"></i> 5x Leverage: <strong>₹5,000 Margin (₹25,000 Exposure)</strong></span>
+                <span class="cfg-pill pill-sl" id="ribbon-sl"><i class="fa-solid fa-shield-halved"></i> SL: <strong>Pattern Stop (Point 3)</strong></span>
+                <span class="cfg-pill pill-tp" id="ribbon-tp"><i class="fa-solid fa-bullseye"></i> TP: <strong>Measured Move</strong></span>
+                <span class="cfg-pill pill-filter" id="ribbon-ema"><i class="fa-solid fa-filter" style="color: var(--green);"></i> 200 EMA Filter: <strong>ON</strong></span>
+                <span class="cfg-pill pill-filter" id="ribbon-trailing"><i class="fa-solid fa-anchor" style="color: var(--blue);"></i> Trailing SL: <strong>ON</strong></span>
+            </div>
+
+            <div class="config-grid" id="bot-config-grid" style="display: none;">
+                <div class="config-item">
+                    <label><i class="fa-solid fa-layer-group"></i> SCANNING UNIVERSE</label>
+                    <select id="bot-scan-mode" class="config-select" onchange="onScanModeChange();">
+                        <option value="ALL_NIFTY_200" selected>All NIFTY 200 Basket (Top 200 Stocks)</option>
+                        <option value="ALL_NIFTY_50">All NIFTY 50 Basket (Top 50 Stocks)</option>
+                        <option value="SINGLE">Single Stock Focus</option>
+                    </select>
+                </div>
+
+                <div class="config-item" id="single-symbol-group" style="display: none;">
+                    <label><i class="fa-solid fa-bullseye"></i> TARGET SYMBOL</label>
+                    <input type="text" id="bot-symbol" class="config-input" value="RELIANCE.NS" placeholder="RELIANCE.NS">
+                </div>
+
+                <div class="config-item">
+                    <label><i class="fa-solid fa-chart-line"></i> STRATEGY MODEL</label>
+                    <select id="bot-strategy" class="config-select" onchange="onStrategyChange()">
+                        <option value="123_REVERSAL" selected>1-2-3 Reversal Map [AGPro Series v2.1] (Neckline Break &amp; Target)</option>
+                        <option value="SMA_CROSSOVER">Dual SMA Golden/Death Cross (9 / 21)</option>
+                        <option value="RSI_MOMENTUM">RSI Mean Reversion (14-Period, 35/65)</option>
+                    </select>
+                </div>
+
+                <div class="config-item">
+                    <label><i class="fa-solid fa-indian-rupee-sign"></i> MARGIN PER TRADE (₹) [5X LEVERAGE]</label>
+                    <input type="number" id="bot-allocation" class="config-input" value="5000" step="1000" min="1000" onchange="onStrategyChange()">
+                    <span class="badge" style="font-size: 0.68rem; background: rgba(0, 240, 144, 0.15); color: var(--green); border: 1px solid rgba(0, 240, 144, 0.3); margin-top: 4px; display: inline-block;">⚡ 5x Buying Power: ₹25,000 Exposure</span>
+                </div>
+
+                <div class="config-item" id="cfg-item-max-positions">
+                    <label><i class="fa-solid fa-boxes-stacked"></i> MAX CONCURRENT POSITIONS</label>
+                    <input type="number" id="bot-max-positions" class="config-input" value="3" min="1" max="50" onchange="onStrategyChange()">
+                    <span id="badge-unlimited-pos" class="badge" style="font-size: 0.68rem; background: rgba(0, 240, 144, 0.15); color: var(--green); border: 1px solid rgba(0, 240, 144, 0.3); margin-top: 4px; display: inline-block;">✨ Unlimited (1-2-3 Mode)</span>
+                </div>
+
+                <div class="config-item" id="cfg-item-stop-loss">
+                    <label><i class="fa-solid fa-arrow-down" style="color: var(--red);"></i> STOP-LOSS</label>
+                    <input type="number" id="bot-stop-loss" class="config-input" value="1.0" step="0.1" min="0.1" onchange="onStrategyChange()">
+                    <span id="badge-strat-sl" class="badge" style="font-size: 0.68rem; background: rgba(255, 51, 102, 0.15); color: var(--red); border: 1px solid rgba(255, 51, 102, 0.3); margin-top: 4px; display: inline-block;">📍 Point 3 Pattern Stop (Indicator)</span>
+                </div>
+
+                <div class="config-item" id="cfg-item-take-profit">
+                    <label><i class="fa-solid fa-arrow-up" style="color: var(--green);"></i> TARGET</label>
+                    <input type="number" id="bot-take-profit" class="config-input" value="1.0" step="0.1" min="0.1" onchange="onStrategyChange()">
+                    <span id="badge-strat-tp" class="badge" style="font-size: 0.68rem; background: rgba(0, 240, 144, 0.15); color: var(--green); border: 1px solid rgba(0, 240, 144, 0.3); margin-top: 4px; display: inline-block;">🎯 Measured Move (Indicator)</span>
+                </div>
+
+                <div class="config-item" style="display: flex; flex-direction: column; justify-content: center;">
+                    <label style="cursor: pointer; display: flex; align-items: center; gap: 0.5rem;">
+                        <input type="checkbox" id="bot-use-ema200" checked style="accent-color: var(--green); width: 16px; height: 16px;" onchange="onStrategyChange()">
+                        <span><i class="fa-solid fa-shield-halved" style="color: var(--green);"></i> 200 EMA Trend Filter</span>
+                    </label>
+                    <span style="font-size: 0.68rem; color: var(--text-muted); margin-top: 3px;">Only BUY if price &gt; 200 EMA</span>
+                </div>
+
+                <div class="config-item" style="display: flex; flex-direction: column; justify-content: center;">
+                    <label style="cursor: pointer; display: flex; align-items: center; gap: 0.5rem;">
+                        <input type="checkbox" id="bot-use-trailing" checked style="accent-color: var(--blue); width: 16px; height: 16px;" onchange="onStrategyChange()">
+                        <span><i class="fa-solid fa-shield-heart" style="color: var(--blue);"></i> Trailing Stop &amp; Breakeven</span>
+                    </label>
+                    <span style="font-size: 0.68rem; color: var(--text-muted); margin-top: 3px;">Ratchets to Breakeven at +1.0%</span>
+                </div>
+
+                <div class="config-item" style="display: flex; flex-direction: column; justify-content: center;">
+                    <label style="cursor: pointer; display: flex; align-items: center; gap: 0.5rem;">
+                        <input type="checkbox" id="bot-use-atr" style="accent-color: #a78bfa; width: 16px; height: 16px;" onchange="onStrategyChange()">
+                        <span><i class="fa-solid fa-arrows-split-up-and-left" style="color: #a78bfa;"></i> ATR Dynamic Exits</span>
+                    </label>
+                    <span style="font-size: 0.68rem; color: var(--text-muted); margin-top: 3px;">1.5x ATR Stop / 3.0x ATR Target</span>
+                </div>
+
+                <div class="config-item" style="display: flex; flex-direction: column; justify-content: center;">
+                    <label style="cursor: pointer; display: flex; align-items: center; gap: 0.5rem;">
+                        <input type="checkbox" id="bot-use-vol" style="accent-color: #ffd166; width: 16px; height: 16px;">
+                        <span><i class="fa-solid fa-fire-flame-curved" style="color: #ffd166;"></i> Volume Surge Check</span>
+                    </label>
+                    <span style="font-size: 0.68rem; color: var(--text-muted); margin-top: 3px;">Trigger only on volume &gt; 20-day avg</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- METRICS TELEMETRY CARDS -->
+        <div class="bot-kpi-grid">
+            <div class="kpi-card">
+                <div class="kpi-icon icon-blue"><i class="fa-solid fa-magnifying-glass-chart"></i></div>
+                <div class="kpi-body">
+                    <span class="kpi-title">NIFTY 50 SCANNED</span>
+                    <span class="kpi-value" id="kpi-scanned">0 / 50</span>
+                    <span class="kpi-sub">Constituents monitored</span>
+                </div>
+            </div>
+
+            <div class="kpi-card">
+                <div class="kpi-icon icon-green"><i class="fa-solid fa-arrow-trend-up"></i></div>
+                <div class="kpi-body">
+                    <span class="kpi-title">BUY SIGNALS FOUND</span>
+                    <span class="kpi-value text-green" id="kpi-buys">0</span>
+                    <span class="kpi-sub" id="kpi-buys-sub">Golden Cross / Oversold</span>
+                </div>
+            </div>
+
+            <div class="kpi-card">
+                <div class="kpi-icon icon-red"><i class="fa-solid fa-arrow-trend-down"></i></div>
+                <div class="kpi-body">
+                    <span class="kpi-title">SELL / EXIT SIGNALS</span>
+                    <span class="kpi-value text-red" id="kpi-sells">0</span>
+                    <span class="kpi-sub" id="kpi-sells-sub">Death Cross / Overbought</span>
+                </div>
+            </div>
+
+            <div class="kpi-card">
+                <div class="kpi-icon icon-purple"><i class="fa-solid fa-robot"></i></div>
+                <div class="kpi-body">
+                    <span class="kpi-title">BOT TRADES EXECUTED</span>
+                    <span class="kpi-value" id="kpi-trades">0</span>
+                    <span class="kpi-sub" id="kpi-last-run">Last run: Waiting...</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- MAIN TWO-COLUMN SPLIT: RADAR & HOLDINGS ON LEFT, TERMINAL ON RIGHT -->
+        <div class="bot-main-layout">
+            
+            <!-- LEFT COLUMN: SIGNAL RADAR & POSITIONS -->
+            <div class="bot-left-col">
+                
+                <!-- NIFTY LIVE SIGNAL RADAR -->
+                <div class="bot-section-card">
+                    <div class="section-card-header">
+                        <div>
+                            <h3 id="radar-title-text"><i class="fa-solid fa-satellite-dish" style="color: var(--blue);"></i> NIFTY Multi-Basket Signal Radar</h3>
+                            <span class="card-caption">Real-time technical indicator calculations, trend momentum &amp; automated trade signals</span>
+                        </div>
+                        <div class="table-search-box">
+                            <i class="fa-solid fa-search"></i>
+                            <input type="text" id="radar-search" placeholder="Filter stock (e.g. INFY, RELIANCE)..." oninput="applyRadarFilters()">
+                        </div>
+                    </div>
+
+                    <!-- QUICK RADAR FILTER CHIPS -->
+                    <div class="radar-filter-bar">
+                        <button type="button" class="radar-chip active" id="chip-filter-all" onclick="setRadarFilter('ALL')">
+                            <i class="fa-solid fa-border-all"></i> All Stocks <span class="chip-count" id="count-chip-all">0</span>
+                        </button>
+                        <button type="button" class="radar-chip chip-buy" id="chip-filter-buy" onclick="setRadarFilter('BUY')">
+                            <i class="fa-solid fa-circle-arrow-up"></i> BUY Signals <span class="chip-count" id="count-chip-buy">0</span>
+                        </button>
+                        <button type="button" class="radar-chip chip-sell" id="chip-filter-sell" onclick="setRadarFilter('SELL')">
+                            <i class="fa-solid fa-circle-arrow-down"></i> SELL / Exits <span class="chip-count" id="count-chip-sell">0</span>
+                        </button>
+                        <button type="button" class="radar-chip chip-held" id="chip-filter-held" onclick="setRadarFilter('HELD')">
+                            <i class="fa-solid fa-briefcase"></i> In Portfolio <span class="chip-count" id="count-chip-held">0</span>
+                        </button>
+                        <button type="button" class="radar-chip chip-gainers" id="chip-filter-gainers" onclick="setRadarFilter('GAINERS')">
+                            <i class="fa-solid fa-arrow-trend-up"></i> Top Gainers <span class="chip-count" id="count-chip-gainers">0</span>
+                        </button>
+                        <button type="button" class="radar-chip chip-dips" id="chip-filter-dips" onclick="setRadarFilter('DIPS')">
+                            <i class="fa-solid fa-arrow-trend-down"></i> Deep Dips <span class="chip-count" id="count-chip-dips">0</span>
+                        </button>
+                    </div>
+
+                    <div class="table-wrapper sticky-scroll">
+                        <table class="data-table sticky-header" id="nifty-radar-table">
+                            <thead>
+                                <tr>
+                                    <th>STOCK</th>
+                                    <th style="min-width: 68px;">TREND</th>
+                                    <th>SIDE</th>
+                                    <th>LTP</th>
+                                    <th>24H CHG</th>
+                                    <th>SIGNAL</th>
+                                    <th>INDICATOR METRICS</th>
+                                    <th>BOT ACTION</th>
+                                    <th>ACTION</th>
+                                </tr>
+                            </thead>
+                            <tbody id="bot-scanner-tbody">
+                                <tr>
+                                    <td colspan="9" class="text-center" style="padding: 2.5rem; color: var(--text-muted);">
+                                        <i class="fa-solid fa-satellite fa-spin" style="font-size: 1.5rem; margin-bottom: 0.75rem; color: var(--blue);"></i><br>
+                                        NIFTY Scanner Ready. Click <strong>"SIMULATE BASKET SWEEP"</strong> or start the bot to sweep the entire basket.
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- PORTFOLIO LEDGER: BOT SESSION REPORT, ACTIVE HOLDINGS & CLOSED TRADES -->
+                <div class="bot-section-card" style="margin-top: 1.5rem;">
+                    <div class="section-card-header" style="flex-wrap: wrap; gap: 0.75rem;">
+                        <div class="ledger-tab-buttons" style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                            <button id="tab-btn-session-report" class="ledger-tab-btn active" onclick="switchLedgerTab('session')">
+                                <i class="fa-solid fa-chart-pie" style="color: var(--green);"></i> Bot Session Report (<span id="session-trades-badge-count">0</span>)
+                            </button>
+                            <button id="tab-btn-active-holdings" class="ledger-tab-btn" onclick="switchLedgerTab('active')">
+                                <i class="fa-solid fa-briefcase" style="color: var(--blue);"></i> Active Holdings (<span id="holdings-badge-count">0</span>)
+                            </button>
+                            <button id="tab-btn-closed-trades" class="ledger-tab-btn" onclick="switchLedgerTab('closed')">
+                                <i class="fa-solid fa-receipt" style="color: #ffd166;"></i> All Closed Trades (<span id="closed-trades-badge-count">0</span>)
+                            </button>
+                        </div>
+                        <div style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
+                            <button id="btn-export-session-csv" class="btn-sm btn-outline" onclick="exportSessionTradesCSV()">
+                                <i class="fa-solid fa-file-csv" style="color: var(--green);"></i> Export Session CSV
+                            </button>
+                            <button id="btn-export-csv" class="btn-sm btn-outline" onclick="exportClosedTradesCSV()" style="display: none;">
+                                <i class="fa-solid fa-file-csv" style="color: #ffd166;"></i> Export All Closed
+                            </button>
+                            <button class="btn-sm btn-outline" style="color: #ff5252; border-color: rgba(255, 82, 82, 0.4); font-weight: 700;" onclick="manualSquareOffAll()" title="Manually exit and liquidate all active positions">
+                                <i class="fa-solid fa-person-running"></i> Exit All (<span id="tab-holdings-count">0</span>)
+                            </button>
+                            <button class="btn-sm btn-outline" onclick="refreshCurrentLedgerTab()">
+                                <i class="fa-solid fa-rotate"></i> Refresh
+                            </button>
+                            <button class="btn-sm btn-outline" style="color: #ff7575; border-color: rgba(255, 75, 75, 0.4); font-weight: 700;" onclick="resetPortfolioTo10Lakh()" title="Reset portfolio cash to ₹50,000 and clear holdings">
+                                <i class="fa-solid fa-rotate-left"></i> Reset to ₹50k
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- TAB 0: BOT SESSION TRADES REPORT (PRESERVED UNTIL BOT RESTART) -->
+                    <div id="view-session-report" style="display: block; padding: 1rem 1.25rem;">
+                        <!-- SESSION STATUS STRIP -->
+                        <div class="session-banner" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.75rem; background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 8px; padding: 0.75rem 1rem; margin-bottom: 1rem;">
+                            <div>
+                                <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
+                                    <span class="badge" id="session-status-badge" style="background: rgba(255, 209, 102, 0.15); color: #ffd166; border: 1px solid rgba(255, 209, 102, 0.3); font-weight: 700; font-size: 0.75rem;">
+                                        <i class="fa-solid fa-circle-pause"></i> SESSION STOPPED (REPORT PRESERVED)
+                                    </span>
+                                    <span style="font-size: 0.82rem; font-weight: 700; color: #fff;" id="session-id-display">Session #1</span>
+                                    <span style="font-size: 0.75rem; color: var(--text-muted);" id="session-time-range">Waiting to start</span>
+                                </div>
+                                <p style="font-size: 0.72rem; color: var(--text-muted); margin: 4px 0 0 0;">
+                                    <i class="fa-solid fa-shield-halved" style="color: var(--green);"></i>
+                                    <span id="session-banner-note">Trades executed by your bot remain preserved here until you restart the bot. When restarted, a fresh report will begin.</span>
+                                </p>
+                            </div>
+                            <div style="display: flex; gap: 0.5rem; align-items: center;">
+                                <button class="btn-sm btn-outline" onclick="resetBotSessionReport(true)" style="font-size: 0.75rem; color: #ff7575; border-color: rgba(255, 75, 75, 0.3);" title="Clear current session report and start fresh">
+                                    <i class="fa-solid fa-rotate-left"></i> Reset Report
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- SCORECARD METRICS STRIP -->
+                        <div class="closed-trades-scorecard">
+                            <div class="score-card-item">
+                                <span class="score-label">SESSION TRADES</span>
+                                <span class="score-val" id="sess-total-trades" style="color: #fff;">0</span>
+                                <span class="score-sub" id="sess-buys-sells">0 Buys / 0 Exits</span>
+                            </div>
+                            <div class="score-card-item">
+                                <span class="score-label">SESSION REALIZED P&L</span>
+                                <span class="score-val text-green" id="sess-net-pnl">₹0.00</span>
+                                <span class="score-sub">From closed positions</span>
+                            </div>
+                            <div class="score-card-item">
+                                <span class="score-label">SESSION WIN RATE</span>
+                                <span class="score-val" id="sess-win-rate">0.0%</span>
+                                <span class="score-sub" id="sess-wins-losses">0 Wins / 0 Losses</span>
+                            </div>
+                            <div class="score-card-item">
+                                <span class="score-label">SESSION CHARGES &amp; TAXES</span>
+                                <span class="score-val" id="sess-charges" style="color: #fca5a5;">₹0.00</span>
+                                <span class="score-sub">Brokerage + STT + GST</span>
+                            </div>
+                            <div class="score-card-item">
+                                <span class="score-label">SESSION STATE</span>
+                                <span class="score-val" id="sess-status-pill" style="font-size: 0.95rem; color: #ffd166;">STOPPED</span>
+                                <span class="score-sub" id="sess-status-sub">Report Preserved</span>
+                            </div>
+                        </div>
+
+                        <!-- SESSION TRADES TABLE -->
+                        <div class="table-wrapper" style="margin-top: 1rem;">
+                            <table class="data-table">
+                                <thead>
+                                    <tr>
+                                        <th>TIME</th>
+                                        <th>STOCK</th>
+                                        <th>ACTION</th>
+                                        <th>QTY</th>
+                                        <th>PRICE (₹)</th>
+                                        <th>NOTIONAL (₹)</th>
+                                        <th>CHARGES (₹)</th>
+                                        <th>REALIZED P&L (₹)</th>
+                                        <th>RETURN (%)</th>
+                                        <th>STRATEGY / SIGNAL REASON</th>
+                                        <th>STATUS</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="bot-session-trades-tbody">
+                                    <tr>
+                                        <td colspan="11" class="text-center" style="padding: 1.5rem; color: var(--text-muted);">
+                                            No bot trades executed in this session yet. When you activate your bot, every BUY order and SELL exit (stop-loss / target / trailing stop) will be logged here and preserved until you stop the bot.
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- TAB 1: ACTIVE HOLDINGS -->
+                    <div id="view-active-holdings" class="table-wrapper" style="display: none;">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>SYMBOL</th>
+                                    <th>SIDE</th>
+                                    <th>QTY</th>
+                                    <th>AVG PRICE</th>
+                                    <th>CURRENT</th>
+                                    <th>P&L (₹)</th>
+                                    <th>P&L (%)</th>
+                                    <th>STOP-LOSS</th>
+                                    <th>TARGET</th>
+                                    <th>MANUAL EXIT</th>
+                                </tr>
+                            </thead>
+                            <tbody id="bot-holdings-tbody">
+                                <tr>
+                                    <td colspan="10" class="text-center" style="padding: 1.5rem; color: var(--text-muted);">No open positions held.</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- TAB 2: CLOSED TRADES REPORT & PERFORMANCE SCORECARD -->
+                    <div id="view-closed-trades" style="display: none; padding: 1rem 1.25rem;">
+                        <!-- SCORECARD METRICS STRIP -->
+                        <div class="closed-trades-scorecard">
+                            <div class="score-card-item">
+                                <span class="score-label">NET REALIZED P&L</span>
+                                <span class="score-val text-green" id="closed-net-pnl">₹0.00</span>
+                            </div>
+                            <div class="score-card-item">
+                                <span class="score-label">TOTAL CHARGES &amp; TAXES</span>
+                                <span class="score-val" id="closed-total-charges" style="color: #fca5a5;">₹0.00</span>
+                                <span class="score-sub">Brokerage + STT + Exch + GST</span>
+                            </div>
+                            <div class="score-card-item">
+                                <span class="score-label">WIN RATE</span>
+                                <span class="score-val" id="closed-win-rate">0.0%</span>
+                                <span class="score-sub" id="closed-win-count">0 Wins / 0 Losses</span>
+                            </div>
+                            <div class="score-card-item">
+                                <span class="score-label">TOTAL CLOSED TRADES</span>
+                                <span class="score-val" id="closed-total-count">0</span>
+                            </div>
+                            <div class="score-card-item">
+                                <span class="score-label">AVG P&L / TRADE</span>
+                                <span class="score-val" id="closed-avg-pnl">₹0.00</span>
+                            </div>
+                        </div>
+
+                        <!-- CLOSED TRADES TABLE -->
+                        <div class="table-wrapper" style="margin-top: 1rem;">
+                            <table class="data-table">
+                                <thead>
+                                    <tr>
+                                        <th>EXIT TIME</th>
+                                        <th>STOCK</th>
+                                        <th>SIDE</th>
+                                        <th>QUANTITY</th>
+                                        <th>ENTRY (₹)</th>
+                                        <th>EXIT (₹)</th>
+                                        <th>NOTIONAL (₹)</th>
+                                        <th>CHARGES (₹)</th>
+                                        <th>NET REALIZED P&L (₹)</th>
+                                        <th>RETURN (%)</th>
+                                        <th>STATUS</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="bot-closed-trades-tbody">
+                                    <tr>
+                                        <td colspan="11" class="text-center" style="padding: 1.5rem; color: var(--text-muted);">No closed trades recorded yet. As your bot executes stop-losses or takes profit, closed trades will be logged here.</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                </div>
+
+            </div>
+
+            <!-- RIGHT COLUMN: TERMINAL CONSOLE & STRATEGY RULES -->
+            <div class="bot-right-col">
+
+                <!-- REAL-TIME TERMINAL CONSOLE -->
+                <div class="bot-section-card terminal-card">
+                    <div class="section-card-header terminal-header">
+                        <div class="terminal-title">
+                            <span class="terminal-dot red"></span>
+                            <span class="terminal-dot yellow"></span>
+                            <span class="terminal-dot green"></span>
+                            <span style="margin-left: 0.5rem; font-family: var(--font-code); font-size: 0.8rem; font-weight: 700; color: #fff;">
+                                <i class="fa-solid fa-terminal"></i> BOT EXECUTION STREAM
+                            </span>
+                        </div>
+                        <button class="btn-terminal-clear" onclick="clearBotLogs()"><i class="fa-solid fa-trash-can"></i> Clear</button>
+                    </div>
+                    <div class="bot-terminal-window" id="bot-console-stream">
+                        <div class="terminal-line text-muted">[SYSTEM] Bot console initialized. Waiting for operator command...</div>
+                    </div>
+                </div>
+
+                <!-- STRATEGY BLUEPRINT & RULES -->
+                <div class="bot-section-card" style="margin-top: 1.5rem;">
+                    <div class="section-card-header">
+                        <h3><i class="fa-solid fa-book-bookmark" style="color: #ffd166;"></i> Strategy Blueprint & Rules</h3>
+                    </div>
+                    <div class="rules-body">
+                        <div class="rule-item">
+                            <div class="rule-icon"><i class="fa-solid fa-draw-polygon" style="color: #ffd166;"></i></div>
+                            <div>
+                                <h4>1-2-3 Reversal Map [AGPro Series v2.1]</h4>
+                                <p>Maps confirmed Point 1 (Swing Low/High), Point 2 (Neckline), and Point 3 (Higher Low / Lower High). Confirms on Neckline break with 0-100 Reversal Score, <strong>Measured Move Target</strong> ($P1 \to P2$ height), and <strong>Point 3 Stop Loss Buffer</strong>.</p>
+                            </div>
+                        </div>
+
+                        <div class="rule-item">
+                            <div class="rule-icon"><i class="fa-solid fa-arrows-split-up-and-left" style="color: var(--blue);"></i></div>
+                            <div>
+                                <h4>Two-Way Trading: Long &amp; Short Execution</h4>
+                                <p>Takes <strong>LONG (BUY)</strong> positions on bullish neckline breakouts, and <strong>SHORT (SELL)</strong> positions on bearish breakdowns using 5x intraday leverage.</p>
+                            </div>
+                        </div>
+
+                        <div class="rule-item">
+                            <div class="rule-icon"><i class="fa-solid fa-shield-halved" style="color: var(--green);"></i></div>
+                            <div>
+                                <h4>200 EMA Macro Trend Filter</h4>
+                                <p>Filters out counter-trend entries: Only permits <strong>BUY (Long)</strong> if price &gt; 200 EMA, and only permits <strong>SELL (Short)</strong> if price &lt; 200 EMA.</p>
+                            </div>
+                        </div>
+
+                        <div class="rule-item">
+                            <div class="rule-icon"><i class="fa-solid fa-shield-heart" style="color: var(--blue);"></i></div>
+                            <div>
+                                <h4>Breakeven Shield & Trailing Stop (Option B)</h4>
+                                <p>Once gain touches <strong>+2.0%</strong>, the stop loss ratchets up to entry price (100% Risk-Free). Trails higher peaks at $1.5 \times ATR$ distance.</p>
+                            </div>
+                        </div>
+
+                        <div class="rule-item">
+                            <div class="rule-icon"><i class="fa-solid fa-bolt" style="color: #00f090;"></i></div>
+                            <div>
+                                <h4>₹50,000 Capital &amp; 5x NSE Leverage</h4>
+                                <p>Trades with standard <strong>5x intraday leverage (20% margin)</strong> on NSE equities. Allocates <strong>₹5,000 margin</strong> to control <strong>₹25,000 buying power</strong> per position, backed by ₹50,000 cash balance.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+
+        </div>
+
+    </div>
+
+</div>
+
+<!-- STYLES -->
+<style>
+    /* SIDE BADGES */
+    .side-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        padding: 2px 7px;
+        border-radius: 4px;
+        font-size: 0.72rem;
+        font-weight: 800;
+        font-family: var(--font-code);
+        letter-spacing: 0.5px;
+        white-space: nowrap;
+    }
+    .side-long {
+        background: rgba(0, 240, 144, 0.15);
+        color: var(--green);
+        border: 1px solid rgba(0, 240, 144, 0.35);
+    }
+    .side-short {
+        background: rgba(255, 51, 102, 0.15);
+        color: var(--red);
+        border: 1px solid rgba(255, 51, 102, 0.35);
+    }
+    .side-neutral {
+        background: rgba(126, 139, 166, 0.15);
+        color: var(--text-muted);
+        border: 1px solid rgba(126, 139, 166, 0.25);
+    }
+
+    .bot-page-container {
+        padding: 0;
+        width: 100%;
+        max-width: 100%;
+        margin: 0 auto;
+        display: flex;
+        flex-direction: column;
+        gap: 1.25rem;
+        box-sizing: border-box;
+        overflow-x: hidden;
+    }
+
+
+    /* PORTFOLIO LEDGER TABS & SCORECARD */
+    .ledger-tab-btn {
+        background: transparent;
+        border: 1px solid var(--border);
+        color: var(--text-muted);
+        padding: 6px 14px;
+        border-radius: 6px;
+        font-size: 0.78rem;
+        font-weight: 700;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        transition: all 0.2s;
+    }
+    .ledger-tab-btn:hover {
+        color: #fff;
+        border-color: var(--border-hover);
+    }
+    .ledger-tab-btn.active {
+        background: rgba(255, 255, 255, 0.08);
+        border-color: var(--green);
+        color: #fff;
+    }
+    .closed-trades-scorecard {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+        gap: 0.75rem;
+        background: rgba(13, 20, 36, 0.6);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: 0.85rem 1.25rem;
+    }
+    .score-card-item {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+    }
+    .score-label {
+        font-size: 0.65rem;
+        font-weight: 800;
+        color: var(--text-muted);
+        letter-spacing: 0.05em;
+    }
+    .score-val {
+        font-size: 1.15rem;
+        font-weight: 800;
+        font-family: var(--font-code);
+        color: #fff;
+    }
+    .score-sub {
+        font-size: 0.68rem;
+        color: var(--text-muted);
+    }
+
+
+    /* HERO CARD */
+    .bot-hero-card {
+        background: linear-gradient(135deg, rgba(16, 21, 36, 0.95) 0%, rgba(10, 14, 25, 0.95) 100%);
+        border: 1px solid var(--border-highlight);
+        border-radius: 14px;
+        padding: 1.5rem 1.75rem;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 1.5rem;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+        flex-wrap: wrap;
+        width: 100%;
+        box-sizing: border-box;
+    }
+
+    .bot-hero-info {
+        flex: 1 1 360px;
+        min-width: 0;
+    }
+
+    .bot-status-header {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        margin-bottom: 0.65rem;
+        flex-wrap: wrap;
+    }
+
+    .bot-status-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.35rem 0.85rem;
+        border-radius: 999px;
+        font-size: 0.75rem;
+        font-weight: 800;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+    }
+
+    .status-stopped {
+        background: rgba(126, 139, 166, 0.15);
+        color: var(--text-muted);
+        border: 1px solid rgba(126, 139, 166, 0.3);
+    }
+
+    .status-running {
+        background: rgba(0, 240, 144, 0.15);
+        color: var(--green);
+        border: 1px solid rgba(0, 240, 144, 0.4);
+        box-shadow: 0 0 15px rgba(0, 240, 144, 0.25);
+    }
+
+    .bot-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background-color: currentColor;
+    }
+
+    .status-running .bot-dot {
+        animation: pulse 1.2s infinite;
+    }
+
+    .bot-badge-outline {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+        padding: 0.35rem 0.75rem;
+        border-radius: 999px;
+        font-size: 0.7rem;
+        font-weight: 700;
+        letter-spacing: 0.05em;
+        background: rgba(0, 163, 255, 0.1);
+        border: 1px solid rgba(0, 163, 255, 0.25);
+        color: var(--blue);
+    }
+
+    .bot-title {
+        font-size: 1.85rem;
+        font-weight: 800;
+        letter-spacing: -0.02em;
+        margin-bottom: 0.35rem;
+    }
+
+    .bot-subtitle {
+        color: var(--text-muted);
+        font-size: 0.95rem;
+        max-width: 850px;
+        line-height: 1.5;
+    }
+
+    /* 5-MINUTE LIVE SWEEP PROGRESS BAR */
+    .sweep-progress-container {
+        margin-top: 1rem;
+        background: rgba(13, 20, 36, 0.7);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 10px;
+        padding: 0.65rem 0.9rem;
+        max-width: 580px;
+        box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.4);
+    }
+
+    .sweep-progress-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 0.45rem;
+        font-size: 0.72rem;
+        letter-spacing: 0.04em;
+    }
+
+    .sweep-progress-title {
+        color: var(--text-muted);
+        font-weight: 700;
+        display: flex;
+        align-items: center;
+        gap: 0.4rem;
+    }
+
+    .sweep-progress-status {
+        color: #fff;
+        font-family: var(--font-code);
+        font-weight: 700;
+        font-size: 0.74rem;
+    }
+
+    .sweep-progress-track {
+        width: 100%;
+        height: 6px;
+        background: rgba(255, 255, 255, 0.07);
+        border-radius: 999px;
+        overflow: hidden;
+        position: relative;
+    }
+
+    .sweep-progress-bar {
+        height: 100%;
+        background: linear-gradient(90deg, #00a3ff 0%, #00f090 100%);
+        border-radius: 999px;
+        transition: width 0.9s ease;
+        box-shadow: 0 0 10px rgba(0, 240, 144, 0.45);
+    }
+
+    .bot-hero-actions {
+        display: flex;
+        flex-direction: row;
+        flex-wrap: wrap;
+        gap: 0.65rem;
+        align-items: center;
+        min-width: 0;
+    }
+
+    .btn-bot-start {
+        background: linear-gradient(135deg, #00f090 0%, #00b06c 100%);
+        color: #000;
+        border: none;
+        padding: 0.95rem 1.5rem;
+        border-radius: 10px;
+        font-size: 0.95rem;
+        font-weight: 800;
+        letter-spacing: 0.04em;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.65rem;
+        box-shadow: 0 0 25px rgba(0, 240, 144, 0.35);
+        transition: all 0.2s;
+    }
+
+    .btn-bot-start:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 0 35px rgba(0, 240, 144, 0.55);
+    }
+
+    .btn-bot-stop {
+        background: linear-gradient(135deg, #ff3366 0%, #d41142 100%);
+        color: #fff;
+        border: none;
+        padding: 0.95rem 1.5rem;
+        border-radius: 10px;
+        font-size: 0.95rem;
+        font-weight: 800;
+        letter-spacing: 0.04em;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.65rem;
+        box-shadow: 0 0 25px rgba(255, 51, 102, 0.35);
+        transition: all 0.2s;
+    }
+
+    .btn-bot-scan {
+        background: var(--bg-surface);
+        border: 1px solid var(--border-highlight);
+        color: var(--text-main);
+        padding: 0.75rem 1.25rem;
+        border-radius: 8px;
+        font-size: 0.85rem;
+        font-weight: 700;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.5rem;
+        transition: all 0.2s;
+    }
+
+    .btn-bot-scan:hover {
+        background: var(--bg-hover);
+        border-color: var(--blue);
+        color: var(--blue);
+    }
+
+    /* CONFIGURATION BAR & COLLAPSIBLE DRAWER */
+    .bot-config-card {
+        background: var(--bg-card);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 1.15rem 1.5rem;
+        transition: all 0.2s ease;
+    }
+
+    .config-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 0.5rem;
+        padding-bottom: 0.65rem;
+        border-bottom: 1px solid var(--border);
+    }
+
+    .config-header h3 {
+        font-size: 0.85rem;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: var(--text-muted);
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        margin: 0;
+    }
+
+    .config-tip {
+        font-size: 0.75rem;
+        color: var(--text-muted);
+        display: flex;
+        align-items: center;
+        gap: 0.4rem;
+        margin-top: 0.2rem;
+    }
+
+    .btn-config-toggle {
+        background: rgba(255, 255, 255, 0.06);
+        border: 1px solid var(--border);
+        color: #fff;
+        padding: 6px 14px;
+        border-radius: 8px;
+        font-size: 0.75rem;
+        font-weight: 700;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        transition: all 0.2s ease;
+    }
+
+    .btn-config-toggle:hover {
+        background: rgba(255, 255, 255, 0.12);
+        border-color: var(--border-hover);
+    }
+
+    /* CONFIG SUMMARY RIBBON */
+    .config-summary-ribbon {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+        margin-top: 0.5rem;
+        margin-bottom: 0.75rem;
+    }
+
+    .cfg-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+        padding: 4px 10px;
+        border-radius: 999px;
+        font-size: 0.72rem;
+        font-weight: 600;
+        background: rgba(255, 255, 255, 0.04);
+        border: 1px solid var(--border);
+        color: #cbd5e1;
+    }
+
+    .cfg-pill strong {
+        color: #fff;
+    }
+
+    .pill-strat {
+        border-color: rgba(0, 240, 144, 0.3);
+        background: rgba(0, 240, 144, 0.08);
+        color: var(--green);
+    }
+
+    .pill-universe {
+        border-color: rgba(0, 163, 255, 0.3);
+        background: rgba(0, 163, 255, 0.08);
+        color: var(--blue);
+    }
+
+    .pill-capital {
+        border-color: rgba(255, 209, 102, 0.3);
+        background: rgba(255, 209, 102, 0.08);
+        color: #ffd166;
+    }
+
+    /* RADAR FILTER CHIPS */
+    .radar-filter-bar {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+        margin-bottom: 0.9rem;
+    }
+
+    .radar-chip {
+        background: rgba(255, 255, 255, 0.04);
+        border: 1px solid var(--border);
+        color: var(--text-muted);
+        padding: 5px 12px;
+        border-radius: 999px;
+        font-size: 0.74rem;
+        font-weight: 700;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.45rem;
+        transition: all 0.2s ease;
+    }
+
+    .radar-chip:hover {
+        border-color: rgba(255, 255, 255, 0.3);
+        color: #fff;
+        background: rgba(255, 255, 255, 0.08);
+    }
+
+    .radar-chip.active {
+        background: rgba(255, 255, 255, 0.12);
+        border-color: #fff;
+        color: #fff;
+    }
+
+    .radar-chip.chip-buy.active {
+        background: rgba(0, 240, 144, 0.16);
+        border-color: var(--green);
+        color: var(--green);
+        box-shadow: 0 0 12px rgba(0, 240, 144, 0.25);
+    }
+
+    .radar-chip.chip-sell.active {
+        background: rgba(255, 51, 102, 0.16);
+        border-color: var(--red);
+        color: var(--red);
+        box-shadow: 0 0 12px rgba(255, 51, 102, 0.25);
+    }
+
+    .radar-chip.chip-held.active {
+        background: rgba(0, 163, 255, 0.16);
+        border-color: var(--blue);
+        color: var(--blue);
+    }
+
+    .radar-chip.chip-gainers.active {
+        background: rgba(0, 240, 144, 0.12);
+        border-color: var(--green);
+        color: var(--green);
+    }
+
+    .radar-chip.chip-dips.active {
+        background: rgba(255, 51, 102, 0.12);
+        border-color: var(--red);
+        color: var(--red);
+    }
+
+    .chip-count {
+        background: rgba(255, 255, 255, 0.1);
+        padding: 1px 6px;
+        border-radius: 8px;
+        font-size: 0.68rem;
+        font-family: var(--font-code);
+        font-weight: 800;
+    }
+
+    /* STICKY HEADER & FROSTED GLASS */
+    .sticky-scroll {
+        max-height: 540px;
+        overflow-y: auto;
+        overflow-x: auto;
+        position: relative;
+        scrollbar-width: thin;
+    }
+
+    .data-table.sticky-header thead th {
+        position: sticky;
+        top: 0;
+        z-index: 10;
+        background: rgba(13, 20, 36, 0.96) !important;
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+    }
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: var(--text-muted);
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .config-tip {
+        font-size: 0.75rem;
+        color: var(--text-muted);
+        display: flex;
+        align-items: center;
+        gap: 0.4rem;
+    }
+
+    .config-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+        gap: 1rem;
+    }
+
+    .config-item {
+        display: flex;
+        flex-direction: column;
+        gap: 0.4rem;
+    }
+
+    .config-item label {
+        font-size: 0.7rem;
+        font-weight: 800;
+        letter-spacing: 0.06em;
+        color: var(--text-muted);
+        display: flex;
+        align-items: center;
+        gap: 0.35rem;
+    }
+
+    .config-select, .config-input {
+        background: var(--bg-body);
+        border: 1px solid var(--border);
+        color: var(--text-main);
+        padding: 0.6rem 0.85rem;
+        border-radius: 8px;
+        font-family: var(--font-ui);
+        font-size: 0.85rem;
+        font-weight: 600;
+        outline: none;
+        transition: border 0.15s;
+    }
+
+    .config-select:focus, .config-input:focus {
+        border-color: var(--blue);
+        box-shadow: 0 0 8px var(--blue-glow);
+    }
+
+    /* KPI CARDS */
+    .bot-kpi-grid {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 1rem;
+    }
+
+    .kpi-card {
+        background: var(--bg-card);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 1.15rem 1.35rem;
+        display: flex;
+        align-items: center;
+        gap: 1.15rem;
+    }
+
+    .kpi-icon {
+        width: 46px;
+        height: 46px;
+        border-radius: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.25rem;
+    }
+
+    .icon-blue { background: rgba(0, 163, 255, 0.12); color: var(--blue); border: 1px solid rgba(0, 163, 255, 0.25); }
+    .icon-green { background: rgba(0, 240, 144, 0.12); color: var(--green); border: 1px solid rgba(0, 240, 144, 0.25); }
+    .icon-red { background: rgba(255, 51, 102, 0.12); color: var(--red); border: 1px solid rgba(255, 51, 102, 0.25); }
+    .icon-purple { background: rgba(167, 139, 250, 0.12); color: #a78bfa; border: 1px solid rgba(167, 139, 250, 0.25); }
+
+    .kpi-body {
+        display: flex;
+        flex-direction: column;
+    }
+
+    .kpi-title {
+        font-size: 0.7rem;
+        font-weight: 800;
+        letter-spacing: 0.08em;
+        color: var(--text-muted);
+        text-transform: uppercase;
+    }
+
+    .kpi-value {
+        font-family: var(--font-code);
+        font-size: 1.65rem;
+        font-weight: 800;
+        margin: 0.15rem 0;
+    }
+
+    .kpi-sub {
+        font-size: 0.72rem;
+        color: var(--text-muted);
+    }
+
+    /* TWO-COLUMN LAYOUT */
+    .bot-main-layout {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 380px;
+        gap: 1.25rem;
+        width: 100%;
+        max-width: 100%;
+        box-sizing: border-box;
+    }
+
+    .bot-left-col {
+        min-width: 0;
+        width: 100%;
+        max-width: 100%;
+        display: flex;
+        flex-direction: column;
+        gap: 1.25rem;
+        box-sizing: border-box;
+    }
+
+    .bot-right-col {
+        min-width: 0;
+        width: 100%;
+        max-width: 100%;
+        display: flex;
+        flex-direction: column;
+        gap: 1.25rem;
+        box-sizing: border-box;
+    }
+
+    @media (max-width: 1350px) {
+        .bot-main-layout {
+            grid-template-columns: 1fr;
+        }
+        .bot-right-col {
+            width: 100%;
+        }
+        .bot-kpi-grid {
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+        }
+        .bot-hero-card {
+            flex-direction: column;
+            align-items: stretch;
+        }
+        .bot-hero-actions {
+            width: 100%;
+            flex-direction: row;
+            flex-wrap: wrap;
+        }
+        .terminal-card {
+            height: 420px;
+        }
+    }
+
+    @media (max-width: 768px) {
+        .bot-kpi-grid {
+            grid-template-columns: repeat(2, 1fr);
+        }
+        .btn-bot-start, .btn-bot-scan, .btn-bot-dropdown {
+            width: 100%;
+            justify-content: center;
+        }
+    }
+
+    .bot-section-card {
+        background: var(--bg-card);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+    }
+
+    .section-card-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 1rem 1.35rem;
+        background: rgba(20, 27, 45, 0.6);
+        border-bottom: 1px solid var(--border);
+    }
+
+    .section-card-header h3 {
+        font-size: 0.9rem;
+        font-weight: 800;
+        letter-spacing: 0.04em;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .card-caption {
+        font-size: 0.75rem;
+        color: var(--text-muted);
+        display: block;
+        margin-top: 0.15rem;
+    }
+
+    .table-search-box {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        background: var(--bg-body);
+        border: 1px solid var(--border);
+        padding: 0.4rem 0.75rem;
+        border-radius: 8px;
+    }
+
+    .table-search-box input {
+        background: transparent;
+        border: none;
+        color: var(--text-main);
+        font-size: 0.8rem;
+        outline: none;
+        width: 180px;
+    }
+
+    .table-wrapper {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        max-height: 520px;
+        width: 100%;
+        max-width: 100%;
+        box-sizing: border-box;
+    }
+
+    .table-wrapper table {
+        width: 100%;
+        min-width: 650px;
+    }
+
+    /* TERMINAL CONSOLE */
+    .terminal-card {
+        height: 520px;
+    }
+
+    .terminal-header {
+        background: #090c14 !important;
+        border-bottom: 1px solid #1a2236;
+    }
+
+    .terminal-dot {
+        display: inline-block;
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        margin-right: 4px;
+    }
+    .terminal-dot.red { background: #ff5f56; }
+    .terminal-dot.yellow { background: #ffbd2e; }
+    .terminal-dot.green { background: #27c93f; }
+
+    .btn-terminal-clear {
+        background: transparent;
+        border: 1px solid #2e3c59;
+        color: var(--text-muted);
+        padding: 0.25rem 0.6rem;
+        border-radius: 6px;
+        font-size: 0.7rem;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .btn-terminal-clear:hover {
+        color: #fff;
+        border-color: var(--red);
+    }
+
+    .bot-terminal-window {
+        flex: 1;
+        background: #06080e;
+        padding: 1rem 1.25rem;
+        overflow-y: auto;
+        font-family: var(--font-code);
+        font-size: 0.8rem;
+        line-height: 1.6;
+        display: flex;
+        flex-direction: column-reverse;
+    }
+
+    .terminal-line {
+        margin-bottom: 0.35rem;
+        word-break: break-all;
+    }
+
+    .log-success { color: var(--green); font-weight: 600; }
+    .log-error { color: var(--red); font-weight: 600; }
+    .log-warning { color: #ffd166; }
+    .log-info { color: #93c5fd; }
+
+    /* RULES BLUEPRINT */
+    .rules-body {
+        padding: 1.25rem;
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+    }
+
+    .rule-item {
+        display: flex;
+        gap: 1rem;
+        align-items: flex-start;
+        padding: 0.85rem;
+        background: var(--bg-surface);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+    }
+
+    .rule-icon {
+        font-size: 1.25rem;
+        padding-top: 0.2rem;
+    }
+
+    .rule-item h4 {
+        font-size: 0.85rem;
+        font-weight: 700;
+        margin-bottom: 0.25rem;
+    }
+
+    .rule-item p {
+        font-size: 0.78rem;
+        color: var(--text-muted);
+        line-height: 1.45;
+    }
+
+    .rule-item p strong {
+        color: var(--text-main);
+    }
+</style>
+
+<!-- CLIENT JAVASCRIPT FOR BOT PAGE -->
+<script>
+    let isBotActive = false;
+    let botPoller = null;
+    let botTickTimer = null;
+    let countdownTimer = null;
+    let secondsRemaining = 60;
+    let isScanning = false;
+    let allScannerData = [];
+    let activeRadarFilter = 'ALL';
+    window.cachedActivePositions = [];
+
+    document.addEventListener('DOMContentLoaded', () => {
+        const savedStrat = localStorage.getItem('nifty_bot_strategy') || '123_REVERSAL';
+        const stratEl = document.getElementById('bot-strategy');
+        if (stratEl) stratEl.value = savedStrat;
+
+        // Detect initial NSE market status (Mon-Fri 09:15 - 15:30 IST)
+        const now = new Date();
+        const utc = now.getTime() + (now.getTimezoneOffset() * 60000);
+        const ist = new Date(utc + (3600000 * 5.5));
+        const day = ist.getDay(); // 0 is Sun, 6 is Sat
+        const mins = ist.getHours() * 60 + ist.getMinutes();
+        const isOpen = (day >= 1 && day <= 5) && (mins >= 555 && mins <= 930);
+        window.isMarketAfterHours = !isOpen;
+
+        const initBadge = document.getElementById('bot-session-badge');
+        if (initBadge) {
+            if (isOpen) {
+                initBadge.innerHTML = '<i class="fa-solid fa-sun" style="color: var(--green);"></i> SESSION: AFTER-HOURS SIMULATION ENGINE (24/7)';
+                initBadge.style.borderColor = 'rgba(0, 240, 144, 0.4)';
+                initBadge.style.color = 'var(--green)';
+            } else {
+                initBadge.innerHTML = '<i class="fa-solid fa-moon" style="color: #ffd166;"></i> SESSION: AFTER-HOURS SIMULATION ENGINE (24/7)';
+                initBadge.style.borderColor = 'rgba(255, 209, 102, 0.4)';
+                initBadge.style.color = '#ffd166';
+            }
+        }
+
+        loadStoredBotSession();
+        syncStrategyUIHints();
+        updateConfigSummaryRibbon();
+        fetchBotStatus();
+        loadBotHoldings();
+        loadAccountMetrics();
+
+        const savedState = localStorage.getItem('ah_bot_active_v1') === 'true';
+        if (savedState) {
+            setBotActiveState(true, false);
+            botSession.status = 'RUNNING';
+        } else {
+            botSession.status = 'STOPPED';
+        }
+        renderBotSessionReport();
+
+        botPoller = setInterval(() => {
+            fetchBotStatus(true);
+            loadBotHoldings();
+        }, 4000);
+    });
+
+    // ==========================================
+    // LIVE SCANNER CONTROLS
+    // ==========================================
+    function setBotActiveState(active, notify = true) {
+        isBotActive = active;
+        localStorage.setItem('ah_bot_active_v1', active ? 'true' : 'false');
+
+        const ind = document.getElementById('bot-status-indicator');
+        const text = document.getElementById('bot-status-text');
+        const btn = document.getElementById('bot-primary-btn');
+        const fillBar = document.getElementById('sweep-progress-fill');
+        const textCount = document.getElementById('sweep-countdown-text');
+
+        if (active) {
+            ind.className = 'bot-status-badge status-running';
+            const isLive = (window.isMarketAfterHours === false);
+            text.innerHTML = isLive ?
+                '<i class="fa-solid fa-sun" style="color: var(--green);"></i> LIVE NSE MARKET TRADER (REAL-TIME ACTIVE)' :
+                '<i class="fa-solid fa-moon"></i> AFTER-MARKET AUTONOMOUS TRADER (24/7 ACTIVE)';
+            btn.className = 'btn-bot-stop';
+            btn.innerHTML = '<i class="fa-solid fa-stop"></i> STOP AUTO-BOT';
+
+            if (!botTickTimer) {
+                startCountdown(60);
+                botTickTimer = setInterval(async () => {
+                    if (!isBotActive) return;
+                    await tickBotNow();
+                    startCountdown(60);
+                }, 60000);
+            }
+        } else {
+            ind.className = 'bot-status-badge status-stopped';
+            text.innerText = 'OFFLINE / PAUSED';
+            btn.className = 'btn-bot-start';
+            btn.innerHTML = '<i class="fa-solid fa-play"></i> START AFTER-HOURS BOT';
+
+            if (botTickTimer) {
+                clearInterval(botTickTimer);
+                botTickTimer = null;
+            }
+            if (countdownTimer) {
+                clearInterval(countdownTimer);
+                countdownTimer = null;
+            }
+            document.getElementById('bot-interval-badge').innerHTML = '<i class="fa-solid fa-clock"></i> CYCLE: 60s (PAUSED)';
+            if (fillBar) fillBar.style.width = '0%';
+            if (textCount) textCount.innerHTML = '<i class="fa-solid fa-pause"></i> BOT PAUSED — 60s CADENCE';
+
+            // Clear any active timers
+            if (continuousSimTimer) {
+                clearInterval(continuousSimTimer);
+                continuousSimTimer = null;
+                isContinuousSim = false;
+            }
+        }
+    }
+
+    function startCountdown(seconds) {
+        if (countdownTimer) clearInterval(countdownTimer);
+        const totalSecs = seconds || 60;
+        secondsRemaining = totalSecs;
+        const badge = document.getElementById('bot-interval-badge');
+        const fillBar = document.getElementById('sweep-progress-fill');
+        const textCount = document.getElementById('sweep-countdown-text');
+
+        countdownTimer = setInterval(() => {
+            if (!isBotActive) {
+                clearInterval(countdownTimer);
+                if (fillBar) fillBar.style.width = '0%';
+                if (textCount) textCount.innerHTML = '<i class="fa-solid fa-pause"></i> BOT PAUSED — 60s CADENCE';
+                return;
+            }
+            secondsRemaining--;
+            const elapsed = totalSecs - secondsRemaining;
+            const pct = Math.max(0, Math.min(100, (elapsed / totalSecs) * 100));
+            if (fillBar) fillBar.style.width = `${pct.toFixed(1)}%`;
+
+            if (secondsRemaining <= 0) {
+                badge.innerHTML = '<i class="fa-solid fa-satellite-dish fa-spin" style="color: var(--green);"></i> SWEEPING BASKET NOW...';
+                if (textCount) textCount.innerHTML = '<i class="fa-solid fa-satellite-dish fa-spin" style="color: var(--green);"></i> SWEEPING BASKET NOW...';
+                if (fillBar) fillBar.style.width = '100%';
+                clearInterval(countdownTimer);
+            } else {
+                const mins = Math.floor(secondsRemaining / 60);
+                const secs = secondsRemaining % 60;
+                const timeStr = mins > 0 ? `${mins}m ${secs.toString().padStart(2, '0')}s` : `${secs}s`;
+                badge.innerHTML = `<i class="fa-solid fa-clock" style="color: var(--green);"></i> NEXT SWEEP: ${timeStr}`;
+                if (textCount) textCount.innerHTML = `<i class="fa-solid fa-hourglass-half" style="color: var(--green);"></i> NEXT SWEEP IN: <strong>${timeStr}</strong> (${Math.round(pct)}%)`;
+            }
+        }, 1000);
+    }
+
+    function onScanModeChange() {
+        const mode = document.getElementById('bot-scan-mode').value;
+        const singleGroup = document.getElementById('single-symbol-group');
+        singleGroup.style.display = (mode === 'SINGLE') ? 'flex' : 'none';
+        const scanBtn = document.getElementById('bot-scan-btn');
+        if (scanBtn) {
+            const label = (mode === 'ALL_NIFTY_200') ? 'ALL 200' : ((mode === 'SINGLE') ? 'TARGET' : 'ALL 50');
+            scanBtn.innerHTML = `<i class="fa-solid fa-arrows-rotate"></i> SCAN ${label} NOW`;
+        }
+        updateConfigSummaryRibbon();
+    }
+
+    async function loadAccountMetrics() {
+        try {
+            const localPositions = (typeof getStoredActivePositions === 'function') ? getStoredActivePositions() : [];
+            let res;
+            if (localPositions.length > 0) {
+                res = await fetch('/api/portfolio', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ client_positions: localPositions })
+                });
+            } else {
+                res = await fetch('/api/portfolio');
+            }
+            const data = await res.json();
+            const cash = (data.cash_balance !== undefined) ? data.cash_balance : (data.account ? data.account.cash_balance : 50000);
+            const equity = (data.total_equity !== undefined) ? data.total_equity : (data.account ? data.account.total_equity : 50000);
+            const pnl = (data.unrealized_pnl !== undefined) ? data.unrealized_pnl : (data.account ? data.account.unrealized_pnl : 0);
+
+            document.getElementById('nav-total-equity').innerText = `₹${equity.toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+            document.getElementById('nav-cash-balance').innerText = `₹${cash.toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+            const buyingPower = (data.buying_power !== undefined) ? data.buying_power : (cash * 5);
+            const bpEl = document.getElementById('nav-buying-power');
+            if (bpEl) bpEl.innerText = `₹${buyingPower.toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+            const pnlEl = document.getElementById('nav-pnl');
+            pnlEl.innerText = `${pnl >= 0 ? '+' : ''}₹${pnl.toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+            pnlEl.className = pnl >= 0 ? 'metric-value text-green' : 'metric-value text-red';
+        } catch (e) {}
+    }
+
+    async function fetchBotStatus(silent = false) {
+        try {
+            const res = await fetch('/api/after-hours/status');
+            const data = await res.json();
+            updateBotUI(data);
+        } catch (err) {
+            if (!silent) showToast('Failed to connect to Bot engine', 'error');
+        }
+    }
+
+    function updateBotUI(data) {
+        if (!data) return;
+
+        // Honor user's explicit local activation state so serverless restarts do not prematurely pause the bot
+        const localActive = localStorage.getItem('ah_bot_active_v1') === 'true';
+        if (localActive && !isBotActive) {
+            setBotActiveState(true, false);
+        } else if (!localActive && isBotActive) {
+            setBotActiveState(false, false);
+        }
+
+        window.isMarketAfterHours = true;
+        const sessBadge = document.getElementById('bot-session-badge');
+        if (sessBadge) {
+            sessBadge.innerHTML = '<i class="fa-solid fa-moon" style="color: #ffd166;"></i> SESSION: AFTER-HOURS ENGINE (24/7 SANDBOX)';
+            sessBadge.style.borderColor = 'rgba(255, 209, 102, 0.4)';
+            sessBadge.style.color = '#ffd166';
+        }
+
+        if (isBotActive) {
+            const statusText = document.getElementById('bot-status-text');
+            if (statusText) {
+                statusText.innerHTML = '<i class="fa-solid fa-moon" style="color: #ffd166;"></i> AFTER-HOURS TRADER (24/7 ACTIVE)';
+            }
+        }
+
+        if (data.scan_mode && !document.getElementById('bot-scan-mode').matches(':focus')) {
+            document.getElementById('bot-scan-mode').value = data.scan_mode;
+            onScanModeChange();
+        }
+        if (data.single_symbol && !document.getElementById('bot-symbol').matches(':focus')) {
+            document.getElementById('bot-symbol').value = data.single_symbol;
+        }
+        const savedStrat = localStorage.getItem('nifty_bot_strategy');
+        if (savedStrat) {
+            document.getElementById('bot-strategy').value = savedStrat;
+        } else if (data.strategy && !document.getElementById('bot-strategy').matches(':focus')) {
+            document.getElementById('bot-strategy').value = data.strategy;
+        }
+        if (data.use_ema200_filter !== undefined) {
+            document.getElementById('bot-use-ema200').checked = data.use_ema200_filter;
+        }
+        if (data.use_volume_filter !== undefined) {
+            document.getElementById('bot-use-vol').checked = data.use_volume_filter;
+        }
+        if (data.use_trailing_stop !== undefined) {
+            document.getElementById('bot-use-trailing').checked = data.use_trailing_stop;
+        }
+        if (data.use_atr_exits !== undefined) {
+            document.getElementById('bot-use-atr').checked = data.use_atr_exits;
+        }
+        if (data.allocation_per_trade !== undefined && !document.getElementById('bot-allocation').matches(':focus')) {
+            document.getElementById('bot-allocation').value = data.allocation_per_trade;
+        }
+        if (data.max_positions !== undefined && !document.getElementById('bot-max-positions').matches(':focus')) {
+            document.getElementById('bot-max-positions').value = data.max_positions;
+        }
+        if (data.stop_loss_pct !== undefined && !document.getElementById('bot-stop-loss').matches(':focus')) {
+            document.getElementById('bot-stop-loss').value = data.stop_loss_pct;
+        }
+        if (data.take_profit_pct !== undefined && !document.getElementById('bot-take-profit').matches(':focus')) {
+            document.getElementById('bot-take-profit').value = data.take_profit_pct;
+        }
+
+        const summary = data.scan_summary || {};
+        const scannedCount = summary.total_scanned || (summary.scanner_results ? summary.scanner_results.length : 0);
+        const totalUniverse = (data.scan_mode === 'ALL_NIFTY_200') ? 200 : ((data.scan_mode === 'SINGLE') ? 1 : 50);
+        document.getElementById('kpi-scanned').innerText = `${scannedCount} / ${totalUniverse}`;
+        document.getElementById('kpi-buys').innerText = summary.buys_found || 0;
+        document.getElementById('kpi-sells').innerText = summary.sells_found || 0;
+        
+        // Sync server session report if present
+        if (data.session) {
+            syncSessionWithServer(data.session);
+        }
+
+        const sessTradeCount = (botSession && botSession.trades) ? botSession.trades.length : (summary.trades_executed || 0);
+        document.getElementById('kpi-trades').innerText = sessTradeCount;
+        
+        if (botSession && botSession.status === 'RUNNING') {
+            document.getElementById('kpi-last-run').innerText = `🟢 Session Running (${sessTradeCount} Trades)`;
+        } else if (botSession) {
+            document.getElementById('kpi-last-run').innerText = `🛑 Session Stopped (${sessTradeCount} Trades Preserved)`;
+        } else if (data.last_run_time) {
+            document.getElementById('kpi-last-run').innerText = `Last sweep: ${data.last_run_time.split(' ')[1] || data.last_run_time}`;
+        }
+
+        if (summary.scanner_results && summary.scanner_results.length > 0) {
+            allScannerData = summary.scanner_results;
+            applyRadarFilters();
+        }
+
+        syncStrategyUIHints();
+        updateConfigSummaryRibbon();
+        renderLogs(data.logs || []);
+    }
+
+    function toggleConfigDrawer() {
+        const grid = document.getElementById('bot-config-grid');
+        const chevron = document.getElementById('config-drawer-chevron');
+        const text = document.getElementById('config-drawer-toggle-text');
+        if (!grid) return;
+        const isHidden = (grid.style.display === 'none' || !grid.style.display);
+        if (isHidden) {
+            grid.style.display = 'grid';
+            if (chevron) chevron.className = 'fa-solid fa-chevron-up';
+            if (text) text.innerText = 'Hide Parameters';
+        } else {
+            grid.style.display = 'none';
+            if (chevron) chevron.className = 'fa-solid fa-chevron-down';
+            if (text) text.innerText = 'Show Parameters';
+        }
+    }
+
+    function updateConfigSummaryRibbon() {
+        const stratVal = document.getElementById('bot-strategy')?.value || '123_REVERSAL';
+        const stratName = (stratVal === '123_REVERSAL') ? '1-2-3 Reversal Map' : (stratVal === 'SMA_CROSSOVER' ? 'Dual SMA (9/21)' : 'RSI Reversion');
+        const mode = document.getElementById('bot-scan-mode')?.value || 'ALL_NIFTY_200';
+        const universeName = (mode === 'ALL_NIFTY_200') ? 'NIFTY 200' : (mode === 'SINGLE' ? 'Single Focus' : 'NIFTY 50');
+        const capital = document.getElementById('bot-allocation')?.value || '5000';
+        const slVal = document.getElementById('bot-stop-loss')?.value || '1.0';
+        const tpVal = document.getElementById('bot-take-profit')?.value || '1.0';
+        const emaOn = document.getElementById('bot-use-ema200')?.checked ?? true;
+        const trailOn = document.getElementById('bot-use-trailing')?.checked ?? true;
+
+        const ribStrat = document.getElementById('ribbon-strat');
+        const ribUni = document.getElementById('ribbon-universe');
+        const ribCap = document.getElementById('ribbon-capital');
+        const ribSl = document.getElementById('ribbon-sl');
+        const ribTp = document.getElementById('ribbon-tp');
+        const ribEma = document.getElementById('ribbon-ema');
+        const ribTrail = document.getElementById('ribbon-trailing');
+
+        if (ribStrat) ribStrat.innerHTML = `<i class="fa-solid fa-brain"></i> Strategy: <strong>${stratName}</strong>`;
+        if (ribUni) ribUni.innerHTML = `<i class="fa-solid fa-layer-group"></i> Universe: <strong>${universeName}</strong>`;
+        const marginVal = Number(capital) || 5000;
+        const exposureVal = marginVal * 5;
+        if (ribCap) ribCap.innerHTML = `<i class="fa-solid fa-bolt" style="color: var(--green);"></i> Margin: <strong>₹${marginVal.toLocaleString('en-IN')}</strong> <span style="opacity: 0.85;">(5x: ₹${exposureVal.toLocaleString('en-IN')})</span>`;
+        if (ribSl) ribSl.innerHTML = (stratVal === '123_REVERSAL') ? `<i class="fa-solid fa-shield-halved"></i> SL: <strong>Pattern Stop (Point 3)</strong>` : `<i class="fa-solid fa-shield-halved"></i> SL: <strong>${slVal}%</strong>`;
+        if (ribTp) ribTp.innerHTML = (stratVal === '123_REVERSAL') ? `<i class="fa-solid fa-bullseye"></i> TP: <strong>Measured Move</strong>` : `<i class="fa-solid fa-bullseye"></i> TP: <strong>${tpVal}%</strong>`;
+        if (ribEma) ribEma.innerHTML = emaOn ? `<i class="fa-solid fa-filter" style="color: var(--green);"></i> 200 EMA: <strong>ON</strong>` : `<i class="fa-solid fa-filter" style="color: var(--text-muted);"></i> 200 EMA: <strong>OFF</strong>`;
+        if (ribTrail) ribTrail.innerHTML = trailOn ? `<i class="fa-solid fa-anchor" style="color: var(--blue);"></i> Trailing SL: <strong>ON</strong>` : `<i class="fa-solid fa-anchor" style="color: var(--text-muted);"></i> Trailing SL: <strong>OFF</strong>`;
+    }
+
+    function generateMiniSparkline(changePct, isBullish) {
+        const isUp = (changePct >= 0);
+        const strokeColor = isUp ? '#00f090' : '#ff3366';
+        const fillColor = isUp ? 'rgba(0, 240, 144, 0.12)' : 'rgba(255, 51, 102, 0.12)';
+        
+        const mag = Math.min(Math.abs(changePct || 0), 4.5);
+        const step = mag * 1.6;
+        let y1, y2, y3, y4, y5;
+        if (isUp) {
+            y1 = 17;
+            y2 = Math.max(3, 15 - (step * 0.4));
+            y3 = Math.max(3, 13 - (step * 0.7));
+            y4 = Math.max(3, 10 - (step * 1.0));
+            y5 = Math.max(3, 17 - (step * 2.8));
+        } else {
+            y1 = 4;
+            y2 = Math.min(18, 6 + (step * 0.4));
+            y3 = Math.min(18, 9 + (step * 0.7));
+            y4 = Math.min(18, 12 + (step * 1.0));
+            y5 = Math.min(18, 4 + (step * 2.8));
+        }
+        
+        const pathD = `M 2,${y1.toFixed(1)} Q 14,${y2.toFixed(1)} 28,${y3.toFixed(1)} T 54,${y5.toFixed(1)}`;
+        const areaD = `M 2,${y1.toFixed(1)} Q 14,${y2.toFixed(1)} 28,${y3.toFixed(1)} T 54,${y5.toFixed(1)} L 54,20 L 2,20 Z`;
+        
+        return `<svg width="56" height="22" viewBox="0 0 56 22" style="overflow: visible; display: inline-block; vertical-align: middle;">
+            <path d="${areaD}" fill="${fillColor}" />
+            <path d="${pathD}" fill="none" stroke="${strokeColor}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+            <circle cx="54" cy="${y5.toFixed(1)}" r="2" fill="${strokeColor}" />
+        </svg>`;
+    }
+
+    function setRadarFilter(filter) {
+        activeRadarFilter = filter;
+        document.querySelectorAll('.radar-chip').forEach(btn => {
+            btn.classList.remove('active');
+        });
+        const activeBtn = document.getElementById(`chip-filter-${filter.toLowerCase()}`);
+        if (activeBtn) activeBtn.classList.add('active');
+        applyRadarFilters();
+    }
+
+    function updateRadarPillCounts(data) {
+        if (!data) return;
+        const allCount = data.length;
+        const buyCount = data.filter(s => s.signal === 'BUY').length;
+        const sellCount = data.filter(s => s.signal === 'SELL' || s.signal === 'STOP_LOSS' || s.signal === 'TAKE_PROFIT').length;
+        const heldSymbols = new Set((window.cachedActivePositions || []).map(p => p.symbol));
+        const heldCount = data.filter(s => heldSymbols.has(s.symbol)).length;
+        const gainersCount = data.filter(s => (s.change_pct || 0) > 0).length;
+        const dipsCount = data.filter(s => (s.change_pct || 0) < 0).length;
+
+        const elAll = document.getElementById('count-chip-all');
+        const elBuy = document.getElementById('count-chip-buy');
+        const elSell = document.getElementById('count-chip-sell');
+        const elHeld = document.getElementById('count-chip-held');
+        const elGainers = document.getElementById('count-chip-gainers');
+        const elDips = document.getElementById('count-chip-dips');
+
+        if (elAll) elAll.innerText = allCount;
+        if (elBuy) elBuy.innerText = buyCount;
+        if (elSell) elSell.innerText = sellCount;
+        if (elHeld) elHeld.innerText = heldCount;
+        if (elGainers) elGainers.innerText = gainersCount;
+        if (elDips) elDips.innerText = dipsCount;
+    }
+
+    function applyRadarFilters() {
+        const query = (document.getElementById('radar-search')?.value || '').trim().toUpperCase();
+        updateRadarPillCounts(allScannerData);
+        
+        let filtered = [...(allScannerData || [])];
+        
+        if (query) {
+            filtered = filtered.filter(s => 
+                (s.displayName && s.displayName.toUpperCase().includes(query)) ||
+                (s.symbol && s.symbol.toUpperCase().includes(query))
+            );
+        }
+        
+        if (activeRadarFilter === 'BUY') {
+            filtered = filtered.filter(s => s.signal === 'BUY');
+        } else if (activeRadarFilter === 'SELL') {
+            filtered = filtered.filter(s => s.signal === 'SELL' || s.signal === 'STOP_LOSS' || s.signal === 'TAKE_PROFIT');
+        } else if (activeRadarFilter === 'HELD') {
+            const heldSymbols = new Set((window.cachedActivePositions || []).map(p => p.symbol));
+            filtered = filtered.filter(s => heldSymbols.has(s.symbol));
+        } else if (activeRadarFilter === 'GAINERS') {
+            filtered = filtered.filter(s => (s.change_pct || 0) > 0).sort((a,b) => (b.change_pct||0) - (a.change_pct||0));
+        } else if (activeRadarFilter === 'DIPS') {
+            filtered = filtered.filter(s => (s.change_pct || 0) < 0).sort((a,b) => (a.change_pct||0) - (b.change_pct||0));
+        }
+        
+        renderRadarTable(filtered);
+    }
+
+    function filterRadarTable() {
+        applyRadarFilters();
+    }
+
+    function syncStrategyUIHints() {
+        const stratSelect = document.getElementById('bot-strategy');
+        const is123 = (!stratSelect || stratSelect.value === '123_REVERSAL');
+        const unlBadge = document.getElementById('badge-unlimited-pos');
+        const slBadge = document.getElementById('badge-strat-sl');
+        const tpBadge = document.getElementById('badge-strat-tp');
+        const posInput = document.getElementById('bot-max-positions');
+        const slInput = document.getElementById('bot-stop-loss');
+        const tpInput = document.getElementById('bot-take-profit');
+
+        if (unlBadge) unlBadge.style.display = is123 ? 'inline-block' : 'none';
+        if (slBadge) slBadge.style.display = is123 ? 'inline-block' : 'none';
+        if (tpBadge) tpBadge.style.display = is123 ? 'inline-block' : 'none';
+
+        if (posInput) {
+            posInput.style.opacity = is123 ? '0.6' : '1.0';
+            posInput.title = is123 ? 'Unlimited positions for 1-2-3 Reversal strategy' : '';
+        }
+        if (slInput) {
+            slInput.style.opacity = is123 ? '0.6' : '1.0';
+            slInput.title = is123 ? 'Dynamic stop loss given by 1-2-3 indicator' : '';
+        }
+        if (tpInput) {
+            tpInput.style.opacity = is123 ? '0.6' : '1.0';
+            tpInput.title = is123 ? 'Dynamic target given by 1-2-3 indicator' : '';
+        }
+    }
+
+    function renderRadarTable(results) {
+        const tbody = document.getElementById('bot-scanner-tbody');
+        if (!tbody) return;
+
+        if (!results || results.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="9" class="text-center" style="padding: 2.5rem; color: var(--text-muted);">
+                <i class="fa-solid fa-filter" style="font-size: 1.5rem; margin-bottom: 0.75rem; color: var(--text-muted);"></i><br>
+                No stocks match the selected filter <strong>"${activeRadarFilter}"</strong>.
+            </td></tr>`;
+            return;
+        }
+
+        tbody.innerHTML = '';
+        results.forEach(s => {
+            const tr = document.createElement('tr');
+            
+            let sigBadge = '<span class="signal-badge signal-hold">HOLD</span>';
+            if (s.signal === 'BUY') sigBadge = '<span class="signal-badge signal-buy"><i class="fa-solid fa-arrow-up"></i> BUY</span>';
+            if (s.signal === 'SELL') sigBadge = '<span class="signal-badge signal-sell"><i class="fa-solid fa-arrow-down"></i> SELL</span>';
+            if (s.signal === 'STOP_LOSS') sigBadge = '<span class="signal-badge" style="background: rgba(255, 51, 102, 0.2); color: var(--red);"><i class="fa-solid fa-skull-crossbones"></i> STOP-LOSS</span>';
+            if (s.signal === 'TAKE_PROFIT') sigBadge = '<span class="signal-badge" style="background: rgba(0, 240, 144, 0.2); color: var(--green);"><i class="fa-solid fa-trophy"></i> TAKE-PROFIT</span>';
+
+            let sideBadge = '<span class="side-badge side-neutral">--</span>';
+            if (s.signal === 'BUY') {
+                sideBadge = '<span class="side-badge side-long"><i class="fa-solid fa-arrow-trend-up"></i> LONG</span>';
+            } else if (s.signal === 'SELL' || s.signal === 'STOP_LOSS' || s.signal === 'TAKE_PROFIT') {
+                sideBadge = '<span class="side-badge side-short"><i class="fa-solid fa-arrow-trend-down"></i> SHORT</span>';
+            } else if (s.trend_200 === 'BULLISH') {
+                sideBadge = '<span class="side-badge side-long" style="opacity: 0.85;"><i class="fa-solid fa-arrow-trend-up"></i> LONG</span>';
+            } else if (s.trend_200 === 'BEARISH') {
+                sideBadge = '<span class="side-badge side-short" style="opacity: 0.85;"><i class="fa-solid fa-arrow-trend-down"></i> SHORT</span>';
+            }
+
+            if (s.filter_status === 'FILTERED_200EMA') {
+                sigBadge = '<span class="signal-badge" style="background: rgba(255, 189, 46, 0.15); color: #ffbd2e; border: 1px solid rgba(255, 189, 46, 0.4);"><i class="fa-solid fa-filter"></i> FILTERED (&lt; 200 EMA)</span>';
+            } else if (s.filter_status === 'FILTERED_VOLUME') {
+                sigBadge = '<span class="signal-badge" style="background: rgba(255, 189, 46, 0.15); color: #ffbd2e; border: 1px solid rgba(255, 189, 46, 0.4);"><i class="fa-solid fa-filter"></i> FILTERED (Low Vol)</span>';
+            }
+
+            const changeClass = (s.change_pct || 0) >= 0 ? 'text-green' : 'text-red';
+            const changeSign = (s.change_pct || 0) >= 0 ? '+' : '';
+            
+            let indText = s.reason || '--';
+            if (s.reversal_score !== undefined && s.reversal_score !== null) {
+                const gradeColor = (s.reversal_grade === 'A+' || s.reversal_grade === 'A') ? 'var(--green)' : '#ffd166';
+                indText = `<span style="color: ${gradeColor}; font-weight: 700;"><i class="fa-solid fa-draw-polygon"></i> 1-2-3 [${s.reversal_score} ${s.reversal_grade || ''}]</span> <span style="font-size: 0.72rem; color: var(--text-muted);">${s.reason}</span>`;
+            } else if (s.fast_sma && s.slow_sma) {
+                indText = `SMA9: ₹${s.fast_sma} | SMA21: ₹${s.slow_sma}`;
+            } else if (s.rsi !== undefined && s.rsi !== null) {
+                indText = `RSI: ${s.rsi}`;
+            }
+
+            let macroBadge = '';
+            if (s.trend_200 === 'BULLISH') {
+                macroBadge = '<span style="color: var(--green); font-size: 0.72rem; font-weight: 700; margin-right: 6px;"><i class="fa-solid fa-arrow-trend-up"></i> &gt; 200 EMA</span>';
+            } else if (s.trend_200 === 'BEARISH') {
+                macroBadge = '<span style="color: #ffbd2e; font-size: 0.72rem; font-weight: 700; margin-right: 6px;"><i class="fa-solid fa-arrow-trend-down"></i> &lt; 200 EMA</span>';
+            }
+
+            let volBadge = s.vol_ratio ? `<span style="font-size: 0.72rem; color: var(--text-muted);">Vol: ${s.vol_ratio}x</span>` : '';
+
+            let actionBadge = '<span style="color: var(--text-muted);">--</span>';
+            if (s.action_executed) {
+                if (s.action_executed.includes('SKIPPED') || s.action_executed.includes('TRADED')) {
+                    actionBadge = `<span style="color: #ffbd2e; font-weight: 700; font-size: 0.76rem;"><i class="fa-solid fa-clock-rotate-left"></i> ${s.action_executed}</span>`;
+                } else if (s.action_executed.includes('OFFLINE')) {
+                    actionBadge = `<span style="color: var(--text-muted); font-size: 0.76rem;"><i class="fa-solid fa-pause"></i> ${s.action_executed}</span>`;
+                } else {
+                    actionBadge = `<span style="color: var(--green); font-weight: 700;"><i class="fa-solid fa-check"></i> ${s.action_executed}</span>`;
+                }
+            }
+
+            const miniSparkline = generateMiniSparkline(s.change_pct || 0, s.trend_200 === 'BULLISH');
+
+            let exitBtn = '';
+            const heldPos = (window.cachedActivePositions || []).find(p => p.symbol === s.symbol);
+            if (heldPos && heldPos.quantity > 0) {
+                const isShort = (heldPos.side === 'SHORT');
+                exitBtn = `
+                    <button class="btn-sm" style="background: rgba(255, 75, 75, 0.2); color: #ff7575; border: 1px solid rgba(255, 75, 75, 0.4); font-weight: 700; padding: 4px 8px; font-size: 0.72rem; border-radius: 4px; cursor: pointer; display: inline-flex; align-items: center; gap: 4px;" onclick="exitBotPosition('${s.symbol}', ${heldPos.quantity}, '${heldPos.side || "LONG"}')" title="Manual Exit this position">
+                        <i class="fa-solid fa-xmark"></i> ${isShort ? 'Cover' : 'Exit'}
+                    </button>
+                `;
+            }
+
+            tr.innerHTML = `
+                <td>
+                    <div style="font-weight: 800; font-family: var(--font-code); color: #fff;">${s.displayName}</div>
+                    <div style="font-size: 0.7rem; color: var(--text-muted);">${macroBadge}${volBadge}</div>
+                </td>
+                <td style="vertical-align: middle;">
+                    ${miniSparkline}
+                </td>
+                <td>${sideBadge}</td>
+                <td style="font-weight: 700;">₹${s.price.toFixed(2)}</td>
+                <td class="${changeClass}" style="font-weight: 700;">${changeSign}${(s.change_pct || 0).toFixed(2)}%</td>
+                <td>${sigBadge}</td>
+                <td style="font-size: 0.78rem; color: var(--text-muted);">${indText}</td>
+                <td>${actionBadge}</td>
+                <td>
+                    <div style="display: flex; gap: 4px; align-items: center;">
+                        <a href="/?symbol=${s.symbol}" class="btn-sm btn-outline" style="text-decoration: none; display: inline-flex; align-items: center; gap: 4px; padding: 4px 8px; font-size: 0.72rem;">
+                            <i class="fa-solid fa-chart-line"></i> Terminal
+                        </a>
+                        ${exitBtn}
+                    </div>
+                </td>
+            `;
+            tbody.appendChild(tr);
+        });
+    }
+
+    function renderLogs(logs) {
+        const win = document.getElementById('bot-console-stream');
+        if (!win || !logs) return;
+
+        win.innerHTML = '';
+        logs.forEach(l => {
+            const div = document.createElement('div');
+            let colorClass = 'terminal-line';
+            if (l.level === 'SUCCESS') colorClass += ' log-success';
+            else if (l.level === 'ERROR') colorClass += ' log-error';
+            else if (l.level === 'WARNING') colorClass += ' log-warning';
+            else colorClass += ' log-info';
+
+            div.className = colorClass;
+            div.innerHTML = `<span style="color: var(--text-muted);">[${l.timestamp}]</span> ${l.message}`;
+            win.appendChild(div);
+        });
+    }
+
+    function clearBotLogs() {
+        const win = document.getElementById('bot-console-stream');
+        if (win) {
+            win.innerHTML = '<div class="terminal-line text-muted">[CONSOLE] Buffer cleared by user.</div>';
+        }
+    }
+
+    async function toggleBot() {
+        if (isBotActive) {
+            setBotActiveState(false);
+            botSession.status = 'STOPPED';
+            botSession.stop_time = new Date().toLocaleTimeString('en-IN', { hour12: false }) + ' IST';
+            saveBotSession();
+            renderBotSessionReport();
+
+            try {
+                const res = await fetch('/api/after-hours/stop', { method: 'POST' });
+                const data = await res.json();
+                if (data.status) updateBotUI(data.status);
+            } catch (err) {}
+            showToast(`NIFTY 50 Auto-Bot paused. Session #${botSession.session_count || 1} report preserved (${botSession.trades.length} trades)!`, 'warning');
+        } else {
+            // User restarted/started the bot: start with a fresh new session report only!
+            if (botSession.trades && botSession.trades.length > 0) {
+                botSession.session_count = (botSession.session_count || 1) + 1;
+            }
+            botSession.session_id = 'sess_' + Date.now();
+            botSession.status = 'RUNNING';
+            botSession.start_time = new Date().toLocaleTimeString('en-IN', { hour12: false }) + ' IST';
+            botSession.stop_time = null;
+            botSession.trades = [];
+            botSession.metrics = {
+                total_trades: 0,
+                total_buys: 0,
+                total_sells: 0,
+                net_realized_pnl: 0.0,
+                total_charges: 0.0,
+                win_rate: 0.0,
+                wins: 0,
+                losses: 0
+            };
+            saveBotSession();
+            renderBotSessionReport();
+            switchLedgerTab('session');
+
+            setBotActiveState(true);
+            const config = getCurrentBotConfig();
+            config.is_running = true;
+
+            try {
+                const res = await fetch('/api/after-hours/start', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(config)
+                });
+                const data = await res.json();
+                if (data.status) updateBotUI(data.status);
+            } catch (err) {}
+            showToast(`NIFTY 50 Auto-Bot Activated! Started Session #${botSession.session_count || 1} fresh report`, 'success');
+            tickBotNow();
+        }
+    }
+
+    function getCurrentBotConfig() {
+        return {
+            is_running: isBotActive,
+            scan_mode: document.getElementById('bot-scan-mode')?.value || 'ALL_NIFTY_200',
+            single_symbol: document.getElementById('bot-symbol')?.value?.trim()?.toUpperCase() || 'RELIANCE.NS',
+            strategy: document.getElementById('bot-strategy')?.value || '123_REVERSAL',
+            allocation_per_trade: parseFloat(document.getElementById('bot-allocation')?.value) || 5000,
+            max_positions: parseInt(document.getElementById('bot-max-positions')?.value) || 3,
+            interval_seconds: 60,
+            stop_loss_pct: parseFloat(document.getElementById('bot-stop-loss')?.value) || 1.0,
+            take_profit_pct: parseFloat(document.getElementById('bot-take-profit')?.value) || 1.0,
+            use_ema200_filter: document.getElementById('bot-use-ema200')?.checked ?? true,
+            use_volume_filter: document.getElementById('bot-use-vol')?.checked ?? true,
+            use_trailing_stop: document.getElementById('bot-use-trailing')?.checked ?? true,
+            use_atr_exits: document.getElementById('bot-use-atr')?.checked ?? false
+        };
+    }
+
+    async function onStrategyChange() {
+        syncStrategyUIHints();
+        updateConfigSummaryRibbon();
+        const stratSelect = document.getElementById('bot-strategy');
+        if (!stratSelect) return;
+        const selectedStrat = stratSelect.value;
+        localStorage.setItem('nifty_bot_strategy', selectedStrat);
+        const cfg = getCurrentBotConfig();
+        cfg.strategy = selectedStrat;
+        showToast(`Updating strategy to: ${selectedStrat}...`, 'info');
+        try {
+            const res = await fetch('/api/after-hours/config', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(cfg)
+            });
+            const data = await res.json();
+            if (data.bot_state) updateBotUI(data.bot_state);
+            showToast(`Strategy updated to: ${selectedStrat}`, 'success');
+            // Only trigger tick scan if the bot is actually active
+            if (isBotActive) {
+                tickBotNow();
+            }
+        } catch (e) {
+            showToast('Strategy update error: ' + e.message, 'error');
+        }
+    }
+
+    async function tickBotNow() {
+        if (isScanning) return;
+        isScanning = true;
+
+        const scanMode = document.getElementById('bot-scan-mode')?.value || 'ALL_NIFTY_200';
+        const label = (scanMode === 'ALL_NIFTY_200') ? '200' : ((scanMode === 'SINGLE') ? '1' : '50');
+        const btn = document.getElementById('bot-scan-btn');
+        if (btn) {
+            btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Scanning ${label} Stocks...`;
+            btn.disabled = true;
+        }
+
+        try {
+            const cfg = getCurrentBotConfig();
+            cfg.is_running = isBotActive;
+            const tickEvent = (window.isMarketAfterHours === true) ? 'AFTER_HOURS_WALK' : 'LIVE_SWEEP';
+            const res = await fetch('/api/after-hours/tick', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    event: tickEvent, 
+                    config: cfg, 
+                    is_running: isBotActive,
+                    client_positions: getStoredActivePositions() 
+                })
+            });
+            if (!res.ok) {
+                throw new Error(`Server returned status ${res.status}`);
+            }
+            const data = await res.json();
+            if (data.bot_state) {
+                updateBotUI(data.bot_state);
+            }
+            loadAccountMetrics();
+            loadBotHoldings();
+            
+            const summary = data.result || {};
+            const tradesMsg = summary.trades_executed ? ` | ${summary.trades_executed} Executed` : (isBotActive ? '' : ' | (Bot Paused: 0 Orders Placed)');
+            showToast(`Radar: ${summary.total_scanned || (scanMode === 'ALL_NIFTY_200' ? 200 : 50)} stocks | 🟢 ${summary.buys_found || 0} BUY | 🔴 ${summary.sells_found || 0} SELL${tradesMsg}`, 'info');
+        } catch (err) {
+            console.warn('Scan sweep issue:', err);
+            showToast('Scan sweep notice: Network response delayed, auto-retrying on next cycle', 'warning');
+        } finally {
+            if (btn) {
+                const currentMode = document.getElementById('bot-scan-mode')?.value || 'ALL_NIFTY_200';
+                const finalLabel = (currentMode === 'ALL_NIFTY_200') ? 'ALL 200' : ((currentMode === 'SINGLE') ? 'TARGET' : 'ALL 50');
+                btn.innerHTML = `<i class="fa-solid fa-arrows-rotate"></i> SCAN ${finalLabel} NOW`;
+                btn.disabled = false;
+            }
+            isScanning = false;
+        }
+    }
+
+    let continuousSimTimer = null;
+    let isContinuousSim = false;
+
+    // ========================================================
+    // ROCK-SOLID ACTIVE HOLDINGS CACHE & SERVERLESS SYNC
+    // ========================================================
+    const ACTIVE_HOLDINGS_KEY = 'ah_active_holdings_v1';
+    const POS_ENTRY_LOCK_KEY = 'ah_positions_entry_lock_v1';
+
+    function getStoredActivePositions() {
+        try {
+            const raw = localStorage.getItem(ACTIVE_HOLDINGS_KEY);
+            if (raw) {
+                const parsed = JSON.parse(raw);
+                if (Array.isArray(parsed)) return parsed;
+            }
+        } catch (e) {}
+        return [];
+    }
+
+    function saveStoredActivePositions(positions) {
+        try {
+            localStorage.setItem(ACTIVE_HOLDINGS_KEY, JSON.stringify(positions || []));
+        } catch (e) {}
+    }
+
+    function getLockedEntryPrice(symbol, incomingAvgPrice) {
+        try {
+            let cache = JSON.parse(localStorage.getItem(POS_ENTRY_LOCK_KEY) || '{}');
+            if (cache[symbol] && typeof cache[symbol] === 'number' && cache[symbol] > 0) {
+                return cache[symbol];
+            }
+            cache[symbol] = incomingAvgPrice;
+            localStorage.setItem(POS_ENTRY_LOCK_KEY, JSON.stringify(cache));
+            return incomingAvgPrice;
+        } catch (e) {
+            return incomingAvgPrice;
+        }
+    }
+
+    function cleanClosedPositionsFromLock(activeSymbols) {
+        try {
+            let cache = JSON.parse(localStorage.getItem(POS_ENTRY_LOCK_KEY) || '{}');
+            let changed = false;
+            for (let sym of Object.keys(cache)) {
+                if (!activeSymbols.includes(sym)) {
+                    delete cache[sym];
+                    changed = true;
+                }
+            }
+            if (changed) {
+                localStorage.setItem(POS_ENTRY_LOCK_KEY, JSON.stringify(cache));
+            }
+        } catch (e) {}
+    }
+
+    async function loadBotHoldings() {
+        try {
+            let localPositions = getStoredActivePositions();
+
+            let res;
+            if (localPositions.length > 0) {
+                try {
+                    res = await fetch('/api/portfolio', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ client_positions: localPositions })
+                    });
+                } catch (netErr) {
+                    res = await fetch('/api/portfolio');
+                }
+            } else {
+                res = await fetch('/api/portfolio');
+            }
+            const data = await res.json();
+            const tbody = document.getElementById('bot-holdings-tbody');
+            if (!tbody) return;
+
+            let backendPositions = data.positions || [];
+
+            // True active positions from live engine: Never filter out open holdings
+            let positions = [];
+            if (backendPositions.length > 0) {
+                positions = backendPositions;
+                saveStoredActivePositions(positions);
+            } else if (localPositions.length > 0) {
+                positions = localPositions;
+            } else {
+                positions = [];
+            }
+
+            window.cachedActivePositions = positions;
+            if (allScannerData && allScannerData.length > 0) {
+                updateRadarPillCounts(allScannerData);
+            }
+            const count = positions.length;
+            const badge = document.getElementById('holdings-badge-count');
+            if (badge) badge.innerText = count;
+            const heroCount = document.getElementById('hero-holdings-count');
+            if (heroCount) heroCount.innerText = count;
+            const tabCount = document.getElementById('tab-holdings-count');
+            if (tabCount) tabCount.innerText = count;
+
+            const activeSymbols = positions.map(p => p.symbol);
+            cleanClosedPositionsFromLock(activeSymbols);
+
+            if (count === 0) {
+                tbody.innerHTML = '<tr><td colspan="10" class="text-center" style="padding: 1.5rem; color: var(--text-muted);">No open positions held. Bot will execute buys when signals trigger.</td></tr>';
+            } else {
+                tbody.innerHTML = '';
+                positions.forEach(p => {
+                    // Update current_price from scanner data or radar if available
+                    if (allScannerData && allScannerData.length > 0) {
+                        const quoteItem = allScannerData.find(s => s.symbol === p.symbol);
+                        if (quoteItem && quoteItem.price) {
+                            p.current_price = quoteItem.price;
+                        }
+                    }
+
+                    // Strictly lock average price to eliminate multi-container serverless fluctuation
+                    p.average_price = getLockedEntryPrice(p.symbol, p.average_price);
+
+                    const isShort = (p.side === 'SHORT');
+                    const costBasis = p.quantity * p.average_price;
+                    const marketVal = p.quantity * p.current_price;
+                    const marginUsed = costBasis / (p.leverage || 5);
+                    const calcPnl = isShort ? (costBasis - marketVal) : (marketVal - costBasis);
+                    const calcPnlPct = marginUsed > 0 ? (calcPnl / marginUsed * 100) : 0.0;
+                    p.unrealized_pnl = calcPnl;
+                    p.unrealized_pnl_pct = calcPnlPct;
+
+                    const tr = document.createElement('tr');
+                    const pnlClass = p.unrealized_pnl >= 0 ? 'text-green' : 'text-red';
+                    const pnlSign = p.unrealized_pnl >= 0 ? '+' : '';
+                    const sideBadge = isShort 
+                        ? '<span class="side-badge side-short" style="background: rgba(255, 51, 102, 0.15); color: var(--red); border: 1px solid rgba(255, 51, 102, 0.3); padding: 3px 8px; border-radius: 4px; font-weight: 700; font-size: 0.72rem;"><i class="fa-solid fa-arrow-trend-down"></i> SHORT</span>'
+                        : '<span class="side-badge side-long" style="background: rgba(0, 240, 144, 0.15); color: var(--green); border: 1px solid rgba(0, 240, 144, 0.3); padding: 3px 8px; border-radius: 4px; font-weight: 700; font-size: 0.72rem;"><i class="fa-solid fa-arrow-trend-up"></i> LONG</span>';
+                    
+                    let slDisplay = `₹${(p.stop_loss || (isShort ? p.average_price * 1.025 : p.average_price * 0.975)).toFixed(2)}`;
+                    if (p.trailing_active) {
+                        slDisplay += ` <span style="font-size: 0.68rem; color: var(--green); font-weight: 700;">🛡️ Breakeven</span>`;
+                    }
+                    let tpDisplay = `₹${(p.take_profit || (isShort ? p.average_price * 0.95 : p.average_price * 1.05)).toFixed(2)}`;
+                    if (p.take_profit) {
+                        tpDisplay += ` <span style="font-size: 0.68rem; color: #a78bfa;">🎯 Target</span>`;
+                    }
+
+                    tr.innerHTML = `
+                        <td>
+                            <strong>${p.symbol.replace('.NS', '')}</strong> 
+                            <span style="font-size:0.7rem; color:var(--text-muted); display: block;">${p.symbol}</span>
+                        </td>
+                        <td>
+                            ${sideBadge}
+                        </td>
+                        <td style="font-weight: 700;">${p.quantity}</td>
+                        <td style="font-weight: 700;">₹${p.average_price.toFixed(2)}</td>
+                        <td style="font-weight: 700;">₹${p.current_price.toFixed(2)}</td>
+                        <td class="${pnlClass}" style="font-weight: 700;">${pnlSign}₹${p.unrealized_pnl.toFixed(2)}</td>
+                        <td class="${pnlClass}" style="font-weight: 700;">${pnlSign}${p.unrealized_pnl_pct.toFixed(2)}%</td>
+                        <td style="color: var(--red); font-weight: 700;">${slDisplay}</td>
+                        <td style="color: var(--green); font-weight: 700;">${tpDisplay}</td>
+                        <td>
+                            <button class="btn-action-close" onclick="exitBotPosition('${p.symbol}', ${p.quantity}, '${p.side || "LONG"}')">
+                                <i class="fa-solid fa-xmark"></i> ${isShort ? 'Cover' : 'Exit'}
+                            </button>
+                        </td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+            }
+            // Background sync closed trades badge
+            loadClosedTrades();
+        } catch (e) {}
+    }
+
+    // ==========================================
+    // BOT SESSION TRADES REPORT & PERSISTENCE
+    // ==========================================
+    const BOT_SESSION_STORAGE_KEY = 'ah_bot_session_v1';
+
+    let botSession = {
+        session_id: 'sess_' + Date.now(),
+        session_count: 1,
+        status: 'STOPPED', // 'RUNNING' or 'STOPPED'
+        start_time: null,
+        stop_time: null,
+        trades: [],
+        metrics: {
+            total_trades: 0,
+            total_buys: 0,
+            total_sells: 0,
+            net_realized_pnl: 0.0,
+            total_charges: 0.0,
+            win_rate: 0.0,
+            wins: 0,
+            losses: 0
+        }
+    };
+
+    function loadStoredBotSession() {
+        try {
+            const raw = localStorage.getItem(BOT_SESSION_STORAGE_KEY);
+            if (raw) {
+                const parsed = JSON.parse(raw);
+                if (parsed && Array.isArray(parsed.trades)) {
+                    botSession = parsed;
+                }
+            }
+        } catch (e) {}
+        renderBotSessionReport();
+    }
+
+    function saveBotSession() {
+        try {
+            localStorage.setItem(BOT_SESSION_STORAGE_KEY, JSON.stringify(botSession));
+        } catch (e) {}
+    }
+
+    function recalcSessionMetrics() {
+        let buys = 0;
+        let sells = 0;
+        let pnl = 0.0;
+        let charges = 0.0;
+        let wins = 0;
+        let losses = 0;
+
+        botSession.trades.forEach(t => {
+            charges += parseFloat(t.charges || 0.0);
+            if (t.side === 'BUY' || t.side === 'SHORT') {
+                if (t.side === 'BUY') buys++;
+                if (t.side === 'SHORT') sells++;
+            } else if (t.side === 'SELL' || t.side === 'COVER') {
+                const tradePnl = parseFloat(t.realized_pnl || 0.0);
+                pnl += tradePnl;
+                if (tradePnl > 0) wins++;
+                else if (tradePnl < 0) losses++;
+            }
+        });
+
+        const closed = wins + losses;
+        botSession.metrics = {
+            total_trades: botSession.trades.length,
+            total_buys: buys,
+            total_sells: sells,
+            net_realized_pnl: Math.round(pnl * 100) / 100,
+            total_charges: Math.round(charges * 100) / 100,
+            win_rate: closed > 0 ? Math.round((wins / closed) * 1000) / 10 : 0.0,
+            wins: wins,
+            losses: losses
+        };
+    }
+
+    function syncSessionWithServer(serverSession) {
+        if (!serverSession) return;
+        let dirty = false;
+
+        if (serverSession.session_count > (botSession.session_count || 1)) {
+            botSession.session_count = serverSession.session_count;
+            botSession.session_id = serverSession.session_id || botSession.session_id;
+            botSession.start_time = serverSession.start_time || botSession.start_time;
+            botSession.stop_time = serverSession.stop_time || botSession.stop_time;
+            botSession.status = serverSession.status || botSession.status;
+            botSession.trades = serverSession.trades || [];
+            dirty = true;
+        } else if (serverSession.trades && Array.isArray(serverSession.trades)) {
+            const existingKeys = new Set(botSession.trades.map(t => (t.id || '') + '_' + (t.timestamp || '') + '_' + (t.symbol || '') + '_' + (t.side || '')));
+            serverSession.trades.forEach(st => {
+                const key = (st.id || '') + '_' + (st.timestamp || '') + '_' + (st.symbol || '') + '_' + (st.side || '');
+                if (!existingKeys.has(key)) {
+                    botSession.trades.unshift(st);
+                    existingKeys.add(key);
+                    dirty = true;
+                }
+            });
+        }
+
+        if (dirty) {
+            recalcSessionMetrics();
+            saveBotSession();
+            renderBotSessionReport();
+        }
+    }
+
+    function renderBotSessionReport() {
+        const isRunning = (botSession.status === 'RUNNING');
+
+        const badgeEl = document.getElementById('session-status-badge');
+        if (badgeEl) {
+            if (isRunning) {
+                badgeEl.className = 'badge';
+                badgeEl.style.background = 'rgba(0, 240, 144, 0.15)';
+                badgeEl.style.color = 'var(--green)';
+                badgeEl.style.borderColor = 'rgba(0, 240, 144, 0.3)';
+                badgeEl.innerHTML = '<span class="bot-dot" style="display:inline-block; margin-right:4px;"></span> SESSION ACTIVE (RECORDING)';
+            } else {
+                badgeEl.className = 'badge';
+                badgeEl.style.background = 'rgba(255, 209, 102, 0.15)';
+                badgeEl.style.color = '#ffd166';
+                badgeEl.style.borderColor = 'rgba(255, 209, 102, 0.3)';
+                badgeEl.innerHTML = '<i class="fa-solid fa-lock"></i> SESSION STOPPED (REPORT PRESERVED)';
+            }
+        }
+
+        const sessIdEl = document.getElementById('session-id-display');
+        if (sessIdEl) sessIdEl.innerText = `Session #${botSession.session_count || 1}`;
+
+        const timeRangeEl = document.getElementById('session-time-range');
+        if (timeRangeEl) {
+            if (isRunning) {
+                timeRangeEl.innerText = `Started at ${botSession.start_time || 'Just now'}`;
+            } else if (botSession.start_time) {
+                timeRangeEl.innerText = `Started: ${botSession.start_time} | Stopped: ${botSession.stop_time || 'Paused'}`;
+            } else {
+                timeRangeEl.innerText = 'Ready to start. Click START AFTER-HOURS BOT to begin.';
+            }
+        }
+
+        const noteEl = document.getElementById('session-banner-note');
+        if (noteEl) {
+            if (isRunning) {
+                noteEl.innerText = 'Your bot is running and actively recording all order entries, stop-losses, and profit targets. Stopping the bot will lock and preserve this report.';
+            } else {
+                noteEl.innerText = 'This report contains all trades executed during this run and is permanently preserved until you restart the bot. When you click START, a fresh new session report will begin.';
+            }
+        }
+
+        const m = botSession.metrics || {};
+        const countBadge = document.getElementById('session-trades-badge-count');
+        if (countBadge) countBadge.innerText = botSession.trades.length;
+
+        const kpiTrades = document.getElementById('kpi-trades');
+        if (kpiTrades) kpiTrades.innerText = botSession.trades.length;
+
+        const kpiStatus = document.getElementById('kpi-last-run');
+        if (kpiStatus) {
+            kpiStatus.innerText = isRunning ? '🟢 Session Running' : `🛑 Session Stopped (${botSession.trades.length} trades preserved)`;
+        }
+
+        const totalTradesEl = document.getElementById('sess-total-trades');
+        if (totalTradesEl) totalTradesEl.innerText = botSession.trades.length;
+
+        const buysSellsEl = document.getElementById('sess-buys-sells');
+        if (buysSellsEl) buysSellsEl.innerText = `${m.total_buys || 0} Buys / ${m.total_sells || 0} Exits`;
+
+        const netPnlEl = document.getElementById('sess-net-pnl');
+        if (netPnlEl) {
+            const pnl = m.net_realized_pnl || 0.0;
+            netPnlEl.innerText = `${pnl >= 0 ? '+' : ''}₹${pnl.toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+            netPnlEl.className = pnl >= 0 ? 'score-val text-green' : 'score-val text-red';
+        }
+
+        const winRateEl = document.getElementById('sess-win-rate');
+        if (winRateEl) {
+            winRateEl.innerText = `${m.win_rate || 0}%`;
+            winRateEl.className = (m.win_rate || 0) >= 50 ? 'score-val text-green' : 'score-val text-red';
+        }
+
+        const winsLossesEl = document.getElementById('sess-wins-losses');
+        if (winsLossesEl) winsLossesEl.innerText = `${m.wins || 0} Wins / ${m.losses || 0} Losses`;
+
+        const chargesEl = document.getElementById('sess-charges');
+        if (chargesEl) chargesEl.innerText = `₹${(m.total_charges || 0).toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+
+        const pillEl = document.getElementById('sess-status-pill');
+        if (pillEl) {
+            pillEl.innerText = isRunning ? 'RUNNING' : 'STOPPED';
+            pillEl.style.color = isRunning ? 'var(--green)' : '#ffd166';
+        }
+
+        const subEl = document.getElementById('sess-status-sub');
+        if (subEl) subEl.innerText = isRunning ? 'Recording Live Trades' : 'Report Preserved';
+
+        const tbody = document.getElementById('bot-session-trades-tbody');
+        if (!tbody) return;
+
+        if (botSession.trades.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="11" class="text-center" style="padding: 1.5rem; color: var(--text-muted);">${isRunning ? '<i class="fa-solid fa-spinner fa-spin" style="color: var(--green); margin-right: 6px;"></i> Bot is actively scanning. As soon as a trade is placed or closed, it will appear here in real time.' : 'No trades executed in this session yet. Activate your bot above to start a live session.'}</td></tr>`;
+            return;
+        }
+
+        tbody.innerHTML = '';
+        botSession.trades.forEach(t => {
+            const tr = document.createElement('tr');
+            const isEntry = (t.side === 'BUY' || t.side === 'SHORT');
+            let actionBadge = '';
+            if (t.side === 'BUY') {
+                actionBadge = '<span class="side-badge side-long"><i class="fa-solid fa-arrow-trend-up"></i> BUY (LONG)</span>';
+            } else if (t.side === 'SHORT') {
+                actionBadge = '<span class="side-badge side-short" style="background: rgba(255, 75, 75, 0.15); color: #ff7575; border: 1px solid rgba(255, 75, 75, 0.3);"><i class="fa-solid fa-arrow-trend-down"></i> SELL SHORT</span>';
+            } else if (t.side === 'COVER') {
+                actionBadge = '<span class="side-badge side-long" style="background: rgba(0, 240, 144, 0.15); color: var(--green); border: 1px solid rgba(0, 240, 144, 0.3);"><i class="fa-solid fa-check-double"></i> BUY (COVER)</span>';
+            } else {
+                actionBadge = '<span class="side-badge side-short" style="background: rgba(255, 75, 75, 0.15); color: #ff7575; border: 1px solid rgba(255, 75, 75, 0.3);"><i class="fa-solid fa-arrow-trend-down"></i> SELL (EXIT)</span>';
+            }
+
+            const pnl = parseFloat(t.realized_pnl || 0.0);
+            const isWin = pnl >= 0;
+            const pnlClass = isWin ? 'text-green' : 'text-red';
+            const pnlSign = isWin ? '+' : '';
+            const pnlText = isEntry ? '<span style="color: var(--text-muted);">--</span>' : `<span class="${pnlClass}" style="font-weight: 700;">${pnlSign}₹${pnl.toFixed(2)}</span>`;
+            const roiText = isEntry ? '<span style="color: var(--text-muted);">--</span>' : `<span class="${pnlClass}" style="font-weight: 700;">${pnlSign}${(t.roi_pct || 0).toFixed(2)}%</span>`;
+
+            let statusBadge = '';
+            if (isEntry) {
+                statusBadge = '<span class="signal-badge" style="background: rgba(0,240,144,0.12); color: var(--green); border: 1px solid rgba(0,240,144,0.25); font-size: 0.68rem;"><i class="fa-solid fa-check"></i> FILLED</span>';
+            } else if (t.signal === 'TAKE_PROFIT') {
+                statusBadge = '<span class="signal-badge" style="background: rgba(0,240,144,0.15); color: var(--green); border: 1px solid rgba(0,240,144,0.3); font-size: 0.68rem;"><i class="fa-solid fa-trophy"></i> TARGET HIT</span>';
+            } else if (t.signal === 'STOP_LOSS') {
+                statusBadge = '<span class="signal-badge" style="background: rgba(255,75,75,0.15); color: #ff7575; border: 1px solid rgba(255,75,75,0.3); font-size: 0.68rem;"><i class="fa-solid fa-shield-halved"></i> STOP HIT</span>';
+            } else {
+                statusBadge = '<span class="signal-badge" style="background: rgba(255,209,102,0.15); color: #ffd166; border: 1px solid rgba(255,209,102,0.3); font-size: 0.68rem;"><i class="fa-solid fa-receipt"></i> CLOSED</span>';
+            }
+
+            const chargesVal = parseFloat(t.charges || 0.0);
+
+            tr.innerHTML = `
+                <td style="font-size: 0.76rem; color: var(--text-muted); font-family: var(--font-code);">${t.timestamp || '--'}</td>
+                <td>
+                    <strong style="font-family: var(--font-code); color: #fff;">${t.displayName || (t.symbol ? t.symbol.replace('.NS', '') : '--')}</strong>
+                    <span style="font-size: 0.68rem; color: var(--text-muted); display: block;">${t.symbol || ''}</span>
+                </td>
+                <td>${actionBadge}</td>
+                <td style="font-weight: 700;">${t.quantity || 0}</td>
+                <td style="font-weight: 700;">₹${(parseFloat(t.price || t.entry_price || 0)).toFixed(2)}</td>
+                <td>₹${(parseFloat(t.total_value || 0)).toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                <td style="color: #fca5a5; font-family: var(--font-code);">-₹${chargesVal.toFixed(2)}</td>
+                <td>${pnlText}</td>
+                <td>${roiText}</td>
+                <td style="font-size: 0.78rem; max-width: 260px; line-height: 1.35;">${t.reason || 'Strategy Signal'}</td>
+                <td>${statusBadge}</td>
+            `;
+            tbody.appendChild(tr);
+        });
+    }
+
+    function exportSessionTradesCSV() {
+        if (!botSession.trades || botSession.trades.length === 0) {
+            showToast('No trades in this session to export', 'warning');
+            return;
+        }
+        let csv = 'Timestamp,Stock,Side,Quantity,Price,NotionalTotal,Charges,RealizedPnL,ROIPct,SignalReason,Status\n';
+        botSession.trades.forEach(t => {
+            const isBuy = t.side === 'BUY';
+            const status = isBuy ? 'FILLED' : ((t.realized_pnl || 0) >= 0 ? 'PROFIT' : 'LOSS');
+            csv += `"${t.timestamp || ''}","${t.displayName || t.symbol}","${t.side}",${t.quantity},${t.price || t.entry_price || 0},${t.total_value || 0},${t.charges || 0},${t.realized_pnl || 0},"${t.roi_pct || 0}%","${(t.reason || '').replace(/"/g, '""')}","${status}"\n`;
+        });
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `bot_session_${botSession.session_count || 1}_trades_${new Date().toISOString().slice(0, 10)}.csv`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        showToast(`Session #${botSession.session_count || 1} trades CSV downloaded`, 'success');
+    }
+
+    async function resetBotSessionReport(promptUser = true) {
+        if (promptUser && !confirm('Reset and clear current session report? This will start a fresh empty report for your next run.')) {
+            return;
+        }
+        try {
+            await fetch('/api/after-hours/session-report', { method: 'DELETE' });
+        } catch (e) {}
+
+        botSession.session_count = (botSession.session_count || 1) + 1;
+        botSession.session_id = 'sess_' + Date.now();
+        botSession.status = 'STOPPED';
+        botSession.start_time = null;
+        botSession.stop_time = null;
+        botSession.trades = [];
+        botSession.metrics = {
+            total_trades: 0,
+            total_buys: 0,
+            total_sells: 0,
+            net_realized_pnl: 0.0,
+            total_charges: 0.0,
+            win_rate: 0.0,
+            wins: 0,
+            losses: 0
+        };
+        saveBotSession();
+        renderBotSessionReport();
+        showToast('Bot session report reset successfully', 'success');
+    }
+
+    let currentLedgerTab = 'session';
+    let cachedClosedTrades = [];
+
+    function switchLedgerTab(tab) {
+        currentLedgerTab = tab;
+        const btnSession = document.getElementById('tab-btn-session-report');
+        const btnActive = document.getElementById('tab-btn-active-holdings');
+        const btnClosed = document.getElementById('tab-btn-closed-trades');
+        const viewSession = document.getElementById('view-session-report');
+        const viewActive = document.getElementById('view-active-holdings');
+        const viewClosed = document.getElementById('view-closed-trades');
+        const btnSessionCsv = document.getElementById('btn-export-session-csv');
+        const btnCsv = document.getElementById('btn-export-csv');
+
+        // Reset tab buttons
+        if (btnSession) btnSession.classList.remove('active');
+        if (btnActive) btnActive.classList.remove('active');
+        if (btnClosed) btnClosed.classList.remove('active');
+
+        // Reset views
+        if (viewSession) viewSession.style.display = 'none';
+        if (viewActive) viewActive.style.display = 'none';
+        if (viewClosed) viewClosed.style.display = 'none';
+
+        if (btnSessionCsv) btnSessionCsv.style.display = 'none';
+        if (btnCsv) btnCsv.style.display = 'none';
+
+        if (tab === 'session') {
+            if (btnSession) btnSession.classList.add('active');
+            if (viewSession) viewSession.style.display = 'block';
+            if (btnSessionCsv) btnSessionCsv.style.display = 'inline-flex';
+            renderBotSessionReport();
+        } else if (tab === 'active') {
+            if (btnActive) btnActive.classList.add('active');
+            if (viewActive) viewActive.style.display = 'block';
+            loadBotHoldings();
+        } else if (tab === 'closed') {
+            if (btnClosed) btnClosed.classList.add('active');
+            if (viewClosed) viewClosed.style.display = 'block';
+            if (btnCsv) btnCsv.style.display = 'inline-flex';
+            loadClosedTrades();
+        }
+    }
+
+    function refreshCurrentLedgerTab() {
+        if (currentLedgerTab === 'session') {
+            renderBotSessionReport();
+            fetch('/api/after-hours/session-report')
+                .then(r => r.json())
+                .then(d => {
+                    if (d && d.session) syncSessionWithServer(d.session);
+                }).catch(() => {});
+        } else if (currentLedgerTab === 'active') {
+            loadBotHoldings();
+        } else {
+            loadClosedTrades();
+        }
+    }
+
+    async function loadClosedTrades() {
+        try {
+            const res = await fetch('/api/trades/closed');
+            const data = await res.json();
+            const trades = data.trades || [];
+            cachedClosedTrades = trades;
+            const summary = data.summary || {};
+
+            const countBadge = document.getElementById('closed-trades-badge-count');
+            if (countBadge) countBadge.innerText = summary.total_closed || 0;
+
+            const pnlEl = document.getElementById('closed-net-pnl');
+            const netPnl = summary.net_realized_pnl || 0.0;
+            if (pnlEl) {
+                pnlEl.innerText = `${netPnl >= 0 ? '+' : ''}₹${netPnl.toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+                pnlEl.className = netPnl >= 0 ? 'score-val text-green' : 'score-val text-red';
+            }
+
+            const chargesEl = document.getElementById('closed-total-charges');
+            const totalCharges = summary.total_charges || 0.0;
+            if (chargesEl) {
+                chargesEl.innerText = `₹${totalCharges.toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+            }
+
+            const winRateEl = document.getElementById('closed-win-rate');
+            if (winRateEl) {
+                winRateEl.innerText = `${summary.win_rate || 0}%`;
+                winRateEl.className = (summary.win_rate || 0) >= 50 ? 'score-val text-green' : 'score-val text-red';
+            }
+
+            const winCountEl = document.getElementById('closed-win-count');
+            if (winCountEl) {
+                winCountEl.innerText = `${summary.wins || 0} Wins / ${summary.losses || 0} Losses`;
+            }
+
+            const totalCountEl = document.getElementById('closed-total-count');
+            if (totalCountEl) totalCountEl.innerText = summary.total_closed || 0;
+
+            const avgPnlEl = document.getElementById('closed-avg-pnl');
+            if (avgPnlEl) {
+                const avgPnl = summary.avg_trade_pnl || 0.0;
+                avgPnlEl.innerText = `${avgPnl >= 0 ? '+' : ''}₹${avgPnl.toFixed(2)}`;
+                avgPnlEl.className = avgPnl >= 0 ? 'score-val text-green' : 'score-val text-red';
+            }
+
+            const tbody = document.getElementById('bot-closed-trades-tbody');
+            if (!tbody) return;
+
+            if (trades.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="11" class="text-center" style="padding: 1.5rem; color: var(--text-muted);">No closed trades recorded yet. Stop-loss liquidations, trailing stop hits, and take-profit exits will be logged here.</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = '';
+            trades.forEach(t => {
+                const tr = document.createElement('tr');
+                const isWin = (t.realized_pnl || 0) >= 0;
+                const pnlClass = isWin ? 'text-green' : 'text-red';
+                const pnlSign = isWin ? '+' : '';
+                const statusBadge = isWin 
+                    ? '<span class="signal-badge signal-buy" style="font-size: 0.68rem;"><i class="fa-solid fa-trophy"></i> PROFIT</span>' 
+                    : '<span class="signal-badge signal-sell" style="font-size: 0.68rem;"><i class="fa-solid fa-shield-halved"></i> STOPPED</span>';
+
+                const charges = t.charges || 0.0;
+                const chargeTooltip = `Brokerage: ₹${(t.brokerage||0).toFixed(2)} | STT: ₹${(t.stt||0).toFixed(2)} | Exch: ₹${(t.exchange_charges||0).toFixed(2)} | GST: ₹${(t.gst||0).toFixed(2)} | SEBI: ₹${(t.sebi_charges||0).toFixed(2)} | Stamp: ₹${(t.stamp_duty||0).toFixed(2)}`;
+
+                tr.innerHTML = `
+                    <td style="font-size: 0.76rem; color: var(--text-muted); font-family: var(--font-code);">${t.timestamp}</td>
+                    <td>
+                        <strong style="font-family: var(--font-code); color: #fff;">${t.displayName}</strong>
+                        <span style="font-size: 0.68rem; color: var(--text-muted); display: block;">${t.symbol}</span>
+                    </td>
+                    <td>
+                        <span class="side-badge side-long"><i class="fa-solid fa-arrow-trend-up"></i> LONG</span>
+                    </td>
+                    <td style="font-weight: 700;">${t.quantity}</td>
+                    <td>₹${(t.entry_price || 0).toFixed(2)}</td>
+                    <td style="font-weight: 700;">₹${(t.exit_price || 0).toFixed(2)}</td>
+                    <td>₹${(t.total_value || 0).toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                    <td style="color: #fca5a5; font-family: var(--font-code); cursor: help;" title="${chargeTooltip}">-₹${charges.toFixed(2)}</td>
+                    <td class="${pnlClass}" style="font-weight: 700;">${pnlSign}₹${(t.realized_pnl || 0).toFixed(2)}</td>
+                    <td class="${pnlClass}" style="font-weight: 700;">${pnlSign}${(t.roi_pct || 0).toFixed(2)}%</td>
+                    <td>${statusBadge}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+        } catch (e) {}
+    }
+
+    function exportClosedTradesCSV() {
+        if (!cachedClosedTrades || cachedClosedTrades.length === 0) {
+            showToast('No closed trades to export', 'warning');
+            return;
+        }
+        let csv = 'Timestamp,Stock,Side,Quantity,EntryPrice,ExitPrice,NotionalTotal,Charges,Brokerage,STT,ExchCharges,GST,SEBICharges,StampDuty,NetRealizedPnL,ROIPct,Status\n';
+        cachedClosedTrades.forEach(t => {
+            const status = (t.realized_pnl || 0) >= 0 ? 'PROFIT' : 'LOSS';
+            csv += `"${t.timestamp}","${t.displayName}","LONG",${t.quantity},${t.entry_price},${t.exit_price},${t.total_value},${t.charges || 0},${t.brokerage || 0},${t.stt || 0},${t.exchange_charges || 0},${t.gst || 0},${t.sebi_charges || 0},${t.stamp_duty || 0},${t.realized_pnl},${t.roi_pct}%,"${status}"\n`;
+        });
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `closed_trades_report_${new Date().toISOString().slice(0, 10)}.csv`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        showToast('Closed trades CSV report downloaded', 'success');
+    }
+
+    async function exitBotPosition(symbol, quantity, side = 'LONG') {
+        const isShort = (side === 'SHORT');
+        const actionLabel = isShort ? 'Cover short position' : 'Liquidate long position';
+        if (!confirm(`${actionLabel} in ${symbol} (${quantity} shares)?`)) return;
+        try {
+            const exitOrderSide = isShort ? 'COVER' : 'SELL';
+            const currentAvg = getLockedEntryPrice(symbol, 0);
+            const res = await fetch('/api/order', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    symbol, 
+                    order_type: exitOrderSide, 
+                    side: exitOrderSide, 
+                    quantity,
+                    average_price: currentAvg 
+                })
+            });
+            const data = await res.json();
+            if (data.success) {
+                try {
+                    let cache = JSON.parse(localStorage.getItem(POS_ENTRY_LOCK_KEY) || '{}');
+                    delete cache[symbol];
+                    localStorage.setItem(POS_ENTRY_LOCK_KEY, JSON.stringify(cache));
+                } catch(e){}
+                
+                // Immediately update local active holdings
+                const remaining = getStoredActivePositions().filter(p => p.symbol !== symbol);
+                saveStoredActivePositions(remaining);
+                window.cachedActivePositions = remaining;
+
+                showToast(`${isShort ? 'Covered' : 'Liquidated'} ${quantity} shares of ${symbol}`, 'success');
+                loadBotHoldings();
+                loadAccountMetrics();
+                loadClosedTrades();
+            } else {
+                showToast(`Order failed: ${data.message || data.error}`, 'error');
+            }
+        } catch (e) {
+            showToast('Failed to submit order: ' + e.message, 'error');
+        }
+    }
+
+    async function manualSquareOffAll() {
+        const localPositions = getStoredActivePositions();
+        const count = localPositions.length || (window.cachedActivePositions || []).length;
+        if (count === 0) {
+            showToast('No active positions to exit.', 'info');
+            return;
+        }
+        if (!confirm(`Are you sure you want to manually exit / square off ALL ${count} open positions at live market prices?`)) return;
+
+        try {
+            const res = await fetch('/api/positions/exit-all', { 
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ client_positions: localPositions })
+            });
+            const data = await res.json();
+            if (data.success) {
+                try { localStorage.removeItem(POS_ENTRY_LOCK_KEY); } catch(e){}
+                saveStoredActivePositions([]);
+                window.cachedActivePositions = [];
+                showToast(`Successfully squared off ${data.exited_count} open positions!`, 'success');
+                loadBotHoldings();
+                loadAccountMetrics();
+                loadClosedTrades();
+            } else {
+                showToast(`Square-off failed: ${data.message || data.error}`, 'error');
+            }
+        } catch (e) {
+            showToast('Square-off request failed: ' + e.message, 'error');
+        }
+    }
+
+    async function resetAndRestartBot() {
+        if (!confirm('Are you sure you want to RESET & RESTART the bot?\n\n• All open positions will be squared off\n• Desk capital restored to ₹50,000 cash\n• Intraday limits cleared\n• Fresh bot session initiated\n• Bot will immediately restart autonomous scanning')) return;
+
+        try {
+            const res = await fetch('/api/after-hours/reset', { method: 'POST' });
+            const data = await res.json();
+            if (data.success) {
+                try { localStorage.removeItem(POS_ENTRY_LOCK_KEY); } catch(e){}
+                saveStoredActivePositions([]);
+                window.cachedActivePositions = [];
+                resetBotSessionReport(false);
+                showToast('Bot reset and successfully restarted fresh with ₹50,000 capital!', 'success');
+                loadAccountMetrics();
+                loadBotHoldings();
+                loadClosedTrades();
+                fetchBotStatus();
+            } else {
+                showToast(`Reset & Restart failed: ${data.message || data.error}`, 'error');
+            }
+        } catch (e) {
+            showToast('Reset & Restart request failed: ' + e.message, 'error');
+        }
+    }
+
+    async function resetPortfolioTo10Lakh() {
+        if (!confirm('Are you sure you want to reset your portfolio back to ₹50,000?\n\n• Cash balance will be restored to ₹50,000\n• All open positions will be cleared\n• Trade history and closed trades report will be reset\n• Bot session trades report will be reset')) return;
+
+        try {
+            const res = await fetch('/api/reset-account', { method: 'POST' });
+            const data = await res.json();
+            if (data.success) {
+                try { localStorage.removeItem(POS_ENTRY_LOCK_KEY); } catch(e){}
+                saveStoredActivePositions([]);
+                window.cachedActivePositions = [];
+                showToast('Portfolio successfully reset back to ₹50,000 cash!', 'success');
+                resetBotSessionReport(false);
+                loadAccountMetrics();
+                loadBotHoldings();
+                loadClosedTrades();
+                fetchBotStatus();
+            } else {
+                showToast('Reset failed: ' + (data.message || 'Error'), 'error');
+            }
+        } catch (e) {
+            showToast('Reset request failed: ' + e.message, 'error');
+        }
+    }
+
+    function showToast(msg, type = 'info') {
+        const container = document.getElementById('toast-container');
+        if (!container) return;
+        const toast = document.createElement('div');
+        toast.className = `toast toast-${type}`;
+        toast.innerHTML = msg;
+        container.appendChild(toast);
+        setTimeout(() => toast.remove(), 4000);
+    }
+</script>
+{% endblock %}

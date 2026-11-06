@@ -12,24 +12,24 @@ from app.services.market_data import MarketDataService
 from app.services.paper_trader import PaperTradingEngine
 from app.models.trading import Position, Account, NIFTY_50_DEFAULT, NIFTY_200_DEFAULT
 
-def _get_bot_state_file():
+def _get_bot_state_file(filename="trading_bot_state.json"):
     tmp = os.environ.get('TMPDIR', '/tmp')
     if os.path.exists(tmp) and os.access(tmp, os.W_OK):
-        return os.path.join(tmp, 'trading_bot_state.json')
+        return os.path.join(tmp, filename)
     base = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
-    return os.path.join(base, 'trading_bot_state.json')
+    return os.path.join(base, filename)
 
-def _save_persistent_bot_state(data: dict):
+def _save_persistent_bot_state(data: dict, filename="trading_bot_state.json"):
     try:
-        path = _get_bot_state_file()
+        path = _get_bot_state_file(filename)
         with open(path, 'w') as f:
             json.dump(data, f, default=str)
     except Exception:
         pass
 
-def _load_persistent_bot_state() -> dict:
+def _load_persistent_bot_state(filename="trading_bot_state.json") -> dict:
     try:
-        path = _get_bot_state_file()
+        path = _get_bot_state_file(filename)
         if os.path.exists(path):
             with open(path, 'r') as f:
                 return json.load(f)
@@ -75,8 +75,11 @@ def get_after_hours_price(symbol: str, base_price: float, pos=None) -> float:
     return round(base_price * (1.0 + st["drift_pct"]), 2)
 
 class AutoTradingBot:
-    def __init__(self):
-        persisted = _load_persistent_bot_state()
+    def __init__(self, state_filename="trading_bot_state.json", name="LiveBot", is_after_hours_forced=False):
+        self.state_filename = state_filename
+        self.name = name
+        self.is_after_hours_forced = is_after_hours_forced
+        persisted = _load_persistent_bot_state(self.state_filename)
         self.is_running = persisted.get("is_running", False)
         self.scan_mode = persisted.get("scan_mode", "ALL_NIFTY_200")
         self.single_symbol = persisted.get("single_symbol", "RELIANCE.NS")
@@ -160,7 +163,7 @@ class AutoTradingBot:
                 "session_metrics": self.session_metrics,
                 "past_sessions": self.past_sessions[:5]
             }
-            _save_persistent_bot_state(data)
+            _save_persistent_bot_state(data, self.state_filename)
         except Exception:
             pass
 
@@ -252,9 +255,9 @@ class AutoTradingBot:
         return traded
 
     def get_status(self) -> dict:
-        persisted = _load_persistent_bot_state()
+        persisted = _load_persistent_bot_state(self.state_filename)
         is_active = self.is_running or persisted.get("is_running", False)
-        after_hours = not is_nse_market_open()
+        after_hours = True if self.is_after_hours_forced else not is_nse_market_open()
 
         # Sync session state from persisted if memory was restarted
         if not self.session_trades and persisted.get("session_trades"):
@@ -267,8 +270,10 @@ class AutoTradingBot:
             self.session_stop_time = persisted.get("session_stop_time", self.session_stop_time)
 
         return {
+            "name": self.name,
             "is_running": is_active,
             "is_after_hours": after_hours,
+            "is_after_hours_bot": self.is_after_hours_forced,
             "market_status": "AFTER_HOURS_SIMULATION" if after_hours else "LIVE_NSE_MARKET",
             "scan_mode": self.scan_mode,
             "single_symbol": self.single_symbol,
@@ -850,7 +855,7 @@ class AutoTradingBot:
                 pass
 
         # Apply Simulated Price Ticks if Simulation Mode / Event is active or in after-market hours
-        after_hours = not is_nse_market_open()
+        after_hours = True if self.is_after_hours_forced else not is_nse_market_open()
         for symbol, stock_data in stock_data_map.items():
             pos = held_map.get(symbol)
             orig_p = stock_data["price"]
@@ -893,7 +898,7 @@ class AutoTradingBot:
         # Autonomous trade order execution strictly requires bot to be running (self.is_running is True or persisted)
         # Or explicit manual simulation triggers (FORCE_BUY, STOP_SHOCK)
         is_explicit_test = simulation_event in ["FORCE_BUY", "STOP_SHOCK"]
-        persisted_running = _load_persistent_bot_state().get("is_running", False)
+        persisted_running = _load_persistent_bot_state(self.state_filename).get("is_running", False)
         can_execute_trades = bool(self.is_running or persisted_running or is_explicit_test)
 
         for symbol in target_stocks:
@@ -1176,4 +1181,5 @@ class AutoTradingBot:
                     break
                 time.sleep(1)
 
-bot_instance = AutoTradingBot()
+bot_instance = AutoTradingBot(state_filename="trading_bot_state.json", name="LiveBot", is_after_hours_forced=False)
+after_hours_bot_instance = AutoTradingBot(state_filename="after_hours_bot_state.json", name="AfterHoursBot", is_after_hours_forced=True)
