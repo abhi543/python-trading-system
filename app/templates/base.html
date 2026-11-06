@@ -768,11 +768,15 @@
                 <span class="metric-value text-green" id="nav-total-equity">₹10,00,000.00</span>
             </div>
             <div class="metric-box">
-                <span class="metric-title">CASH BALANCE</span>
+                <span class="metric-title">AVAILABLE CASH MARGIN</span>
                 <span class="metric-value" id="nav-cash-balance">₹10,00,000.00</span>
             </div>
             <div class="metric-box">
-                <span class="metric-title">UNREALIZED P&L</span>
+                <span class="metric-title">5X BUYING POWER</span>
+                <span class="metric-value text-green" id="nav-buying-power">₹50,00,000.00</span>
+            </div>
+            <div class="metric-box">
+                <span class="metric-title">UNREALIZED P&amp;L</span>
                 <span class="metric-value" id="nav-pnl">₹0.00</span>
             </div>
             <button id="reset-account-btn" class="btn-reset" style="background: rgba(255, 75, 75, 0.15); color: #ff7575; border: 1px solid rgba(255, 75, 75, 0.4); font-weight: 700; padding: 0.45rem 0.85rem;" title="Reset portfolio balance back to ₹10 Lakh (₹10,00,000)">
@@ -799,6 +803,8 @@
                         if (data.success) {
                             document.getElementById('nav-total-equity').innerText = '₹10,00,000.00';
                             document.getElementById('nav-cash-balance').innerText = '₹10,00,000.00';
+                            const bpEl = document.getElementById('nav-buying-power');
+                            if (bpEl) bpEl.innerText = '₹50,00,000.00';
                             document.getElementById('nav-pnl').innerText = '₹0.00';
                             document.getElementById('nav-pnl').className = 'metric-value text-green';
                             

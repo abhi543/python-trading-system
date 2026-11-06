@@ -16,6 +16,7 @@
                         <span id="bot-status-text">OFFLINE / STOPPED</span>
                     </span>
                     <span class="bot-badge-outline"><i class="fa-solid fa-bolt"></i> NIFTY 200 / 50 MULTI-BASKET ENGINE</span>
+                    <span class="bot-badge-outline" style="color: #00f090; border-color: rgba(0, 240, 144, 0.4);"><i class="fa-solid fa-bolt"></i> 5X NSE LEVERAGE</span>
                     <span class="bot-badge-outline" id="bot-session-badge"><i class="fa-solid fa-sun" style="color: var(--green);"></i> SESSION: LIVE NSE MARKET SESSION</span>
                     <span class="bot-badge-outline" id="bot-interval-badge"><i class="fa-solid fa-clock"></i> CYCLE: 60s (1m)</span>
                 </div>
@@ -65,7 +66,7 @@
             <div class="config-summary-ribbon" id="config-summary-ribbon">
                 <span class="cfg-pill pill-strat" id="ribbon-strat"><i class="fa-solid fa-brain"></i> Strategy: <strong>1-2-3 Reversal Map</strong></span>
                 <span class="cfg-pill pill-universe" id="ribbon-universe"><i class="fa-solid fa-layer-group"></i> Universe: <strong>NIFTY 200</strong></span>
-                <span class="cfg-pill pill-capital" id="ribbon-capital"><i class="fa-solid fa-indian-rupee-sign"></i> ₹15,000 / trade</span>
+                <span class="cfg-pill pill-capital" id="ribbon-capital"><i class="fa-solid fa-bolt" style="color: var(--green);"></i> 5x Leverage: <strong>₹15,000 Margin (₹75,000 Exposure)</strong></span>
                 <span class="cfg-pill pill-sl" id="ribbon-sl"><i class="fa-solid fa-shield-halved"></i> SL: <strong>Pattern Stop (Point 3)</strong></span>
                 <span class="cfg-pill pill-tp" id="ribbon-tp"><i class="fa-solid fa-bullseye"></i> TP: <strong>Measured Move</strong></span>
                 <span class="cfg-pill pill-filter" id="ribbon-ema"><i class="fa-solid fa-filter" style="color: var(--green);"></i> 200 EMA Filter: <strong>ON</strong></span>
@@ -97,8 +98,9 @@
                 </div>
 
                 <div class="config-item">
-                    <label><i class="fa-solid fa-indian-rupee-sign"></i> CAPITAL PER TRADE (₹)</label>
+                    <label><i class="fa-solid fa-indian-rupee-sign"></i> MARGIN PER TRADE (₹) [5X LEVERAGE]</label>
                     <input type="number" id="bot-allocation" class="config-input" value="15000" step="1000" min="1000" onchange="onStrategyChange()">
+                    <span class="badge" style="font-size: 0.68rem; background: rgba(0, 240, 144, 0.15); color: var(--green); border: 1px solid rgba(0, 240, 144, 0.3); margin-top: 4px; display: inline-block;">⚡ 5x Buying Power: ₹75,000 Exposure</span>
                 </div>
 
                 <div class="config-item" id="cfg-item-max-positions">
@@ -516,10 +518,10 @@
                         </div>
 
                         <div class="rule-item">
-                            <div class="rule-icon"><i class="fa-solid fa-coins" style="color: #a78bfa;"></i></div>
+                            <div class="rule-icon"><i class="fa-solid fa-bolt" style="color: #00f090;"></i></div>
                             <div>
-                                <h4>₹10 Lakh Capital & Position Sizing</h4>
-                                <p>Allocates up to <strong>₹15,000</strong> per trade across up to <strong>3 concurrent positions</strong>, backed by ₹10,00,000 margin.</p>
+                                <h4>₹10 Lakh Capital &amp; 5x NSE Leverage</h4>
+                                <p>Trades with standard <strong>5x intraday leverage (20% margin)</strong> on NSE equities. Allocates <strong>₹15,000 margin</strong> to control <strong>₹75,000 buying power</strong> per position, backed by ₹10,00,000 cash balance.</p>
                             </div>
                         </div>
                     </div>
@@ -1565,6 +1567,9 @@
 
             document.getElementById('nav-total-equity').innerText = `₹${equity.toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
             document.getElementById('nav-cash-balance').innerText = `₹${cash.toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+            const buyingPower = (data.buying_power !== undefined) ? data.buying_power : (cash * 5);
+            const bpEl = document.getElementById('nav-buying-power');
+            if (bpEl) bpEl.innerText = `₹${buyingPower.toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
             const pnlEl = document.getElementById('nav-pnl');
             pnlEl.innerText = `${pnl >= 0 ? '+' : ''}₹${pnl.toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
             pnlEl.className = pnl >= 0 ? 'metric-value text-green' : 'metric-value text-red';
@@ -1724,7 +1729,9 @@
 
         if (ribStrat) ribStrat.innerHTML = `<i class="fa-solid fa-brain"></i> Strategy: <strong>${stratName}</strong>`;
         if (ribUni) ribUni.innerHTML = `<i class="fa-solid fa-layer-group"></i> Universe: <strong>${universeName}</strong>`;
-        if (ribCap) ribCap.innerHTML = `<i class="fa-solid fa-indian-rupee-sign"></i> ₹${Number(capital).toLocaleString('en-IN')}`;
+        const marginVal = Number(capital) || 15000;
+        const exposureVal = marginVal * 5;
+        if (ribCap) ribCap.innerHTML = `<i class="fa-solid fa-bolt" style="color: var(--green);"></i> Margin: <strong>₹${marginVal.toLocaleString('en-IN')}</strong> <span style="opacity: 0.85;">(5x: ₹${exposureVal.toLocaleString('en-IN')})</span>`;
         if (ribSl) ribSl.innerHTML = (stratVal === '123_REVERSAL') ? `<i class="fa-solid fa-shield-halved"></i> SL: <strong>Pattern Stop (Point 3)</strong>` : `<i class="fa-solid fa-shield-halved"></i> SL: <strong>${slVal}%</strong>`;
         if (ribTp) ribTp.innerHTML = (stratVal === '123_REVERSAL') ? `<i class="fa-solid fa-bullseye"></i> TP: <strong>Measured Move</strong>` : `<i class="fa-solid fa-bullseye"></i> TP: <strong>${tpVal}%</strong>`;
         if (ribEma) ribEma.innerHTML = emaOn ? `<i class="fa-solid fa-filter" style="color: var(--green);"></i> 200 EMA: <strong>ON</strong>` : `<i class="fa-solid fa-filter" style="color: var(--text-muted);"></i> 200 EMA: <strong>OFF</strong>`;

@@ -82,6 +82,7 @@ class AutoTradingBot:
         self.single_symbol = persisted.get("single_symbol", "RELIANCE.NS")
         self.strategy = persisted.get("strategy", "123_REVERSAL")
         self.allocation_per_trade = float(persisted.get("allocation_per_trade", 15000.0))
+        self.leverage = float(persisted.get("leverage", 5.0))  # 5x NSE Intraday MIS Leverage
         self.max_positions = int(persisted.get("max_positions", 3))
         self.interval_seconds = 60  # 1 minute (60 seconds)
         self.fast_period = 9
@@ -142,6 +143,7 @@ class AutoTradingBot:
                 "single_symbol": self.single_symbol,
                 "strategy": self.strategy,
                 "allocation_per_trade": self.allocation_per_trade,
+                "leverage": self.leverage,
                 "max_positions": self.max_positions,
                 "stop_loss_pct": self.stop_loss_pct,
                 "take_profit_pct": self.take_profit_pct,
@@ -228,6 +230,8 @@ class AutoTradingBot:
             "single_symbol": self.single_symbol,
             "strategy": self.strategy,
             "allocation_per_trade": self.allocation_per_trade,
+            "leverage": self.leverage,
+            "buying_power_per_trade": self.allocation_per_trade * self.leverage,
             "max_positions": self.max_positions,
             "is_unlimited_positions": (self.strategy == "123_REVERSAL"),
             "interval_seconds": self.interval_seconds,
@@ -272,6 +276,8 @@ class AutoTradingBot:
                 self.add_log(f"🔄 Strategy updated: switched from {old_strat} to {self.strategy}", "INFO")
         if "allocation_per_trade" in config:
             self.allocation_per_trade = float(config["allocation_per_trade"])
+        if "leverage" in config:
+            self.leverage = float(config["leverage"])
         if "max_positions" in config:
             self.max_positions = int(config["max_positions"])
         if "fast_period" in config:
@@ -346,7 +352,7 @@ class AutoTradingBot:
         ema_tag = "200 EMA Filter [ON]" if self.use_ema200_filter else "200 EMA Filter [OFF]"
         trail_tag = "Trailing Stop [ON]" if self.use_trailing_stop else "Trailing Stop [OFF]"
         session_tag = "🌙 AFTER-MARKET HOURS (ACTIVE 24/7)" if after_hours else "☀️ LIVE NSE MARKET SESSION"
-        self.add_log(f"Auto-Bot ACTIVATED (Session #{self.session_count}) in {session_tag} on {mode_label} | {self.strategy} | {ema_tag} | {trail_tag} | Alloc: ₹{self.allocation_per_trade:,.0f}", "SUCCESS")
+        self.add_log(f"Auto-Bot ACTIVATED (Session #{self.session_count}) in {session_tag} on {mode_label} | {self.strategy} | {ema_tag} | {trail_tag} | Margin: ₹{self.allocation_per_trade:,.0f} [5X LEVERAGE: ₹{self.allocation_per_trade * self.leverage:,.0f} Exposure]", "SUCCESS")
 
         if not self.thread or not self.thread.is_alive():
             self.thread = threading.Thread(target=self._run_loop, daemon=True)
@@ -651,7 +657,7 @@ class AutoTradingBot:
             force_sym = (target_symbol or "RELIANCE.NS").strip().upper()
             quote = MarketDataService.get_quote(force_sym)
             p = quote.get("price", 1500.0) if "error" not in quote else 1500.0
-            trade_qty = max(1, int(self.allocation_per_trade / p))
+            trade_qty = max(1, int((self.allocation_per_trade * self.leverage) / p))
             exec_res = PaperTradingEngine.execute_order(force_sym, "BUY", trade_qty, execution_price=p)
             pos_rec = Position.query.filter_by(symbol=force_sym).first()
             if pos_rec:
@@ -691,7 +697,7 @@ class AutoTradingBot:
                 seed_sym = "RELIANCE.NS"
                 quote = MarketDataService.get_quote(seed_sym)
                 p = quote.get("price", 1500.0) if "error" not in quote else 1500.0
-                trade_qty = max(1, int(self.allocation_per_trade / p))
+                trade_qty = max(1, int((self.allocation_per_trade * self.leverage) / p))
                 exec_res = PaperTradingEngine.execute_order(seed_sym, "BUY", trade_qty, execution_price=p)
                 pos_rec = Position.query.filter_by(symbol=seed_sym).first()
                 if pos_rec:
@@ -823,16 +829,17 @@ class AutoTradingBot:
                     has_position_slot = is_unlimited_positions or (len(held_map) < self.max_positions)
 
                     if symbol not in held_map and has_position_slot:
-                        # Calculate quantity based on capital allocation
-                        trade_qty = max(1, int(self.allocation_per_trade / price))
-                        total_cost = trade_qty * price
+                        # 5x Leverage: Buying power = margin * 5.0 (20% margin requirement)
+                        buying_power = self.allocation_per_trade * self.leverage
+                        trade_qty = max(1, int(buying_power / price))
+                        margin_needed = round((trade_qty * price) / self.leverage, 2)
 
-                        if available_cash >= total_cost:
+                        if available_cash >= margin_needed:
                             exec_res = PaperTradingEngine.execute_order(symbol, "BUY", trade_qty, execution_price=price)
                             if exec_res.get("success"):
                                 trades_executed += 1
-                                available_cash -= total_cost
-                                eval_res["action_executed"] = f"BOUGHT {trade_qty} SHARES"
+                                available_cash -= margin_needed
+                                eval_res["action_executed"] = f"BOUGHT {trade_qty} (5x)"
                                 
                                 # Set Initial Stop-Loss and Take-Profit targets on position
                                 pos_rec = Position.query.filter_by(symbol=symbol).first()

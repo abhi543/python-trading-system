@@ -3,6 +3,8 @@ from app.models.trading import Account, Position, TradeHistory
 from app.services.market_data import MarketDataService
 
 class PaperTradingEngine:
+    LEVERAGE = 5.0  # NSE Intraday MIS Leverage: 5x (20% margin requirement)
+
     @staticmethod
     def get_portfolio_summary():
         account = Account.query.first()
@@ -12,6 +14,7 @@ class PaperTradingEngine:
         positions = Position.query.filter(Position.quantity > 0).all()
         portfolio_positions = []
         total_market_value = 0.0
+        total_margin_used = 0.0
         total_unrealized_pnl = 0.0
         
         for pos in positions:
@@ -20,10 +23,13 @@ class PaperTradingEngine:
             
             market_value = pos.quantity * current_price
             cost_basis = pos.quantity * pos.average_price
+            margin_used = cost_basis / PaperTradingEngine.LEVERAGE
             unrealized_pnl = market_value - cost_basis
-            unrealized_pnl_pct = (unrealized_pnl / cost_basis * 100) if cost_basis > 0 else 0.0
+            # Calculate return on actual margin deployed
+            unrealized_pnl_pct = (unrealized_pnl / margin_used * 100) if margin_used > 0 else 0.0
             
             total_market_value += market_value
+            total_margin_used += margin_used
             total_unrealized_pnl += unrealized_pnl
             
             portfolio_positions.append({
@@ -32,6 +38,8 @@ class PaperTradingEngine:
                 "average_price": round(pos.average_price, 2),
                 "current_price": round(current_price, 2),
                 "market_value": round(market_value, 2),
+                "margin_used": round(margin_used, 2),
+                "leverage": 5,
                 "unrealized_pnl": round(unrealized_pnl, 2),
                 "unrealized_pnl_pct": round(unrealized_pnl_pct, 2),
                 "peak_price": round(getattr(pos, 'peak_price', 0.0) or pos.average_price, 2),
@@ -40,10 +48,15 @@ class PaperTradingEngine:
                 "trailing_active": bool(getattr(pos, 'trailing_active', False))
             })
             
-        total_equity = account.cash_balance + total_market_value
+        total_equity = account.cash_balance + total_margin_used + total_unrealized_pnl
+        buying_power = account.cash_balance * PaperTradingEngine.LEVERAGE
         
         account_data = {
             "cash_balance": round(account.cash_balance, 2),
+            "available_margin": round(account.cash_balance, 2),
+            "margin_used": round(total_margin_used, 2),
+            "buying_power": round(buying_power, 2),
+            "leverage": 5,
             "market_value": round(total_market_value, 2),
             "total_equity": round(total_equity, 2),
             "unrealized_pnl": round(total_unrealized_pnl, 2)
@@ -51,6 +64,10 @@ class PaperTradingEngine:
 
         return {
             "cash_balance": round(account.cash_balance, 2),
+            "available_margin": round(account.cash_balance, 2),
+            "margin_used": round(total_margin_used, 2),
+            "buying_power": round(buying_power, 2),
+            "leverage": 5,
             "market_value": round(total_market_value, 2),
             "total_equity": round(total_equity, 2),
             "unrealized_pnl": round(total_unrealized_pnl, 2),
@@ -134,14 +151,14 @@ class PaperTradingEngine:
         total_charges = charges_data["total_charges"]
         
         if side == "BUY":
-            net_required = round(turnover + total_charges, 2)
-            if account.cash_balance < net_required:
+            margin_required = round((turnover / PaperTradingEngine.LEVERAGE) + total_charges, 2)
+            if account.cash_balance < margin_required:
                 return {
                     "success": False, 
-                    "message": f"Insufficient funds. Required: ₹{net_required:,.2f} (Turnover: ₹{turnover:,.2f} + Charges: ₹{total_charges:.2f}), Available: ₹{account.cash_balance:,.2f}"
+                    "message": f"Insufficient margin (5x Leverage). Required: ₹{margin_required:,.2f} (Turnover: ₹{turnover:,.2f} + Charges: ₹{total_charges:.2f}), Available: ₹{account.cash_balance:,.2f}"
                 }
             
-            account.cash_balance -= net_required
+            account.cash_balance -= margin_required
             position = Position.query.filter_by(symbol=symbol).first()
             if not position:
                 position = Position(
@@ -176,13 +193,13 @@ class PaperTradingEngine:
                 sebi_charges=charges_data["sebi_charges"],
                 gst=charges_data["gst"],
                 stamp_duty=charges_data["stamp_duty"],
-                net_total=net_required
+                net_total=margin_required
             )
             db.session.add(trade)
             db.session.commit()
             return {
                 "success": True, 
-                "message": f"Bought {quantity} {symbol} @ ₹{price:.2f} (Charges: ₹{total_charges:.2f})", 
+                "message": f"Bought {quantity} {symbol} @ ₹{price:.2f} [5x Leverage | Margin: ₹{margin_required:,.2f}] (Charges: ₹{total_charges:.2f})", 
                 "trade_id": trade.id,
                 "charges": charges_data
             }
@@ -193,12 +210,14 @@ class PaperTradingEngine:
                 available = position.quantity if position else 0
                 return {"success": False, "message": f"Insufficient position. Available: {available}, Requested: {quantity}"}
             
-            net_proceeds = round(turnover - total_charges, 2)
             cost_basis = round(quantity * position.average_price, 2)
+            margin_originally_blocked = round(cost_basis / PaperTradingEngine.LEVERAGE, 2)
             gross_pnl = turnover - cost_basis
             net_realized_pnl = round(gross_pnl - total_charges, 2)
             
-            account.cash_balance += net_proceeds
+            # Cash returned = original margin released + net realized profit/loss
+            cash_returned = round(margin_originally_blocked + net_realized_pnl, 2)
+            account.cash_balance += cash_returned
             position.quantity -= quantity
             
             if position.quantity == 0:
@@ -218,13 +237,13 @@ class PaperTradingEngine:
                 sebi_charges=charges_data["sebi_charges"],
                 gst=charges_data["gst"],
                 stamp_duty=charges_data["stamp_duty"],
-                net_total=net_proceeds
+                net_total=cash_returned
             )
             db.session.add(trade)
             db.session.commit()
             return {
                 "success": True, 
-                "message": f"Sold {quantity} {symbol} @ ₹{price:.2f}. Net Realized P&L: ₹{net_realized_pnl:,.2f} (Charges: ₹{total_charges:.2f})", 
+                "message": f"Sold {quantity} {symbol} @ ₹{price:.2f} [5x Leverage]. Net Realized P&L: ₹{net_realized_pnl:,.2f} (Charges: ₹{total_charges:.2f})", 
                 "trade_id": trade.id,
                 "charges": charges_data
             }

@@ -496,6 +496,9 @@ async function loadPortfolio() {
 
         document.getElementById('nav-total-equity').innerText = `₹${data.total_equity.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
         document.getElementById('nav-cash-balance').innerText = `₹${data.cash_balance.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+        const buyingPower = (data.buying_power !== undefined) ? data.buying_power : (data.cash_balance * 5);
+        const bpEl = document.getElementById('nav-buying-power');
+        if (bpEl) bpEl.innerText = `₹${buyingPower.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
         
         const pnlEl = document.getElementById('nav-pnl');
         const sign = data.unrealized_pnl >= 0 ? '+' : '';
