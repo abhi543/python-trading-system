@@ -21,6 +21,17 @@
                 </div>
                 <h1 class="bot-title">Algorithmic Auto-Trading Station</h1>
                 <p class="bot-subtitle">Autonomous multi-asset strategy scanner & execution engine running live across NIFTY 200 & NIFTY 50 National Stock Exchange of India (NSE) constituents.</p>
+
+                <!-- 5-MINUTE LIVE SWEEP PROGRESS BAR -->
+                <div class="sweep-progress-container" id="sweep-progress-box">
+                    <div class="sweep-progress-header">
+                        <span class="sweep-progress-title"><i class="fa-solid fa-gauge-high"></i> BASKET SWEEP ENGINE</span>
+                        <span class="sweep-progress-status" id="sweep-countdown-text"><i class="fa-solid fa-pause"></i> BOT PAUSED — 300s CADENCE</span>
+                    </div>
+                    <div class="sweep-progress-track">
+                        <div class="sweep-progress-bar" id="sweep-progress-fill" style="width: 0%;"></div>
+                    </div>
+                </div>
             </div>
 
             <div class="bot-hero-actions">
@@ -38,11 +49,30 @@
 
         <!-- STRATEGY & RISK PARAMETERS CONTROLS -->
         <div class="bot-config-card">
-            <div class="config-header">
-                <h3><i class="fa-solid fa-sliders"></i> Strategy Configuration & Risk Guards</h3>
-                <span class="config-tip"><i class="fa-solid fa-shield-halved"></i> Automated Stop-Loss & Take-Profit guards trigger immediately on signal execution</span>
+            <div class="config-header" onclick="toggleConfigDrawer()" style="cursor: pointer;">
+                <div>
+                    <h3><i class="fa-solid fa-sliders"></i> Strategy Configuration &amp; Risk Cockpit</h3>
+                    <span class="config-tip"><i class="fa-solid fa-shield-halved"></i> Automated Stop-Loss &amp; Take-Profit guards trigger immediately on signal execution</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 0.75rem;">
+                    <button type="button" id="btn-toggle-config-drawer" class="btn-config-toggle">
+                        <i class="fa-solid fa-sliders"></i> <span id="config-drawer-toggle-text">Show Parameters</span> <i class="fa-solid fa-chevron-down" id="config-drawer-chevron"></i>
+                    </button>
+                </div>
             </div>
-            <div class="config-grid">
+
+            <!-- LIVE CONFIG SUMMARY RIBBON (VISIBLE ALWAYS) -->
+            <div class="config-summary-ribbon" id="config-summary-ribbon">
+                <span class="cfg-pill pill-strat" id="ribbon-strat"><i class="fa-solid fa-brain"></i> Strategy: <strong>1-2-3 Reversal Map</strong></span>
+                <span class="cfg-pill pill-universe" id="ribbon-universe"><i class="fa-solid fa-layer-group"></i> Universe: <strong>NIFTY 200</strong></span>
+                <span class="cfg-pill pill-capital" id="ribbon-capital"><i class="fa-solid fa-indian-rupee-sign"></i> ₹15,000 / trade</span>
+                <span class="cfg-pill pill-sl" id="ribbon-sl"><i class="fa-solid fa-shield-halved"></i> SL: <strong>Pattern Stop (Point 3)</strong></span>
+                <span class="cfg-pill pill-tp" id="ribbon-tp"><i class="fa-solid fa-bullseye"></i> TP: <strong>Measured Move</strong></span>
+                <span class="cfg-pill pill-filter" id="ribbon-ema"><i class="fa-solid fa-filter" style="color: var(--green);"></i> 200 EMA Filter: <strong>ON</strong></span>
+                <span class="cfg-pill pill-filter" id="ribbon-trailing"><i class="fa-solid fa-anchor" style="color: var(--blue);"></i> Trailing SL: <strong>ON</strong></span>
+            </div>
+
+            <div class="config-grid" id="bot-config-grid" style="display: none;">
                 <div class="config-item">
                     <label><i class="fa-solid fa-layer-group"></i> SCANNING UNIVERSE</label>
                     <select id="bot-scan-mode" class="config-select" onchange="onScanModeChange();">
@@ -168,24 +198,47 @@
             <!-- LEFT COLUMN: SIGNAL RADAR & POSITIONS -->
             <div class="bot-left-col">
                 
-                <!-- NIFTY 50 LIVE SIGNAL RADAR -->
+                <!-- NIFTY LIVE SIGNAL RADAR -->
                 <div class="bot-section-card">
                     <div class="section-card-header">
                         <div>
-                            <h3><i class="fa-solid fa-satellite-dish" style="color: var(--blue);"></i> NIFTY 50 Live Signal Radar</h3>
-                            <span class="card-caption">Real-time technical indicator calculations and automated trade signals</span>
+                            <h3 id="radar-title-text"><i class="fa-solid fa-satellite-dish" style="color: var(--blue);"></i> NIFTY Multi-Basket Signal Radar</h3>
+                            <span class="card-caption">Real-time technical indicator calculations, trend momentum &amp; automated trade signals</span>
                         </div>
                         <div class="table-search-box">
                             <i class="fa-solid fa-search"></i>
-                            <input type="text" id="radar-search" placeholder="Filter stock (e.g. INFY, RELIANCE)..." oninput="filterRadarTable()">
+                            <input type="text" id="radar-search" placeholder="Filter stock (e.g. INFY, RELIANCE)..." oninput="applyRadarFilters()">
                         </div>
                     </div>
 
-                    <div class="table-wrapper">
-                        <table class="data-table" id="nifty-radar-table">
+                    <!-- QUICK RADAR FILTER CHIPS -->
+                    <div class="radar-filter-bar">
+                        <button type="button" class="radar-chip active" id="chip-filter-all" onclick="setRadarFilter('ALL')">
+                            <i class="fa-solid fa-border-all"></i> All Stocks <span class="chip-count" id="count-chip-all">0</span>
+                        </button>
+                        <button type="button" class="radar-chip chip-buy" id="chip-filter-buy" onclick="setRadarFilter('BUY')">
+                            <i class="fa-solid fa-circle-arrow-up"></i> BUY Signals <span class="chip-count" id="count-chip-buy">0</span>
+                        </button>
+                        <button type="button" class="radar-chip chip-sell" id="chip-filter-sell" onclick="setRadarFilter('SELL')">
+                            <i class="fa-solid fa-circle-arrow-down"></i> SELL / Exits <span class="chip-count" id="count-chip-sell">0</span>
+                        </button>
+                        <button type="button" class="radar-chip chip-held" id="chip-filter-held" onclick="setRadarFilter('HELD')">
+                            <i class="fa-solid fa-briefcase"></i> In Portfolio <span class="chip-count" id="count-chip-held">0</span>
+                        </button>
+                        <button type="button" class="radar-chip chip-gainers" id="chip-filter-gainers" onclick="setRadarFilter('GAINERS')">
+                            <i class="fa-solid fa-arrow-trend-up"></i> Top Gainers <span class="chip-count" id="count-chip-gainers">0</span>
+                        </button>
+                        <button type="button" class="radar-chip chip-dips" id="chip-filter-dips" onclick="setRadarFilter('DIPS')">
+                            <i class="fa-solid fa-arrow-trend-down"></i> Deep Dips <span class="chip-count" id="count-chip-dips">0</span>
+                        </button>
+                    </div>
+
+                    <div class="table-wrapper sticky-scroll">
+                        <table class="data-table sticky-header" id="nifty-radar-table">
                             <thead>
                                 <tr>
                                     <th>STOCK</th>
+                                    <th style="min-width: 68px;">TREND</th>
                                     <th>SIDE</th>
                                     <th>LTP</th>
                                     <th>24H CHG</th>
@@ -197,7 +250,7 @@
                             </thead>
                             <tbody id="bot-scanner-tbody">
                                 <tr>
-                                    <td colspan="8" class="text-center" style="padding: 2.5rem; color: var(--text-muted);">
+                                    <td colspan="9" class="text-center" style="padding: 2.5rem; color: var(--text-muted);">
                                         <i class="fa-solid fa-satellite fa-spin" style="font-size: 1.5rem; margin-bottom: 0.75rem; color: var(--blue);"></i><br>
                                         NIFTY Scanner Ready. Click <strong>"SCAN BASKET NOW"</strong> or start the bot to sweep the entire basket.
                                     </td>
@@ -673,6 +726,58 @@
         line-height: 1.5;
     }
 
+    /* 5-MINUTE LIVE SWEEP PROGRESS BAR */
+    .sweep-progress-container {
+        margin-top: 1rem;
+        background: rgba(13, 20, 36, 0.7);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 10px;
+        padding: 0.65rem 0.9rem;
+        max-width: 580px;
+        box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.4);
+    }
+
+    .sweep-progress-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 0.45rem;
+        font-size: 0.72rem;
+        letter-spacing: 0.04em;
+    }
+
+    .sweep-progress-title {
+        color: var(--text-muted);
+        font-weight: 700;
+        display: flex;
+        align-items: center;
+        gap: 0.4rem;
+    }
+
+    .sweep-progress-status {
+        color: #fff;
+        font-family: var(--font-code);
+        font-weight: 700;
+        font-size: 0.74rem;
+    }
+
+    .sweep-progress-track {
+        width: 100%;
+        height: 6px;
+        background: rgba(255, 255, 255, 0.07);
+        border-radius: 999px;
+        overflow: hidden;
+        position: relative;
+    }
+
+    .sweep-progress-bar {
+        height: 100%;
+        background: linear-gradient(90deg, #00a3ff 0%, #00f090 100%);
+        border-radius: 999px;
+        transition: width 0.9s ease;
+        box-shadow: 0 0 10px rgba(0, 240, 144, 0.45);
+    }
+
     .bot-hero-actions {
         display: flex;
         flex-direction: row;
@@ -745,26 +850,203 @@
         color: var(--blue);
     }
 
-    /* CONFIGURATION BAR */
+    /* CONFIGURATION BAR & COLLAPSIBLE DRAWER */
     .bot-config-card {
         background: var(--bg-card);
         border: 1px solid var(--border);
         border-radius: 12px;
-        padding: 1.25rem 1.5rem;
+        padding: 1.15rem 1.5rem;
+        transition: all 0.2s ease;
     }
 
     .config-header {
         display: flex;
         justify-content: space-between;
         align-items: center;
-        margin-bottom: 1rem;
+        margin-bottom: 0.5rem;
+        padding-bottom: 0.65rem;
         border-bottom: 1px solid var(--border);
-        padding-bottom: 0.75rem;
     }
 
     .config-header h3 {
         font-size: 0.85rem;
         font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: var(--text-muted);
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        margin: 0;
+    }
+
+    .config-tip {
+        font-size: 0.75rem;
+        color: var(--text-muted);
+        display: flex;
+        align-items: center;
+        gap: 0.4rem;
+        margin-top: 0.2rem;
+    }
+
+    .btn-config-toggle {
+        background: rgba(255, 255, 255, 0.06);
+        border: 1px solid var(--border);
+        color: #fff;
+        padding: 6px 14px;
+        border-radius: 8px;
+        font-size: 0.75rem;
+        font-weight: 700;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        transition: all 0.2s ease;
+    }
+
+    .btn-config-toggle:hover {
+        background: rgba(255, 255, 255, 0.12);
+        border-color: var(--border-hover);
+    }
+
+    /* CONFIG SUMMARY RIBBON */
+    .config-summary-ribbon {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+        margin-top: 0.5rem;
+        margin-bottom: 0.75rem;
+    }
+
+    .cfg-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+        padding: 4px 10px;
+        border-radius: 999px;
+        font-size: 0.72rem;
+        font-weight: 600;
+        background: rgba(255, 255, 255, 0.04);
+        border: 1px solid var(--border);
+        color: #cbd5e1;
+    }
+
+    .cfg-pill strong {
+        color: #fff;
+    }
+
+    .pill-strat {
+        border-color: rgba(0, 240, 144, 0.3);
+        background: rgba(0, 240, 144, 0.08);
+        color: var(--green);
+    }
+
+    .pill-universe {
+        border-color: rgba(0, 163, 255, 0.3);
+        background: rgba(0, 163, 255, 0.08);
+        color: var(--blue);
+    }
+
+    .pill-capital {
+        border-color: rgba(255, 209, 102, 0.3);
+        background: rgba(255, 209, 102, 0.08);
+        color: #ffd166;
+    }
+
+    /* RADAR FILTER CHIPS */
+    .radar-filter-bar {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+        margin-bottom: 0.9rem;
+    }
+
+    .radar-chip {
+        background: rgba(255, 255, 255, 0.04);
+        border: 1px solid var(--border);
+        color: var(--text-muted);
+        padding: 5px 12px;
+        border-radius: 999px;
+        font-size: 0.74rem;
+        font-weight: 700;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.45rem;
+        transition: all 0.2s ease;
+    }
+
+    .radar-chip:hover {
+        border-color: rgba(255, 255, 255, 0.3);
+        color: #fff;
+        background: rgba(255, 255, 255, 0.08);
+    }
+
+    .radar-chip.active {
+        background: rgba(255, 255, 255, 0.12);
+        border-color: #fff;
+        color: #fff;
+    }
+
+    .radar-chip.chip-buy.active {
+        background: rgba(0, 240, 144, 0.16);
+        border-color: var(--green);
+        color: var(--green);
+        box-shadow: 0 0 12px rgba(0, 240, 144, 0.25);
+    }
+
+    .radar-chip.chip-sell.active {
+        background: rgba(255, 51, 102, 0.16);
+        border-color: var(--red);
+        color: var(--red);
+        box-shadow: 0 0 12px rgba(255, 51, 102, 0.25);
+    }
+
+    .radar-chip.chip-held.active {
+        background: rgba(0, 163, 255, 0.16);
+        border-color: var(--blue);
+        color: var(--blue);
+    }
+
+    .radar-chip.chip-gainers.active {
+        background: rgba(0, 240, 144, 0.12);
+        border-color: var(--green);
+        color: var(--green);
+    }
+
+    .radar-chip.chip-dips.active {
+        background: rgba(255, 51, 102, 0.12);
+        border-color: var(--red);
+        color: var(--red);
+    }
+
+    .chip-count {
+        background: rgba(255, 255, 255, 0.1);
+        padding: 1px 6px;
+        border-radius: 8px;
+        font-size: 0.68rem;
+        font-family: var(--font-code);
+        font-weight: 800;
+    }
+
+    /* STICKY HEADER & FROSTED GLASS */
+    .sticky-scroll {
+        max-height: 540px;
+        overflow-y: auto;
+        overflow-x: auto;
+        position: relative;
+        scrollbar-width: thin;
+    }
+
+    .data-table.sticky-header thead th {
+        position: sticky;
+        top: 0;
+        z-index: 10;
+        background: rgba(13, 20, 36, 0.96) !important;
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+    }
         text-transform: uppercase;
         letter-spacing: 0.08em;
         color: var(--text-muted);
@@ -1114,9 +1396,11 @@
     let botPoller = null;
     let botTickTimer = null;
     let countdownTimer = null;
-    let secondsRemaining = 20;
+    let secondsRemaining = 300;
     let isScanning = false;
     let allScannerData = [];
+    let activeRadarFilter = 'ALL';
+    window.cachedActivePositions = [];
 
     document.addEventListener('DOMContentLoaded', () => {
         const savedStrat = localStorage.getItem('nifty_bot_strategy') || '123_REVERSAL';
@@ -1125,6 +1409,7 @@
 
         loadStoredBotSession();
         syncStrategyUIHints();
+        updateConfigSummaryRibbon();
         fetchBotStatus();
         loadBotHoldings();
         loadAccountMetrics();
@@ -1154,6 +1439,8 @@
         const ind = document.getElementById('bot-status-indicator');
         const text = document.getElementById('bot-status-text');
         const btn = document.getElementById('bot-primary-btn');
+        const fillBar = document.getElementById('sweep-progress-fill');
+        const textCount = document.getElementById('sweep-countdown-text');
 
         if (active) {
             ind.className = 'bot-status-badge status-running';
@@ -1173,7 +1460,7 @@
             ind.className = 'bot-status-badge status-stopped';
             text.innerText = 'OFFLINE / PAUSED';
             btn.className = 'btn-bot-start';
-            btn.innerHTML = '<i class="fa-solid fa-play"></i> START NIFTY 50 BOT';
+            btn.innerHTML = '<i class="fa-solid fa-play"></i> START NIFTY BOT';
 
             if (botTickTimer) {
                 clearInterval(botTickTimer);
@@ -1184,6 +1471,8 @@
                 countdownTimer = null;
             }
             document.getElementById('bot-interval-badge').innerHTML = '<i class="fa-solid fa-clock"></i> CYCLE: 300s (PAUSED)';
+            if (fillBar) fillBar.style.width = '0%';
+            if (textCount) textCount.innerHTML = '<i class="fa-solid fa-pause"></i> BOT PAUSED — 300s CADENCE';
 
             // Clear any active timers
             if (continuousSimTimer) {
@@ -1196,23 +1485,35 @@
 
     function startCountdown(seconds) {
         if (countdownTimer) clearInterval(countdownTimer);
-        secondsRemaining = seconds;
+        const totalSecs = seconds || 300;
+        secondsRemaining = totalSecs;
         const badge = document.getElementById('bot-interval-badge');
+        const fillBar = document.getElementById('sweep-progress-fill');
+        const textCount = document.getElementById('sweep-countdown-text');
 
         countdownTimer = setInterval(() => {
             if (!isBotActive) {
                 clearInterval(countdownTimer);
+                if (fillBar) fillBar.style.width = '0%';
+                if (textCount) textCount.innerHTML = '<i class="fa-solid fa-pause"></i> BOT PAUSED — 300s CADENCE';
                 return;
             }
             secondsRemaining--;
+            const elapsed = totalSecs - secondsRemaining;
+            const pct = Math.max(0, Math.min(100, (elapsed / totalSecs) * 100));
+            if (fillBar) fillBar.style.width = `${pct.toFixed(1)}%`;
+
             if (secondsRemaining <= 0) {
                 badge.innerHTML = '<i class="fa-solid fa-satellite-dish fa-spin" style="color: var(--green);"></i> SWEEPING BASKET NOW...';
+                if (textCount) textCount.innerHTML = '<i class="fa-solid fa-satellite-dish fa-spin" style="color: var(--green);"></i> SWEEPING BASKET NOW...';
+                if (fillBar) fillBar.style.width = '100%';
                 clearInterval(countdownTimer);
             } else {
                 const mins = Math.floor(secondsRemaining / 60);
                 const secs = secondsRemaining % 60;
                 const timeStr = mins > 0 ? `${mins}m ${secs.toString().padStart(2, '0')}s` : `${secs}s`;
                 badge.innerHTML = `<i class="fa-solid fa-clock" style="color: var(--green);"></i> NEXT SWEEP: ${timeStr}`;
+                if (textCount) textCount.innerHTML = `<i class="fa-solid fa-hourglass-half" style="color: var(--green);"></i> NEXT SWEEP IN: <strong>${timeStr}</strong> (${Math.round(pct)}%)`;
             }
         }, 1000);
     }
@@ -1226,6 +1527,8 @@
             const label = (mode === 'ALL_NIFTY_200') ? 'ALL 200' : ((mode === 'SINGLE') ? 'TARGET' : 'ALL 50');
             scanBtn.innerHTML = `<i class="fa-solid fa-arrows-rotate"></i> SCAN ${label} NOW`;
         }
+        updateConfigSummaryRibbon();
+    }
     }
 
     async function loadAccountMetrics() {
@@ -1341,11 +1644,157 @@
 
         if (summary.scanner_results && summary.scanner_results.length > 0) {
             allScannerData = summary.scanner_results;
-            renderRadarTable(allScannerData);
+            applyRadarFilters();
         }
 
         syncStrategyUIHints();
+        updateConfigSummaryRibbon();
         renderLogs(data.logs || []);
+    }
+
+    function toggleConfigDrawer() {
+        const grid = document.getElementById('bot-config-grid');
+        const chevron = document.getElementById('config-drawer-chevron');
+        const text = document.getElementById('config-drawer-toggle-text');
+        if (!grid) return;
+        const isHidden = (grid.style.display === 'none' || !grid.style.display);
+        if (isHidden) {
+            grid.style.display = 'grid';
+            if (chevron) chevron.className = 'fa-solid fa-chevron-up';
+            if (text) text.innerText = 'Hide Parameters';
+        } else {
+            grid.style.display = 'none';
+            if (chevron) chevron.className = 'fa-solid fa-chevron-down';
+            if (text) text.innerText = 'Show Parameters';
+        }
+    }
+
+    function updateConfigSummaryRibbon() {
+        const stratVal = document.getElementById('bot-strategy')?.value || '123_REVERSAL';
+        const stratName = (stratVal === '123_REVERSAL') ? '1-2-3 Reversal Map' : (stratVal === 'SMA_CROSSOVER' ? 'Dual SMA (9/21)' : 'RSI Reversion');
+        const mode = document.getElementById('bot-scan-mode')?.value || 'ALL_NIFTY_200';
+        const universeName = (mode === 'ALL_NIFTY_200') ? 'NIFTY 200' : (mode === 'SINGLE' ? 'Single Focus' : 'NIFTY 50');
+        const capital = document.getElementById('bot-allocation')?.value || '15000';
+        const slVal = document.getElementById('bot-stop-loss')?.value || '1.0';
+        const tpVal = document.getElementById('bot-take-profit')?.value || '1.0';
+        const emaOn = document.getElementById('bot-use-ema200')?.checked ?? true;
+        const trailOn = document.getElementById('bot-use-trailing')?.checked ?? true;
+
+        const ribStrat = document.getElementById('ribbon-strat');
+        const ribUni = document.getElementById('ribbon-universe');
+        const ribCap = document.getElementById('ribbon-capital');
+        const ribSl = document.getElementById('ribbon-sl');
+        const ribTp = document.getElementById('ribbon-tp');
+        const ribEma = document.getElementById('ribbon-ema');
+        const ribTrail = document.getElementById('ribbon-trailing');
+
+        if (ribStrat) ribStrat.innerHTML = `<i class="fa-solid fa-brain"></i> Strategy: <strong>${stratName}</strong>`;
+        if (ribUni) ribUni.innerHTML = `<i class="fa-solid fa-layer-group"></i> Universe: <strong>${universeName}</strong>`;
+        if (ribCap) ribCap.innerHTML = `<i class="fa-solid fa-indian-rupee-sign"></i> ₹${Number(capital).toLocaleString('en-IN')}`;
+        if (ribSl) ribSl.innerHTML = (stratVal === '123_REVERSAL') ? `<i class="fa-solid fa-shield-halved"></i> SL: <strong>Pattern Stop (Point 3)</strong>` : `<i class="fa-solid fa-shield-halved"></i> SL: <strong>${slVal}%</strong>`;
+        if (ribTp) ribTp.innerHTML = (stratVal === '123_REVERSAL') ? `<i class="fa-solid fa-bullseye"></i> TP: <strong>Measured Move</strong>` : `<i class="fa-solid fa-bullseye"></i> TP: <strong>${tpVal}%</strong>`;
+        if (ribEma) ribEma.innerHTML = emaOn ? `<i class="fa-solid fa-filter" style="color: var(--green);"></i> 200 EMA: <strong>ON</strong>` : `<i class="fa-solid fa-filter" style="color: var(--text-muted);"></i> 200 EMA: <strong>OFF</strong>`;
+        if (ribTrail) ribTrail.innerHTML = trailOn ? `<i class="fa-solid fa-anchor" style="color: var(--blue);"></i> Trailing SL: <strong>ON</strong>` : `<i class="fa-solid fa-anchor" style="color: var(--text-muted);"></i> Trailing SL: <strong>OFF</strong>`;
+    }
+
+    function generateMiniSparkline(changePct, isBullish) {
+        const isUp = (changePct >= 0);
+        const strokeColor = isUp ? '#00f090' : '#ff3366';
+        const fillColor = isUp ? 'rgba(0, 240, 144, 0.12)' : 'rgba(255, 51, 102, 0.12)';
+        
+        const mag = Math.min(Math.abs(changePct || 0), 4.5);
+        const step = mag * 1.6;
+        let y1, y2, y3, y4, y5;
+        if (isUp) {
+            y1 = 17;
+            y2 = Math.max(3, 15 - (step * 0.4));
+            y3 = Math.max(3, 13 - (step * 0.7));
+            y4 = Math.max(3, 10 - (step * 1.0));
+            y5 = Math.max(3, 17 - (step * 2.8));
+        } else {
+            y1 = 4;
+            y2 = Math.min(18, 6 + (step * 0.4));
+            y3 = Math.min(18, 9 + (step * 0.7));
+            y4 = Math.min(18, 12 + (step * 1.0));
+            y5 = Math.min(18, 4 + (step * 2.8));
+        }
+        
+        const pathD = `M 2,${y1.toFixed(1)} Q 14,${y2.toFixed(1)} 28,${y3.toFixed(1)} T 54,${y5.toFixed(1)}`;
+        const areaD = `M 2,${y1.toFixed(1)} Q 14,${y2.toFixed(1)} 28,${y3.toFixed(1)} T 54,${y5.toFixed(1)} L 54,20 L 2,20 Z`;
+        
+        return `<svg width="56" height="22" viewBox="0 0 56 22" style="overflow: visible; display: inline-block; vertical-align: middle;">
+            <path d="${areaD}" fill="${fillColor}" />
+            <path d="${pathD}" fill="none" stroke="${strokeColor}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+            <circle cx="54" cy="${y5.toFixed(1)}" r="2" fill="${strokeColor}" />
+        </svg>`;
+    }
+
+    function setRadarFilter(filter) {
+        activeRadarFilter = filter;
+        document.querySelectorAll('.radar-chip').forEach(btn => {
+            btn.classList.remove('active');
+        });
+        const activeBtn = document.getElementById(`chip-filter-${filter.toLowerCase()}`);
+        if (activeBtn) activeBtn.classList.add('active');
+        applyRadarFilters();
+    }
+
+    function updateRadarPillCounts(data) {
+        if (!data) return;
+        const allCount = data.length;
+        const buyCount = data.filter(s => s.signal === 'BUY').length;
+        const sellCount = data.filter(s => s.signal === 'SELL' || s.signal === 'STOP_LOSS' || s.signal === 'TAKE_PROFIT').length;
+        const heldSymbols = new Set((window.cachedActivePositions || []).map(p => p.symbol));
+        const heldCount = data.filter(s => heldSymbols.has(s.symbol)).length;
+        const gainersCount = data.filter(s => (s.change_pct || 0) > 0).length;
+        const dipsCount = data.filter(s => (s.change_pct || 0) < 0).length;
+
+        const elAll = document.getElementById('count-chip-all');
+        const elBuy = document.getElementById('count-chip-buy');
+        const elSell = document.getElementById('count-chip-sell');
+        const elHeld = document.getElementById('count-chip-held');
+        const elGainers = document.getElementById('count-chip-gainers');
+        const elDips = document.getElementById('count-chip-dips');
+
+        if (elAll) elAll.innerText = allCount;
+        if (elBuy) elBuy.innerText = buyCount;
+        if (elSell) elSell.innerText = sellCount;
+        if (elHeld) elHeld.innerText = heldCount;
+        if (elGainers) elGainers.innerText = gainersCount;
+        if (elDips) elDips.innerText = dipsCount;
+    }
+
+    function applyRadarFilters() {
+        const query = (document.getElementById('radar-search')?.value || '').trim().toUpperCase();
+        updateRadarPillCounts(allScannerData);
+        
+        let filtered = [...(allScannerData || [])];
+        
+        if (query) {
+            filtered = filtered.filter(s => 
+                (s.displayName && s.displayName.toUpperCase().includes(query)) ||
+                (s.symbol && s.symbol.toUpperCase().includes(query))
+            );
+        }
+        
+        if (activeRadarFilter === 'BUY') {
+            filtered = filtered.filter(s => s.signal === 'BUY');
+        } else if (activeRadarFilter === 'SELL') {
+            filtered = filtered.filter(s => s.signal === 'SELL' || s.signal === 'STOP_LOSS' || s.signal === 'TAKE_PROFIT');
+        } else if (activeRadarFilter === 'HELD') {
+            const heldSymbols = new Set((window.cachedActivePositions || []).map(p => p.symbol));
+            filtered = filtered.filter(s => heldSymbols.has(s.symbol));
+        } else if (activeRadarFilter === 'GAINERS') {
+            filtered = filtered.filter(s => (s.change_pct || 0) > 0).sort((a,b) => (b.change_pct||0) - (a.change_pct||0));
+        } else if (activeRadarFilter === 'DIPS') {
+            filtered = filtered.filter(s => (s.change_pct || 0) < 0).sort((a,b) => (a.change_pct||0) - (b.change_pct||0));
+        }
+        
+        renderRadarTable(filtered);
+    }
+
+    function filterRadarTable() {
+        applyRadarFilters();
     }
 
     function syncStrategyUIHints() {
@@ -1378,7 +1827,15 @@
 
     function renderRadarTable(results) {
         const tbody = document.getElementById('bot-scanner-tbody');
-        if (!results || results.length === 0) return;
+        if (!tbody) return;
+
+        if (!results || results.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="9" class="text-center" style="padding: 2.5rem; color: var(--text-muted);">
+                <i class="fa-solid fa-filter" style="font-size: 1.5rem; margin-bottom: 0.75rem; color: var(--text-muted);"></i><br>
+                No stocks match the selected filter <strong>"${activeRadarFilter}"</strong>.
+            </td></tr>`;
+            return;
+        }
 
         tbody.innerHTML = '';
         results.forEach(s => {
@@ -1434,10 +1891,15 @@
                 actionBadge = `<span style="color: var(--green); font-weight: 700;"><i class="fa-solid fa-check"></i> ${s.action_executed}</span>`;
             }
 
+            const miniSparkline = generateMiniSparkline(s.change_pct || 0, s.trend_200 === 'BULLISH');
+
             tr.innerHTML = `
                 <td>
                     <div style="font-weight: 800; font-family: var(--font-code); color: #fff;">${s.displayName}</div>
                     <div style="font-size: 0.7rem; color: var(--text-muted);">${macroBadge}${volBadge}</div>
+                </td>
+                <td style="vertical-align: middle;">
+                    ${miniSparkline}
                 </td>
                 <td>${sideBadge}</td>
                 <td style="font-weight: 700;">₹${s.price.toFixed(2)}</td>
@@ -1453,19 +1915,6 @@
             `;
             tbody.appendChild(tr);
         });
-    }
-
-    function filterRadarTable() {
-        const query = (document.getElementById('radar-search').value || '').trim().toUpperCase();
-        if (!query) {
-            renderRadarTable(allScannerData);
-            return;
-        }
-        const filtered = allScannerData.filter(s => 
-            (s.displayName && s.displayName.toUpperCase().includes(query)) ||
-            (s.symbol && s.symbol.toUpperCase().includes(query))
-        );
-        renderRadarTable(filtered);
     }
 
     function renderLogs(logs) {
@@ -1582,6 +2031,7 @@
 
     async function onStrategyChange() {
         syncStrategyUIHints();
+        updateConfigSummaryRibbon();
         const stratSelect = document.getElementById('bot-strategy');
         if (!stratSelect) return;
         const selectedStrat = stratSelect.value;
@@ -1661,6 +2111,10 @@
             if (!tbody) return;
 
             const positions = data.positions || [];
+            window.cachedActivePositions = positions;
+            if (allScannerData && allScannerData.length > 0) {
+                updateRadarPillCounts(allScannerData);
+            }
             const badge = document.getElementById('holdings-badge-count');
             if (badge) badge.innerText = positions.length;
 
