@@ -83,7 +83,7 @@ class AutoTradingBot:
         self.strategy = persisted.get("strategy", "123_REVERSAL")
         self.allocation_per_trade = float(persisted.get("allocation_per_trade", 15000.0))
         self.max_positions = int(persisted.get("max_positions", 3))
-        self.interval_seconds = 300  # 5 minutes (300 seconds)
+        self.interval_seconds = 60  # 1 minute (60 seconds)
         self.fast_period = 9
         self.slow_period = 21
         self.rsi_period = 14

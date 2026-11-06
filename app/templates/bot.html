@@ -17,16 +17,16 @@
                     </span>
                     <span class="bot-badge-outline"><i class="fa-solid fa-bolt"></i> NIFTY 200 / 50 MULTI-BASKET ENGINE</span>
                     <span class="bot-badge-outline" id="bot-session-badge"><i class="fa-solid fa-moon" style="color: #ffd166;"></i> SESSION: AFTER-HOURS ENGINE (24/7)</span>
-                    <span class="bot-badge-outline" id="bot-interval-badge"><i class="fa-solid fa-clock"></i> CYCLE: 300s (5m)</span>
+                    <span class="bot-badge-outline" id="bot-interval-badge"><i class="fa-solid fa-clock"></i> CYCLE: 60s (1m)</span>
                 </div>
                 <h1 class="bot-title">Algorithmic Auto-Trading Station</h1>
                 <p class="bot-subtitle">Autonomous multi-asset strategy scanner & execution engine running live across NIFTY 200 & NIFTY 50 National Stock Exchange of India (NSE) constituents.</p>
 
-                <!-- 5-MINUTE LIVE SWEEP PROGRESS BAR -->
+                <!-- 1-MINUTE LIVE SWEEP PROGRESS BAR -->
                 <div class="sweep-progress-container" id="sweep-progress-box">
                     <div class="sweep-progress-header">
                         <span class="sweep-progress-title"><i class="fa-solid fa-gauge-high"></i> BASKET SWEEP ENGINE</span>
-                        <span class="sweep-progress-status" id="sweep-countdown-text"><i class="fa-solid fa-pause"></i> BOT PAUSED — 300s CADENCE</span>
+                        <span class="sweep-progress-status" id="sweep-countdown-text"><i class="fa-solid fa-pause"></i> BOT PAUSED — 60s CADENCE</span>
                     </div>
                     <div class="sweep-progress-track">
                         <div class="sweep-progress-bar" id="sweep-progress-fill" style="width: 0%;"></div>
@@ -1396,7 +1396,7 @@
     let botPoller = null;
     let botTickTimer = null;
     let countdownTimer = null;
-    let secondsRemaining = 300;
+    let secondsRemaining = 60;
     let isScanning = false;
     let allScannerData = [];
     let activeRadarFilter = 'ALL';
@@ -1449,12 +1449,12 @@
             btn.innerHTML = '<i class="fa-solid fa-stop"></i> STOP AUTO-BOT';
 
             if (!botTickTimer) {
-                startCountdown(300);
+                startCountdown(60);
                 botTickTimer = setInterval(async () => {
                     if (!isBotActive) return;
                     await tickBotNow();
-                    startCountdown(300);
-                }, 300000);
+                    startCountdown(60);
+                }, 60000);
             }
         } else {
             ind.className = 'bot-status-badge status-stopped';
@@ -1470,9 +1470,9 @@
                 clearInterval(countdownTimer);
                 countdownTimer = null;
             }
-            document.getElementById('bot-interval-badge').innerHTML = '<i class="fa-solid fa-clock"></i> CYCLE: 300s (PAUSED)';
+            document.getElementById('bot-interval-badge').innerHTML = '<i class="fa-solid fa-clock"></i> CYCLE: 60s (PAUSED)';
             if (fillBar) fillBar.style.width = '0%';
-            if (textCount) textCount.innerHTML = '<i class="fa-solid fa-pause"></i> BOT PAUSED — 300s CADENCE';
+            if (textCount) textCount.innerHTML = '<i class="fa-solid fa-pause"></i> BOT PAUSED — 60s CADENCE';
 
             // Clear any active timers
             if (continuousSimTimer) {
@@ -1485,7 +1485,7 @@
 
     function startCountdown(seconds) {
         if (countdownTimer) clearInterval(countdownTimer);
-        const totalSecs = seconds || 300;
+        const totalSecs = seconds || 60;
         secondsRemaining = totalSecs;
         const badge = document.getElementById('bot-interval-badge');
         const fillBar = document.getElementById('sweep-progress-fill');
@@ -1495,7 +1495,7 @@
             if (!isBotActive) {
                 clearInterval(countdownTimer);
                 if (fillBar) fillBar.style.width = '0%';
-                if (textCount) textCount.innerHTML = '<i class="fa-solid fa-pause"></i> BOT PAUSED — 300s CADENCE';
+                if (textCount) textCount.innerHTML = '<i class="fa-solid fa-pause"></i> BOT PAUSED — 60s CADENCE';
                 return;
             }
             secondsRemaining--;
@@ -2006,7 +2006,7 @@
             strategy: document.getElementById('bot-strategy')?.value || '123_REVERSAL',
             allocation_per_trade: parseFloat(document.getElementById('bot-allocation')?.value) || 15000,
             max_positions: parseInt(document.getElementById('bot-max-positions')?.value) || 3,
-            interval_seconds: 300,
+            interval_seconds: 60,
             stop_loss_pct: parseFloat(document.getElementById('bot-stop-loss')?.value) || 1.0,
             take_profit_pct: parseFloat(document.getElementById('bot-take-profit')?.value) || 1.0,
             use_ema200_filter: document.getElementById('bot-use-ema200')?.checked ?? true,
