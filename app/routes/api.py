@@ -22,11 +22,12 @@ def get_candles(symbol):
     return jsonify({"symbol": symbol.upper(), "candles": candles})
 
 def sync_positions_from_client(client_positions):
-    if client_positions is None or not isinstance(client_positions, list):
+    if not client_positions or not isinstance(client_positions, list) or len(client_positions) == 0:
         return
     try:
         from app.models.trading import Position
         from app import db
+        from app.services.paper_trader import PaperTradingEngine
         existing = {p.symbol: p for p in Position.query.all()}
         client_symbols = set()
         for cp in client_positions:
@@ -52,10 +53,11 @@ def sync_positions_from_client(client_positions):
                 p.quantity = float(cp.get('quantity', p.quantity))
                 p.average_price = float(cp.get('average_price', p.average_price))
         
-        # Prune positions that client already closed or exited
-        for sym, p in existing.items():
-            if sym not in client_symbols:
-                db.session.delete(p)
+        # Prune only if client provided a non-empty list of symbols
+        if len(client_symbols) > 0:
+            for sym, p in existing.items():
+                if sym not in client_symbols:
+                    db.session.delete(p)
 
         db.session.commit()
         PaperTradingEngine.reconcile_account_balance()

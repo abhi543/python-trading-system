@@ -2235,15 +2235,18 @@
         try {
             let localPositions = getStoredActivePositions();
 
-            // Always pass client_positions to keep serverless container database in sync
             let res;
-            try {
-                res = await fetch('/api/portfolio', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ client_positions: localPositions })
-                });
-            } catch (netErr) {
+            if (localPositions.length > 0) {
+                try {
+                    res = await fetch('/api/portfolio', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ client_positions: localPositions })
+                    });
+                } catch (netErr) {
+                    res = await fetch('/api/portfolio');
+                }
+            } else {
                 res = await fetch('/api/portfolio');
             }
             const data = await res.json();
@@ -2264,7 +2267,6 @@
                 positions = localPositions.filter(p => !closedSymbols.has(p.symbol));
             } else {
                 positions = [];
-                saveStoredActivePositions([]);
             }
 
             window.cachedActivePositions = positions;
