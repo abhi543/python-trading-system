@@ -959,6 +959,7 @@
     document.addEventListener('DOMContentLoaded', () => {
         syncStrategyUIHints();
         fetchBotStatus();
+        loadInitialScanner();
         loadBotHoldings();
         loadClosedTradesReport();
 
@@ -972,6 +973,18 @@
             loadBotHoldings();
         }, 4000);
     });
+
+    async function loadInitialScanner() {
+        try {
+            const res = await fetch('/api/crypto/bot/scanner');
+            const items = await res.json();
+            if (items && items.length > 0) {
+                renderScannerTable(items);
+            }
+        } catch (e) {
+            console.error('Failed to load initial scanner:', e);
+        }
+    }
 
     // ==========================================
     // UI HINTS & STRATEGY SYNC
@@ -1198,7 +1211,7 @@
                     <td><strong>${item.displayName}</strong> <span style="font-size:0.68rem; color:var(--text-muted);">${item.symbol}</span></td>
                     <td>${sideBadge}</td>
                     <td><span class="signal-badge ${sigClass}">${item.signal}</span></td>
-                    <td>$${item.price.toFixed(2)}</td>
+                    <td>$${item.price < 1 ? item.price.toFixed(4) : item.price.toFixed(2)}</td>
                     <td class="${chgColor}">${item.change_pct >= 0 ? '+' : ''}${item.change_pct.toFixed(2)}%</td>
                     <td>${emaStatus}</td>
                     <td><span class="badge" style="background: rgba(255,255,255,0.06); color: #fff;">${item.action_executed}</span></td>
