@@ -540,6 +540,29 @@ def stop_bot():
     res = bot_instance.stop()
     return jsonify(res)
 
+@api_bp.route('/bot/stop-all', methods=['POST'])
+def stop_all_bots():
+    """Emergency master kill switch to halt both ALPHA and NIGHTHAWK bots simultaneously."""
+    from app.services.bot import bot_instance, after_hours_bot_instance
+    alpha_res = {}
+    nighthawk_res = {}
+    try:
+        alpha_res = bot_instance.stop()
+    except Exception as e:
+        alpha_res = {"success": False, "error": str(e)}
+
+    try:
+        nighthawk_res = after_hours_bot_instance.stop()
+    except Exception as e:
+        nighthawk_res = {"success": False, "error": str(e)}
+
+    return jsonify({
+        "success": True,
+        "message": "Both ALPHA (Day Bot) and NIGHTHAWK (Night Bot) have been STOPPED immediately.",
+        "alpha": alpha_res,
+        "nighthawk": nighthawk_res
+    })
+
 @api_bp.route('/bot/config', methods=['POST'])
 def update_bot_config():
     from app.services.bot import bot_instance

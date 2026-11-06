@@ -65,6 +65,9 @@
                 <button id="bot-reset-restart-btn" class="btn-bot-scan" style="border-color: rgba(167, 139, 250, 0.5); color: #c4b5fd; font-weight: 700;" onclick="resetAndRestartBot()" title="Square off all positions, reset desk to ₹1,00,00,000 (1 Crore) and restart bot">
                     <i class="fa-solid fa-arrows-rotate"></i> RESET &amp; RESTART BOT
                 </button>
+                <button id="bot-stop-both-btn" class="btn-bot-scan" style="border-color: rgba(239, 68, 68, 0.6); background: linear-gradient(135deg, rgba(239, 68, 68, 0.16) 0%, rgba(185, 28, 28, 0.28) 100%); color: #ff6b6b; font-weight: 800;" onclick="globalStopBothBots()" title="Emergency Kill Switch: Stop both ALPHA and NIGHTHAWK bots immediately">
+                    <i class="fa-solid fa-power-off"></i> STOP BOTH BOTS
+                </button>
             </div>
         </div>
 
@@ -1491,12 +1494,19 @@
         }
     });
 
+    window.addEventListener('both-bots-stopped', () => {
+        setBotActiveState(false, false);
+        botSession.status = 'STOPPED';
+        renderBotSessionReport();
+    });
+
     // ==========================================
     // LIVE SCANNER CONTROLS
     // ==========================================
     function setBotActiveState(active, notify = true) {
         isBotActive = active;
         localStorage.setItem('ah_bot_active_v1', active ? 'true' : 'false');
+        if (typeof updateKillswitchUI === 'function') updateKillswitchUI();
 
         const ind = document.getElementById('bot-status-indicator');
         const text = document.getElementById('bot-status-text');
