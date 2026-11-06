@@ -2255,16 +2255,13 @@
 
             let backendPositions = data.positions || [];
 
-            // Identify symbols closed by the strategy in session trades
-            const closedSymbols = new Set((botSession.trades || []).filter(t => t.side === 'SELL' || t.side === 'COVER').map(t => t.symbol));
-
-            // Merge logic: Never allow random serverless 0-position glitches to wipe user's screen
+            // True active positions from live engine: Never filter out open holdings
             let positions = [];
             if (backendPositions.length > 0) {
-                positions = backendPositions.filter(p => !closedSymbols.has(p.symbol));
+                positions = backendPositions;
                 saveStoredActivePositions(positions);
             } else if (localPositions.length > 0) {
-                positions = localPositions.filter(p => !closedSymbols.has(p.symbol));
+                positions = localPositions;
             } else {
                 positions = [];
             }
