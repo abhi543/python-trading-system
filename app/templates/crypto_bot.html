@@ -1,0 +1,1385 @@
+{% extends "base.html" %}
+
+{% block title %}Crypto 24/7 Auto-Trading Bot | ALGO-TRADE Pro{% endblock %}
+
+{% block content %}
+<div class="bot-page-container">
+
+    <div id="scanner-view-container">
+
+        <!-- HERO / BOT CONTROL HEADER -->
+        <div class="bot-hero-card">
+            <div class="bot-hero-info">
+                <div class="bot-status-header">
+                    <span class="bot-status-badge status-stopped" id="bot-status-indicator">
+                        <span class="bot-dot"></span>
+                        <span id="bot-status-text">OFFLINE / STOPPED</span>
+                    </span>
+                    <span class="bot-badge-outline"><i class="fa-brands fa-bitcoin" style="color: #f7931a;"></i> 24/7 CRYPTO ASSET SCANNER</span>
+                    <span class="bot-badge-outline" id="bot-interval-badge"><i class="fa-solid fa-clock"></i> CYCLE: 60s (1m)</span>
+                </div>
+                <h1 class="bot-title">Autonomous Crypto Trading Bot</h1>
+                <p class="bot-subtitle">24/7 autonomous multi-asset algorithmic strategy scanner, leverage manager, and execution engine operating continuously across global high-liquidity cryptocurrency pairs.</p>
+            </div>
+
+            <div class="bot-hero-actions">
+                <button id="bot-primary-btn" class="btn-bot-start" onclick="toggleBot()">
+                    <i class="fa-solid fa-play"></i> START CRYPTO BOT
+                </button>
+                <button id="bot-scan-btn" class="btn-bot-scan" onclick="tickBotNow()">
+                    <i class="fa-solid fa-arrows-rotate"></i> SCAN BASKET NOW
+                </button>
+                <button id="bot-reset-portfolio-btn" class="btn-bot-scan" style="border-color: rgba(255, 75, 75, 0.4); color: #ff7575;" onclick="resetCryptoPortfolioTo50k()" title="Liquidate all crypto positions and reset balance back to $50,000 USDT">
+                    <i class="fa-solid fa-rotate-left"></i> RESET PORTFOLIO ($50k)
+                </button>
+            </div>
+        </div>
+
+        <!-- STRATEGY & RISK PARAMETERS CONTROLS -->
+        <div class="bot-config-card">
+            <div class="config-header">
+                <h3><i class="fa-solid fa-sliders"></i> Strategy Configuration &amp; Risk Guards</h3>
+                <span class="config-tip"><i class="fa-solid fa-shield-halved"></i> Automated Stop-Loss &amp; Take-Profit guards trigger immediately on signal execution</span>
+            </div>
+            <div class="config-grid">
+                <div class="config-item">
+                    <label><i class="fa-solid fa-layer-group"></i> SCANNING UNIVERSE</label>
+                    <select id="bot-scan-mode" class="config-select" onchange="onScanModeChange(); onStrategyChange();">
+                        <option value="ALL_CRYPTO" selected>All Major Crypto Basket (BTC, ETH, SOL, XRP...)</option>
+                        <option value="TOP_10">Top 10 Crypto by Market Cap</option>
+                        <option value="SINGLE">Single Coin Focus</option>
+                    </select>
+                </div>
+
+                <div class="config-item" id="single-symbol-group" style="display: none;">
+                    <label><i class="fa-solid fa-bullseye"></i> TARGET SYMBOL</label>
+                    <input type="text" id="bot-symbol" class="config-input" value="BTC-USD" placeholder="BTC-USD">
+                </div>
+
+                <div class="config-item">
+                    <label><i class="fa-solid fa-chart-line"></i> STRATEGY MODEL</label>
+                    <select id="bot-strategy" class="config-select" onchange="onStrategyChange()">
+                        <option value="123_REVERSAL" selected>1-2-3 Reversal Map [AGPro Series v2.1] (Neckline Break &amp; Target)</option>
+                        <option value="SMA_CROSSOVER">Dual SMA Golden/Death Cross (9 / 21)</option>
+                        <option value="RSI_MOMENTUM">RSI Mean Reversion (14-Period, 35/65)</option>
+                    </select>
+                </div>
+
+                <div class="config-item">
+                    <label><i class="fa-solid fa-dollar-sign"></i> CAPITAL PER TRADE ($ USDT)</label>
+                    <input type="number" id="bot-allocation" class="config-input" value="1000" step="100" min="100" onchange="onStrategyChange()">
+                </div>
+
+                <div class="config-item">
+                    <label><i class="fa-solid fa-bolt" style="color: #ffd166;"></i> BOT LEVERAGE</label>
+                    <select id="bot-leverage" class="config-select" onchange="onStrategyChange()">
+                        <option value="1">1x (Spot / No Leverage)</option>
+                        <option value="2" selected>2x (Low Risk Margin)</option>
+                        <option value="5">5x (Balanced Futures)</option>
+                        <option value="10">10x (Aggressive Momentum)</option>
+                    </select>
+                </div>
+
+                <div class="config-item" id="cfg-item-max-positions">
+                    <label><i class="fa-solid fa-boxes-stacked"></i> MAX CONCURRENT POSITIONS</label>
+                    <input type="number" id="bot-max-positions" class="config-input" value="3" min="1" max="20" onchange="onStrategyChange()">
+                    <span id="badge-unlimited-pos" class="badge" style="font-size: 0.68rem; background: rgba(0, 240, 144, 0.15); color: var(--green); border: 1px solid rgba(0, 240, 144, 0.3); margin-top: 4px; display: inline-block;">✨ Unlimited (1-2-3 Mode)</span>
+                </div>
+
+                <div class="config-item" id="cfg-item-stop-loss">
+                    <label><i class="fa-solid fa-arrow-down" style="color: var(--red);"></i> STOP-LOSS (%)</label>
+                    <input type="number" id="bot-stop-loss" class="config-input" value="1.5" step="0.1" min="0.1" onchange="onStrategyChange()">
+                    <span id="badge-strat-sl" class="badge" style="font-size: 0.68rem; background: rgba(255, 51, 102, 0.15); color: var(--red); border: 1px solid rgba(255, 51, 102, 0.3); margin-top: 4px; display: inline-block;">📍 Point 3 Pattern Stop (Indicator)</span>
+                </div>
+
+                <div class="config-item" id="cfg-item-take-profit">
+                    <label><i class="fa-solid fa-arrow-up" style="color: var(--green);"></i> TARGET (%)</label>
+                    <input type="number" id="bot-take-profit" class="config-input" value="2.0" step="0.1" min="0.1" onchange="onStrategyChange()">
+                    <span id="badge-strat-tp" class="badge" style="font-size: 0.68rem; background: rgba(0, 240, 144, 0.15); color: var(--green); border: 1px solid rgba(0, 240, 144, 0.3); margin-top: 4px; display: inline-block;">🎯 Measured Move (Indicator)</span>
+                </div>
+
+                <div class="config-item" style="display: flex; flex-direction: column; justify-content: center;">
+                    <label style="cursor: pointer; display: flex; align-items: center; gap: 0.5rem;">
+                        <input type="checkbox" id="bot-use-ema200" checked style="accent-color: var(--green); width: 16px; height: 16px;" onchange="onStrategyChange()">
+                        <span><i class="fa-solid fa-shield-halved" style="color: var(--green);"></i> 200 EMA Trend Filter</span>
+                    </label>
+                    <span style="font-size: 0.68rem; color: var(--text-muted); margin-top: 3px;">Only BUY if price &gt; 200 EMA</span>
+                </div>
+
+                <div class="config-item" style="display: flex; flex-direction: column; justify-content: center;">
+                    <label style="cursor: pointer; display: flex; align-items: center; gap: 0.5rem;">
+                        <input type="checkbox" id="bot-use-trailing" checked style="accent-color: var(--blue); width: 16px; height: 16px;" onchange="onStrategyChange()">
+                        <span><i class="fa-solid fa-shield-heart" style="color: var(--blue);"></i> Breakeven Shield (+1.0%)</span>
+                    </label>
+                    <span style="font-size: 0.68rem; color: var(--text-muted); margin-top: 3px;">Ratchet stop to entry once gain hits +1.0%</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- BOT STATUS & PERFORMANCE HUD -->
+        <div class="bot-kpi-grid">
+            <div class="kpi-card">
+                <div class="kpi-icon-wrap icon-blue"><i class="fa-solid fa-satellite-dish"></i></div>
+                <div class="kpi-body">
+                    <span class="kpi-title">ACTIVE UNIVERSE</span>
+                    <span class="kpi-value" id="kpi-universe-val">CRYPTO (12)</span>
+                    <span class="kpi-sub" id="kpi-universe-sub">Next sweep in <strong id="kpi-countdown" style="color: #fff;">60s</strong></span>
+                </div>
+            </div>
+
+            <div class="kpi-card">
+                <div class="kpi-icon-wrap icon-purple"><i class="fa-solid fa-arrows-spin"></i></div>
+                <div class="kpi-body">
+                    <span class="kpi-title">TOTAL SCANS EXECUTED</span>
+                    <span class="kpi-value" id="kpi-scans-val">0</span>
+                    <span class="kpi-sub" id="kpi-scans-sub">Last: Never</span>
+                </div>
+            </div>
+
+            <div class="kpi-card">
+                <div class="kpi-icon-wrap icon-green"><i class="fa-solid fa-wallet"></i></div>
+                <div class="kpi-body">
+                    <span class="kpi-title">CRYPTO EQUITY</span>
+                    <span class="kpi-value text-green" id="kpi-equity-val">$50,000.00</span>
+                    <span class="kpi-sub" id="kpi-positions-val">0 Open Positions</span>
+                </div>
+            </div>
+
+            <div class="kpi-card">
+                <div class="kpi-icon-wrap icon-red"><i class="fa-solid fa-shield-halved"></i></div>
+                <div class="kpi-body">
+                    <span class="kpi-title">TRAILING RISK SHIELD</span>
+                    <span class="kpi-value text-green" id="kpi-shield-val">ARMED</span>
+                    <span class="kpi-sub">Breakeven ratchet active</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- MAIN TWO-COLUMN DASHBOARD LAYOUT -->
+        <div class="bot-main-layout">
+
+            <!-- LEFT: LIVE STRATEGY SCANNER TABLE & BOT HOLDINGS -->
+            <div class="bot-left-col">
+
+                <!-- 1. LIVE MULTI-ASSET STRATEGY SCANNER -->
+                <div class="bot-section-card">
+                    <div class="section-card-header">
+                        <div class="header-with-badge">
+                            <h3><i class="fa-solid fa-radar" style="color: var(--blue);"></i> Live Strategy Opportunity Scanner</h3>
+                            <span class="badge" id="scanner-count-badge">0 / 12 Coins Scanned</span>
+                        </div>
+                        <div class="scanner-filter-pills">
+                            <button class="pill active" onclick="filterScannerTable('ALL', this)">ALL</button>
+                            <button class="pill" onclick="filterScannerTable('BUY', this)"><i class="fa-solid fa-circle text-green" style="font-size: 0.5rem;"></i> BUY SIGNALS</button>
+                            <button class="pill" onclick="filterScannerTable('SELL', this)"><i class="fa-solid fa-circle text-red" style="font-size: 0.5rem;"></i> SELL / EXIT</button>
+                            <button class="pill" onclick="filterScannerTable('ACTIVE', this)"><i class="fa-solid fa-bolt" style="color: #ffd166;"></i> EXECUTED</button>
+                        </div>
+                    </div>
+
+                    <div class="table-responsive" style="max-height: 480px; overflow-y: auto;">
+                        <table class="bot-table" id="scanner-table">
+                            <thead>
+                                <tr>
+                                    <th>SYMBOL / ASSET</th>
+                                    <th>SIDE</th>
+                                    <th>SIGNAL</th>
+                                    <th>PRICE</th>
+                                    <th>24H CHG</th>
+                                    <th>200 EMA</th>
+                                    <th>ACTION / EXECUTION</th>
+                                    <th>DETAILS</th>
+                                </tr>
+                            </thead>
+                            <tbody id="scanner-table-tbody">
+                                <tr>
+                                    <td colspan="8" class="text-center" style="padding: 2.5rem; color: var(--text-muted);">
+                                        <i class="fa-solid fa-circle-notch fa-spin" style="font-size: 1.5rem; margin-bottom: 0.5rem; display: block; color: var(--blue);"></i>
+                                        Click <strong>START CRYPTO BOT</strong> or <strong>SCAN BASKET NOW</strong> to initiate multi-asset analysis.
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- 2. BOT HOLDINGS & POSITIONS WITH TARGETS -->
+                <div class="bot-section-card">
+                    <div class="section-card-header">
+                        <div class="header-with-badge">
+                            <h3><i class="fa-solid fa-wallet" style="color: var(--green);"></i> Active Crypto Bot Positions</h3>
+                            <span class="badge" id="holdings-count-badge">0 Active Trades</span>
+                        </div>
+                        <div style="font-size: 0.75rem; color: var(--text-muted);">
+                            Free USDT: <strong id="card-cash-balance" style="color: #fff; font-family: var(--font-code);">$50,000.00</strong>
+                        </div>
+                    </div>
+
+                    <div class="table-responsive">
+                        <table class="bot-table">
+                            <thead>
+                                <tr>
+                                    <th>SYMBOL</th>
+                                    <th>SIDE</th>
+                                    <th>LEVERAGE</th>
+                                    <th>QTY</th>
+                                    <th>ENTRY PRICE</th>
+                                    <th>CURRENT PRICE</th>
+                                    <th>UNREALIZED P&amp;L</th>
+                                    <th>STOP-LOSS</th>
+                                    <th>TARGET</th>
+                                    <th>PROTECTION</th>
+                                    <th>ACTION</th>
+                                </tr>
+                            </thead>
+                            <tbody id="bot-holdings-tbody">
+                                <tr>
+                                    <td colspan="11" class="text-center" style="padding: 2rem; color: var(--text-muted);">
+                                        No active positions open. The bot will automatically enter when a confirmed signal triggers.
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- 3. REALIZED PERFORMANCE SCORECARD -->
+                <div class="bot-section-card">
+                    <div class="section-card-header">
+                        <div class="header-with-badge">
+                            <h3><i class="fa-solid fa-receipt" style="color: #a78bfa;"></i> Closed Trades &amp; Realized Performance</h3>
+                            <span class="badge" id="closed-trades-count-badge">0 Trades Closed</span>
+                        </div>
+                    </div>
+
+                    <!-- PERFORMANCE SUMMARY STRIP -->
+                    <div class="closed-trades-scorecard" style="margin: 0.85rem 1rem;">
+                        <div class="score-card-item">
+                            <span class="score-label">TOTAL CLOSED TRADES</span>
+                            <span class="score-val" id="perf-total-trades">0</span>
+                        </div>
+                        <div class="score-card-item">
+                            <span class="score-label">WIN RATE</span>
+                            <span class="score-val text-green" id="perf-win-rate">0.0%</span>
+                        </div>
+                        <div class="score-card-item">
+                            <span class="score-label">TOTAL REALIZED P&amp;L</span>
+                            <span class="score-val" id="perf-net-pnl">$0.00</span>
+                        </div>
+                        <div class="score-card-item">
+                            <span class="score-label">TOTAL FEES PAID</span>
+                            <span class="score-val text-red" id="perf-total-fees">$0.00</span>
+                        </div>
+                    </div>
+
+                    <div class="table-responsive" style="max-height: 280px; overflow-y: auto;">
+                        <table class="bot-table" id="closed-trades-table">
+                            <thead>
+                                <tr>
+                                    <th>TIMESTAMP</th>
+                                    <th>PAIR</th>
+                                    <th>SIDE</th>
+                                    <th>LEVERAGE</th>
+                                    <th>QTY</th>
+                                    <th>EXECUTED PRICE</th>
+                                    <th>FEE ($)</th>
+                                    <th>REALIZED P&amp;L ($)</th>
+                                </tr>
+                            </thead>
+                            <tbody id="closed-trades-tbody">
+                                <tr>
+                                    <td colspan="8" class="text-center" style="padding: 1.5rem; color: var(--text-muted);">
+                                        No closed trades recorded yet.
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- RIGHT: BOT COMMENTARY STREAM & RULES BLUEPRINT -->
+            <div class="bot-right-col">
+
+                <!-- BOT TELEMETRY STREAM TERMINAL -->
+                <div class="bot-section-card terminal-card">
+                    <div class="section-card-header terminal-header">
+                        <div class="terminal-title">
+                            <span class="terminal-dot red"></span>
+                            <span class="terminal-dot yellow"></span>
+                            <span class="terminal-dot green"></span>
+                            <span style="margin-left: 0.5rem; font-family: var(--font-code); font-size: 0.8rem; font-weight: 700; color: #fff;">
+                                <i class="fa-solid fa-terminal"></i> BOT TELEMETRY STREAM
+                            </span>
+                        </div>
+                        <button class="btn-terminal-clear" onclick="clearBotLogs()"><i class="fa-solid fa-trash-can"></i> Clear</button>
+                    </div>
+                    <div class="bot-terminal-window" id="bot-console-stream">
+                        <div class="terminal-line text-muted">[INITIALIZE] Crypto Auto-Trading Bot loaded. Ready for operator signal.</div>
+                    </div>
+                </div>
+
+                <!-- STRATEGY BLUEPRINT & RULES -->
+                <div class="bot-section-card">
+                    <div class="section-card-header">
+                        <h3><i class="fa-solid fa-book-bookmark" style="color: #ffd166;"></i> Strategy Blueprint &amp; Rules</h3>
+                    </div>
+                    <div class="rules-body">
+                        <div class="rule-item">
+                            <div class="rule-icon"><i class="fa-solid fa-draw-polygon" style="color: #ffd166;"></i></div>
+                            <div>
+                                <h4>1-2-3 Reversal Map [AGPro Series v2.1]</h4>
+                                <p>Identifies confirmed Point 1 (Swing Low/High), Point 2 (Neckline), and Point 3 (Higher Low / Lower High). Confirms on Neckline break with 0-100 Reversal Score, <strong>Measured Move Target</strong> ($P1 \to P2$ height), and <strong>Point 3 Stop Loss Buffer</strong>.</p>
+                            </div>
+                        </div>
+
+                        <div class="rule-item">
+                            <div class="rule-icon"><i class="fa-solid fa-chart-line" style="color: var(--blue);"></i></div>
+                            <div>
+                                <h4>Dual SMA Crossover</h4>
+                                <p>Fast SMA (9-period) crosses above Slow SMA (21-period) generates a <strong>BUY / LONG</strong> signal. Crossing below generates a <strong>SELL / SHORT</strong> signal.</p>
+                            </div>
+                        </div>
+
+                        <div class="rule-item">
+                            <div class="rule-icon"><i class="fa-solid fa-shield-halved" style="color: var(--green);"></i></div>
+                            <div>
+                                <h4>200 EMA Macro Filter</h4>
+                                <p>Filters out counter-trend buys. Only permits a <strong>BUY</strong> order if the coin is trading strictly above its <strong>200-day EMA</strong>.</p>
+                            </div>
+                        </div>
+
+                        <div class="rule-item">
+                            <div class="rule-icon"><i class="fa-solid fa-shield-heart" style="color: var(--blue);"></i></div>
+                            <div>
+                                <h4>Breakeven Shield &amp; Trailing Stop</h4>
+                                <p>Once gain touches <strong>+1.0%</strong>, the stop loss ratchets up to entry price (100% Risk-Free). Trails higher peaks to lock in accrued profit.</p>
+                            </div>
+                        </div>
+
+                        <div class="rule-item">
+                            <div class="rule-icon"><i class="fa-solid fa-coins" style="color: #a78bfa;"></i></div>
+                            <div>
+                                <h4>$50,000 USDT Virtual Capital</h4>
+                                <p>Allocates up to <strong>$1,000 USDT</strong> per trade with selectable leverage (1x to 10x), backed by $50,000 USDT virtual capital.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+
+        </div>
+
+    </div>
+
+</div>
+
+<!-- STYLES -->
+<style>
+    .side-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        padding: 2px 7px;
+        border-radius: 4px;
+        font-size: 0.72rem;
+        font-weight: 800;
+        font-family: var(--font-code);
+        letter-spacing: 0.5px;
+        white-space: nowrap;
+    }
+    .side-long {
+        background: rgba(0, 240, 144, 0.15);
+        color: var(--green);
+        border: 1px solid rgba(0, 240, 144, 0.35);
+    }
+    .side-short {
+        background: rgba(255, 51, 102, 0.15);
+        color: var(--red);
+        border: 1px solid rgba(255, 51, 102, 0.35);
+    }
+
+    .bot-page-container {
+        display: flex;
+        flex-direction: column;
+        gap: 1.25rem;
+        width: 100%;
+        max-width: 100%;
+        box-sizing: border-box;
+        overflow-x: hidden;
+    }
+
+    /* HERO CARD */
+    .bot-hero-card {
+        background: linear-gradient(135deg, rgba(14, 19, 31, 0.95), rgba(7, 9, 14, 0.95));
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        padding: 1.5rem 1.75rem;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 2rem;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.45);
+        flex-wrap: wrap;
+    }
+
+    .bot-hero-info {
+        flex: 1;
+        min-width: 300px;
+    }
+
+    .bot-status-header {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        margin-bottom: 0.75rem;
+        flex-wrap: wrap;
+    }
+
+    .bot-status-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-size: 0.75rem;
+        font-weight: 800;
+        letter-spacing: 0.06em;
+        padding: 0.35rem 0.85rem;
+        border-radius: 999px;
+    }
+
+    .status-running {
+        background: rgba(0, 240, 144, 0.15);
+        color: var(--green);
+        border: 1px solid rgba(0, 240, 144, 0.4);
+    }
+    .status-running .bot-dot {
+        background: var(--green);
+        box-shadow: 0 0 10px var(--green);
+        animation: pulse 1.2s infinite;
+    }
+
+    .status-stopped {
+        background: rgba(255, 51, 102, 0.15);
+        color: var(--red);
+        border: 1px solid rgba(255, 51, 102, 0.4);
+    }
+    .status-stopped .bot-dot {
+        background: var(--red);
+    }
+
+    .bot-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+    }
+
+    .bot-badge-outline {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+        font-size: 0.72rem;
+        font-weight: 700;
+        color: var(--text-muted);
+        padding: 0.35rem 0.75rem;
+        border-radius: 999px;
+        border: 1px solid var(--border);
+        background: rgba(255, 255, 255, 0.02);
+    }
+
+    .bot-title {
+        font-size: 1.65rem;
+        font-weight: 800;
+        letter-spacing: -0.02em;
+        color: #fff;
+        margin-bottom: 0.35rem;
+    }
+
+    .bot-subtitle {
+        color: var(--text-muted);
+        font-size: 0.85rem;
+        line-height: 1.5;
+        max-width: 650px;
+    }
+
+    .bot-hero-actions {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        flex-wrap: wrap;
+    }
+
+    .btn-bot-start {
+        background: var(--green);
+        color: #000;
+        font-size: 0.88rem;
+        font-weight: 800;
+        padding: 0.75rem 1.5rem;
+        border-radius: 8px;
+        border: none;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.65rem;
+        box-shadow: 0 0 20px var(--green-glow);
+        transition: all 0.2s;
+    }
+    .btn-bot-start:hover {
+        background: #00d47e;
+        transform: translateY(-2px);
+    }
+
+    .btn-bot-stop {
+        background: var(--red);
+        color: #fff;
+        font-size: 0.88rem;
+        font-weight: 800;
+        padding: 0.75rem 1.5rem;
+        border-radius: 8px;
+        border: none;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.65rem;
+        box-shadow: 0 0 20px var(--red-glow);
+        transition: all 0.2s;
+    }
+    .btn-bot-stop:hover {
+        background: #e62054;
+        transform: translateY(-2px);
+    }
+
+    .btn-bot-scan {
+        background: var(--bg-surface);
+        border: 1px solid var(--border);
+        color: var(--text-main);
+        font-size: 0.85rem;
+        font-weight: 700;
+        padding: 0.75rem 1.25rem;
+        border-radius: 8px;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.65rem;
+        transition: all 0.2s;
+    }
+    .btn-bot-scan:hover {
+        border-color: var(--border-highlight);
+        background: var(--bg-hover);
+        color: #fff;
+    }
+
+    /* CONFIGURATION BAR */
+    .bot-config-card {
+        background: var(--bg-card);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 1.15rem 1.5rem;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+    }
+
+    .config-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1rem;
+        border-bottom: 1px solid var(--border);
+        padding-bottom: 0.65rem;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+    }
+
+    .config-header h3 {
+        font-size: 0.82rem;
+        font-weight: 800;
+        letter-spacing: 0.08em;
+        color: var(--text-muted);
+        text-transform: uppercase;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .config-tip {
+        font-size: 0.72rem;
+        color: var(--text-muted);
+    }
+
+    .config-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+        gap: 1rem;
+    }
+
+    .config-item {
+        display: flex;
+        flex-direction: column;
+        gap: 0.35rem;
+    }
+
+    .config-item label {
+        font-size: 0.68rem;
+        font-weight: 800;
+        color: var(--text-muted);
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+        display: flex;
+        align-items: center;
+        gap: 0.4rem;
+    }
+
+    .config-select, .config-input {
+        background: var(--bg-body);
+        border: 1px solid var(--border);
+        color: #fff;
+        padding: 0.55rem 0.75rem;
+        border-radius: 6px;
+        font-family: var(--font-code);
+        font-size: 0.8rem;
+        font-weight: 600;
+        transition: all 0.2s;
+    }
+
+    .config-select:focus, .config-input:focus {
+        outline: none;
+        border-color: var(--blue);
+        box-shadow: 0 0 8px var(--blue-glow);
+    }
+
+    /* KPI METRICS */
+    .bot-kpi-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        gap: 1rem;
+    }
+
+    .kpi-card {
+        background: var(--bg-card);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 1rem 1.25rem;
+        display: flex;
+        align-items: center;
+        gap: 1.15rem;
+    }
+
+    .kpi-icon-wrap {
+        width: 44px;
+        height: 44px;
+        border-radius: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.25rem;
+    }
+
+    .icon-blue { background: rgba(0, 163, 255, 0.12); color: var(--blue); border: 1px solid rgba(0, 163, 255, 0.25); }
+    .icon-green { background: rgba(0, 240, 144, 0.12); color: var(--green); border: 1px solid rgba(0, 240, 144, 0.25); }
+    .icon-red { background: rgba(255, 51, 102, 0.12); color: var(--red); border: 1px solid rgba(255, 51, 102, 0.25); }
+    .icon-purple { background: rgba(167, 139, 250, 0.12); color: #a78bfa; border: 1px solid rgba(167, 139, 250, 0.25); }
+
+    .kpi-body {
+        display: flex;
+        flex-direction: column;
+    }
+
+    .kpi-title {
+        font-size: 0.7rem;
+        font-weight: 800;
+        letter-spacing: 0.08em;
+        color: var(--text-muted);
+        text-transform: uppercase;
+    }
+
+    .kpi-value {
+        font-family: var(--font-code);
+        font-size: 1.65rem;
+        font-weight: 800;
+        margin: 0.15rem 0;
+    }
+
+    .kpi-sub {
+        font-size: 0.72rem;
+        color: var(--text-muted);
+    }
+
+    /* TWO-COLUMN LAYOUT */
+    .bot-main-layout {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 380px;
+        gap: 1.25rem;
+        width: 100%;
+        box-sizing: border-box;
+    }
+
+    .bot-left-col {
+        display: flex;
+        flex-direction: column;
+        gap: 1.25rem;
+        min-width: 0;
+    }
+
+    .bot-right-col {
+        display: flex;
+        flex-direction: column;
+        gap: 1.25rem;
+        min-width: 0;
+    }
+
+    /* SECTION CARDS */
+    .bot-section-card {
+        background: var(--bg-card);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+    }
+
+    .section-card-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 0.85rem 1.15rem;
+        background: rgba(20, 27, 45, 0.6);
+        border-bottom: 1px solid var(--border);
+        flex-wrap: wrap;
+        gap: 0.5rem;
+    }
+
+    .header-with-badge {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+    }
+
+    .section-card-header h3 {
+        font-size: 0.8rem;
+        font-weight: 800;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--text-muted);
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .badge {
+        font-size: 0.7rem;
+        font-weight: 700;
+        background: rgba(0, 163, 255, 0.15);
+        color: var(--blue);
+        border: 1px solid rgba(0, 163, 255, 0.3);
+        padding: 2px 8px;
+        border-radius: 999px;
+    }
+
+    .scanner-filter-pills {
+        display: flex;
+        gap: 0.4rem;
+    }
+
+    .scanner-filter-pills .pill {
+        background: transparent;
+        border: 1px solid var(--border);
+        color: var(--text-muted);
+        padding: 4px 10px;
+        border-radius: 6px;
+        font-size: 0.72rem;
+        font-weight: 700;
+        cursor: pointer;
+        transition: all 0.15s;
+    }
+
+    .scanner-filter-pills .pill.active {
+        background: rgba(0, 163, 255, 0.15);
+        color: var(--blue);
+        border-color: rgba(0, 163, 255, 0.4);
+    }
+
+    /* BOT TABLES */
+    .bot-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.82rem;
+    }
+
+    .bot-table th {
+        text-align: left;
+        padding: 0.75rem 0.85rem;
+        color: var(--text-muted);
+        font-size: 0.68rem;
+        font-weight: 800;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        border-bottom: 1px solid var(--border);
+    }
+
+    .bot-table td {
+        padding: 0.75rem 0.85rem;
+        border-bottom: 1px solid rgba(31, 41, 61, 0.45);
+        font-family: var(--font-code);
+        color: #fff;
+    }
+
+    .signal-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        padding: 2px 7px;
+        border-radius: 4px;
+        font-size: 0.72rem;
+        font-weight: 800;
+    }
+    .signal-buy { background: rgba(0, 240, 144, 0.15); color: var(--green); }
+    .signal-sell { background: rgba(255, 51, 102, 0.15); color: var(--red); }
+    .signal-hold { background: rgba(255, 255, 255, 0.05); color: var(--text-muted); }
+
+    /* TERMINAL */
+    .terminal-card { height: 480px; }
+    .terminal-header { background: #0c101c; }
+    .terminal-title { display: flex; align-items: center; }
+    .terminal-dot { width: 10px; height: 10px; border-radius: 50%; margin-right: 5px; }
+    .terminal-dot.red { background: #ff5f56; }
+    .terminal-dot.yellow { background: #ffbd2e; }
+    .terminal-dot.green { background: #27c93f; }
+
+    .btn-terminal-clear {
+        background: transparent;
+        border: none;
+        color: var(--text-muted);
+        font-size: 0.75rem;
+        cursor: pointer;
+    }
+    .btn-terminal-clear:hover { color: #fff; }
+
+    .bot-terminal-window {
+        background: #080b12;
+        padding: 0.85rem;
+        overflow-y: auto;
+        flex: 1;
+        font-family: var(--font-code);
+        font-size: 0.75rem;
+        line-height: 1.6;
+        display: flex;
+        flex-direction: column;
+        gap: 0.35rem;
+    }
+
+    .terminal-line { color: #c9d1d9; word-break: break-word; }
+    .log-success { color: var(--green); }
+    .log-warning { color: #ffd166; }
+    .log-error { color: var(--red); }
+    .log-info { color: var(--blue); }
+
+    /* RULES */
+    .rules-body {
+        padding: 1rem 1.15rem;
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+    }
+
+    .rule-item {
+        display: flex;
+        gap: 0.85rem;
+    }
+
+    .rule-icon {
+        width: 32px;
+        height: 32px;
+        border-radius: 8px;
+        background: rgba(255, 255, 255, 0.03);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+        font-size: 0.9rem;
+    }
+
+    .rule-item h4 {
+        font-size: 0.82rem;
+        font-weight: 800;
+        margin-bottom: 0.2rem;
+        color: #fff;
+    }
+
+    .rule-item p {
+        font-size: 0.75rem;
+        color: var(--text-muted);
+        line-height: 1.45;
+    }
+
+    /* SCORECARD STRIP */
+    .closed-trades-scorecard {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+        gap: 0.75rem;
+        background: rgba(13, 20, 36, 0.6);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: 0.85rem 1.15rem;
+    }
+    .score-card-item {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+    }
+    .score-label {
+        font-size: 0.65rem;
+        font-weight: 800;
+        color: var(--text-muted);
+        letter-spacing: 0.05em;
+    }
+    .score-val {
+        font-size: 1.1rem;
+        font-weight: 800;
+        font-family: var(--font-code);
+        color: #fff;
+    }
+
+    @media (max-width: 1024px) {
+        .bot-main-layout {
+            grid-template-columns: 1fr;
+        }
+    }
+</style>
+
+<!-- CLIENT JAVASCRIPT -->
+<script>
+    let isBotActive = false;
+    let botPoller = null;
+    let botTickTimer = null;
+    let countdownTimer = null;
+    let secondsRemaining = 60;
+    let isScanning = false;
+    let allScannerData = [];
+
+    document.addEventListener('DOMContentLoaded', () => {
+        syncStrategyUIHints();
+        fetchBotStatus();
+        loadBotHoldings();
+        loadClosedTradesReport();
+
+        const savedState = localStorage.getItem('crypto_bot_active') === 'true';
+        if (savedState) {
+            setBotActiveState(true, false);
+        }
+
+        botPoller = setInterval(() => {
+            fetchBotStatus(true);
+            loadBotHoldings();
+        }, 4000);
+    });
+
+    // ==========================================
+    // UI HINTS & STRATEGY SYNC
+    // ==========================================
+    function syncStrategyUIHints() {
+        const strat = document.getElementById('bot-strategy').value;
+        const slItem = document.getElementById('cfg-item-stop-loss');
+        const tpItem = document.getElementById('cfg-item-take-profit');
+        const posItem = document.getElementById('cfg-item-max-positions');
+        const badgeUnlimited = document.getElementById('badge-unlimited-pos');
+        const badgeSL = document.getElementById('badge-strat-sl');
+        const badgeTP = document.getElementById('badge-strat-tp');
+
+        if (strat === '123_REVERSAL') {
+            document.getElementById('bot-stop-loss').disabled = true;
+            document.getElementById('bot-take-profit').disabled = true;
+            document.getElementById('bot-max-positions').disabled = true;
+            badgeUnlimited.style.display = 'inline-block';
+            badgeSL.style.display = 'inline-block';
+            badgeTP.style.display = 'inline-block';
+        } else {
+            document.getElementById('bot-stop-loss').disabled = false;
+            document.getElementById('bot-take-profit').disabled = false;
+            document.getElementById('bot-max-positions').disabled = false;
+            badgeUnlimited.style.display = 'none';
+            badgeSL.style.display = 'none';
+            badgeTP.style.display = 'none';
+        }
+    }
+
+    function onStrategyChange() {
+        syncStrategyUIHints();
+        saveBotConfig();
+    }
+
+    function onScanModeChange() {
+        const mode = document.getElementById('bot-scan-mode').value;
+        document.getElementById('single-symbol-group').style.display = (mode === 'SINGLE') ? 'flex' : 'none';
+    }
+
+    // ==========================================
+    // CONTROLS & API CALLS
+    // ==========================================
+    function setBotActiveState(active, notify = true) {
+        isBotActive = active;
+        localStorage.setItem('crypto_bot_active', active ? 'true' : 'false');
+
+        const ind = document.getElementById('bot-status-indicator');
+        const txt = document.getElementById('bot-status-text');
+        const btn = document.getElementById('bot-primary-btn');
+
+        if (active) {
+            ind.className = 'bot-status-badge status-running';
+            txt.innerText = 'ONLINE / 24-7 SCANNING';
+            btn.className = 'btn-bot-stop';
+            btn.innerHTML = '<i class="fa-solid fa-pause"></i> STOP CRYPTO BOT';
+            if (notify) showToast('🚀 Crypto Auto-Trading Bot is ONLINE! Scanning 24/7.', 'success');
+            startCountdown();
+            startClientScanLoop();
+        } else {
+            ind.className = 'bot-status-badge status-stopped';
+            txt.innerText = 'OFFLINE / STOPPED';
+            btn.className = 'btn-bot-start';
+            btn.innerHTML = '<i class="fa-solid fa-play"></i> START CRYPTO BOT';
+            if (notify) showToast('🛑 Crypto Auto-Trading Bot stopped.', 'warning');
+            stopCountdown();
+            stopClientScanLoop();
+        }
+    }
+
+    async function toggleBot() {
+        const willStart = !isBotActive;
+        const config = getBotConfig();
+
+        try {
+            const res = await fetch('/api/crypto/bot/toggle', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ start: willStart, config: config })
+            });
+            const data = await res.json();
+            setBotActiveState(willStart, true);
+            if (data.status) updateBotUI(data.status);
+            if (willStart) tickBotNow();
+        } catch (e) {
+            showToast('Failed to toggle bot: ' + e.message, 'error');
+        }
+    }
+
+    async function tickBotNow() {
+        if (isScanning) return;
+        isScanning = true;
+        const scanBtn = document.getElementById('bot-scan-btn');
+        scanBtn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i> SCANNING...';
+        showToast('Scanning Crypto Basket for 1-2-3 Reversals &amp; Trend Breakouts...', 'info');
+
+        try {
+            const config = getBotConfig();
+            config.is_running = isBotActive;
+
+            const res = await fetch('/api/crypto/bot/tick', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ config: config, is_running: isBotActive })
+            });
+            const data = await res.json();
+            if (data.result) renderScannerTable(data.result);
+            if (data.bot_state) updateBotUI(data.bot_state);
+            loadBotHoldings();
+            loadClosedTradesReport();
+            secondsRemaining = 60;
+        } catch (e) {
+            showToast('Scan failed: ' + e.message, 'error');
+        } finally {
+            isScanning = false;
+            scanBtn.innerHTML = '<i class="fa-solid fa-arrows-rotate"></i> SCAN BASKET NOW';
+        }
+    }
+
+    function getBotConfig() {
+        return {
+            scan_mode: document.getElementById('bot-scan-mode').value,
+            single_symbol: document.getElementById('bot-symbol').value,
+            strategy: document.getElementById('bot-strategy').value,
+            allocation_per_trade: parseFloat(document.getElementById('bot-allocation').value) || 1000,
+            leverage: parseInt(document.getElementById('bot-leverage').value) || 2,
+            max_positions: parseInt(document.getElementById('bot-max-positions').value) || 3,
+            stop_loss_pct: parseFloat(document.getElementById('bot-stop-loss').value) || 1.5,
+            take_profit_pct: parseFloat(document.getElementById('bot-take-profit').value) || 2.0,
+            use_ema200_filter: document.getElementById('bot-use-ema200').checked,
+            use_trailing_stop: document.getElementById('bot-use-trailing').checked
+        };
+    }
+
+    async function saveBotConfig() {
+        const config = getBotConfig();
+        try {
+            await fetch('/api/crypto/bot/config', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(config)
+            });
+        } catch (e) {
+            console.error('Failed to sync bot config:', e);
+        }
+    }
+
+    async function fetchBotStatus(silent = false) {
+        try {
+            const res = await fetch('/api/crypto/bot/status');
+            const data = await res.json();
+            updateBotUI(data);
+        } catch (e) {
+            if (!silent) console.error('Status fetch failed:', e);
+        }
+    }
+
+    function updateBotUI(status) {
+        if (!status) return;
+
+        document.getElementById('kpi-universe-val').innerText = status.scan_mode === 'ALL_CRYPTO' ? 'ALL CRYPTO (12)' : (status.scan_mode === 'TOP_10' ? 'TOP 10' : status.single_symbol);
+        document.getElementById('kpi-scans-val').innerText = status.total_scans || 0;
+        if (status.last_scan_time) {
+            document.getElementById('kpi-scans-sub').innerText = 'Last: ' + status.last_scan_time.split(' ')[1];
+        }
+
+        document.getElementById('kpi-positions-val').innerText = `${status.active_positions_count || 0} Open Positions`;
+        document.getElementById('kpi-shield-val').innerText = status.use_trailing_stop ? 'ARMED (+1.0%)' : 'OFF';
+
+        // Render console stream
+        if (status.logs && status.logs.length > 0) {
+            const stream = document.getElementById('bot-console-stream');
+            stream.innerHTML = status.logs.map(l => {
+                let colorClass = 'terminal-line';
+                if (l.level === 'SUCCESS') colorClass += ' log-success';
+                else if (l.level === 'WARNING') colorClass += ' log-warning';
+                else if (l.level === 'ERROR') colorClass += ' log-error';
+                else colorClass += ' log-info';
+                return `<div class="${colorClass}">[${l.timestamp}] ${l.message}</div>`;
+            }).join('');
+            stream.scrollTop = stream.scrollHeight;
+        }
+    }
+
+    // ==========================================
+    // SCANNER TABLE
+    // ==========================================
+    function renderScannerTable(items) {
+        allScannerData = items;
+        document.getElementById('scanner-count-badge').innerText = `${items.length} Scanned`;
+        filterScannerTable('ALL');
+    }
+
+    function filterScannerTable(filterType, btnEl = null) {
+        if (btnEl) {
+            document.querySelectorAll('.scanner-filter-pills .pill').forEach(p => p.classList.remove('active'));
+            btnEl.classList.add('active');
+        }
+
+        const tbody = document.getElementById('scanner-table-tbody');
+        let filtered = allScannerData;
+
+        if (filterType === 'BUY') filtered = allScannerData.filter(i => i.signal === 'BUY');
+        else if (filterType === 'SELL') filtered = allScannerData.filter(i => i.signal === 'SELL' || i.signal === 'STOP_LOSS' || i.signal === 'TAKE_PROFIT');
+        else if (filterType === 'ACTIVE') filtered = allScannerData.filter(i => i.action_executed === 'BOUGHT' || i.action_executed === 'TARGET_PROFIT' || i.action_executed === 'STOP_EXIT');
+
+        if (filtered.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="8" class="text-center" style="padding: 2rem; color: var(--text-muted);">No signals match current filter.</td></tr>';
+            return;
+        }
+
+        tbody.innerHTML = filtered.map(item => {
+            const sigClass = item.signal === 'BUY' ? 'signal-buy' : (item.signal === 'SELL' || item.signal === 'STOP_LOSS' ? 'signal-sell' : 'signal-hold');
+            const chgColor = item.change_pct >= 0 ? 'text-green' : 'text-red';
+            const emaStatus = item.ema_200 ? (item.price >= item.ema_200 ? '<span class="text-green">Above</span>' : '<span class="text-red">Below</span>') : '--';
+
+            let sideBadge = '<span class="side-badge side-long"><i class="fa-solid fa-arrow-trend-up"></i> LONG</span>';
+            if (item.signal === 'SELL' || item.signal === 'STOP_LOSS') {
+                sideBadge = '<span class="side-badge side-short"><i class="fa-solid fa-arrow-trend-down"></i> SHORT</span>';
+            }
+
+            return `
+                <tr>
+                    <td><strong>${item.displayName}</strong> <span style="font-size:0.68rem; color:var(--text-muted);">${item.symbol}</span></td>
+                    <td>${sideBadge}</td>
+                    <td><span class="signal-badge ${sigClass}">${item.signal}</span></td>
+                    <td>$${item.price.toFixed(2)}</td>
+                    <td class="${chgColor}">${item.change_pct >= 0 ? '+' : ''}${item.change_pct.toFixed(2)}%</td>
+                    <td>${emaStatus}</td>
+                    <td><span class="badge" style="background: rgba(255,255,255,0.06); color: #fff;">${item.action_executed}</span></td>
+                    <td style="font-size: 0.72rem; color: var(--text-muted);">${item.reason}</td>
+                </tr>
+            `;
+        }).join('');
+    }
+
+    // ==========================================
+    // HOLDINGS & PERFORMANCE
+    // ==========================================
+    async function loadBotHoldings() {
+        try {
+            const res = await fetch('/api/crypto/portfolio');
+            const data = await res.json();
+
+            document.getElementById('kpi-equity-val').innerText = `$${data.total_equity.toLocaleString('en-US', { minimumFractionDigits: 2 })}`;
+            document.getElementById('card-cash-balance').innerText = `$${data.usdt_balance.toLocaleString('en-US', { minimumFractionDigits: 2 })}`;
+
+            const positions = data.positions || [];
+            document.getElementById('holdings-count-badge').innerText = `${positions.length} Active`;
+            const tbody = document.getElementById('bot-holdings-tbody');
+
+            if (positions.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="11" class="text-center" style="padding: 2rem; color: var(--text-muted);">No active positions open.</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = positions.map(p => {
+                const pnlClass = p.unrealized_pnl >= 0 ? 'text-green' : 'text-red';
+                const pnlSign = p.unrealized_pnl >= 0 ? '+' : '';
+                return `
+                    <tr>
+                        <td><strong>${p.name}</strong></td>
+                        <td><span class="side-badge ${p.side === 'LONG' ? 'side-long' : 'side-short'}">${p.side}</span></td>
+                        <td>${p.leverage}x</td>
+                        <td>${p.quantity}</td>
+                        <td>$${p.entry_price.toFixed(2)}</td>
+                        <td>$${p.current_price.toFixed(2)}</td>
+                        <td class="${pnlClass}" style="font-weight: 800;">${pnlSign}$${p.unrealized_pnl.toFixed(2)} (${pnlSign}${p.roi_pct.toFixed(2)}%)</td>
+                        <td style="color: var(--red);">$${p.stop_loss > 0 ? p.stop_loss.toFixed(2) : '--'}</td>
+                        <td style="color: var(--green);">$${p.take_profit > 0 ? p.take_profit.toFixed(2) : '--'}</td>
+                        <td><span style="color: var(--green); font-size: 0.72rem;">🛡️ Guarded</span></td>
+                        <td><button class="pill" style="border-color: rgba(255,75,75,0.4); color:#ff7575;" onclick="closeBotPosition(${p.id})">Close</button></td>
+                    </tr>
+                `;
+            }).join('');
+        } catch (e) {
+            console.error('Failed to load bot holdings:', e);
+        }
+    }
+
+    async function closeBotPosition(posId) {
+        try {
+            const res = await fetch(`/api/crypto/close/${posId}`, { method: 'POST' });
+            const data = await res.json();
+            if (data.success) {
+                showToast(data.message, 'success');
+                loadBotHoldings();
+                loadClosedTradesReport();
+            }
+        } catch (e) {
+            showToast('Close failed: ' + e.message, 'error');
+        }
+    }
+
+    async function loadClosedTradesReport() {
+        try {
+            const res = await fetch('/api/crypto/trades');
+            const trades = await res.json();
+            const closed = trades.filter(t => t.side.includes('CLOSE'));
+
+            document.getElementById('closed-trades-count-badge').innerText = `${closed.length} Closed`;
+            document.getElementById('perf-total-trades').innerText = closed.length;
+
+            let totalPnl = 0, totalFees = 0, wins = 0;
+            closed.forEach(t => {
+                totalPnl += (t.realized_pnl || 0);
+                totalFees += (t.fee || 0);
+                if ((t.realized_pnl || 0) > 0) wins++;
+            });
+
+            const winRate = closed.length > 0 ? ((wins / closed.length) * 100).toFixed(1) : '0.0';
+            document.getElementById('perf-win-rate').innerText = `${winRate}% (${wins}/${closed.length})`;
+
+            const pnlEl = document.getElementById('perf-net-pnl');
+            pnlEl.innerText = `${totalPnl >= 0 ? '+' : ''}$${totalPnl.toFixed(2)}`;
+            pnlEl.className = totalPnl >= 0 ? 'score-val text-green' : 'score-val text-red';
+            document.getElementById('perf-total-fees').innerText = `$${totalFees.toFixed(2)}`;
+
+            const tbody = document.getElementById('closed-trades-tbody');
+            if (closed.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="8" class="text-center" style="padding: 1.5rem; color: var(--text-muted);">No closed trades yet.</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = closed.map(t => {
+                const isWin = (t.realized_pnl || 0) > 0;
+                return `
+                    <tr>
+                        <td style="font-size:0.72rem; color:var(--text-muted);">${t.timestamp}</td>
+                        <td><strong>${t.displayName}</strong></td>
+                        <td><span class="side-badge ${t.side.includes('LONG') ? 'side-long' : 'side-short'}">${t.side}</span></td>
+                        <td>${t.leverage}x</td>
+                        <td>${t.quantity}</td>
+                        <td>$${t.price.toFixed(2)}</td>
+                        <td style="color:var(--text-muted);">$${t.fee.toFixed(2)}</td>
+                        <td class="${isWin ? 'text-green' : 'text-red'}" style="font-weight:800;">${t.realized_pnl >= 0 ? '+' : ''}$${t.realized_pnl.toFixed(2)}</td>
+                    </tr>
+                `;
+            }).join('');
+        } catch (e) {
+            console.error('Failed to load performance scorecard:', e);
+        }
+    }
+
+    async function resetCryptoPortfolioTo50k() {
+        if (!confirm('Liquidate all active crypto positions and reset desk back to $50,000 USDT?')) return;
+        try {
+            const res = await fetch('/api/crypto/reset', { method: 'POST' });
+            const data = await res.json();
+            if (data.success) {
+                showToast('Crypto desk successfully reset to $50,000 USDT!', 'success');
+                loadBotHoldings();
+                loadClosedTradesReport();
+                fetchBotStatus();
+            }
+        } catch (e) {
+            showToast('Reset failed: ' + e.message, 'error');
+        }
+    }
+
+    // ==========================================
+    // CLIENT SCAN LOOP & COUNTDOWN
+    // ==========================================
+    function startCountdown() {
+        if (countdownTimer) clearInterval(countdownTimer);
+        countdownTimer = setInterval(() => {
+            if (secondsRemaining > 0) secondsRemaining--;
+            const el = document.getElementById('kpi-countdown');
+            if (el) el.innerText = `${secondsRemaining}s`;
+        }, 1000);
+    }
+
+    function stopCountdown() {
+        if (countdownTimer) {
+            clearInterval(countdownTimer);
+            countdownTimer = null;
+        }
+        const el = document.getElementById('kpi-countdown');
+        if (el) el.innerText = 'Paused';
+    }
+
+    function startClientScanLoop() {
+        if (botTickTimer) clearInterval(botTickTimer);
+        botTickTimer = setInterval(() => {
+            if (isBotActive) tickBotNow();
+        }, 60000);
+    }
+
+    function stopClientScanLoop() {
+        if (botTickTimer) {
+            clearInterval(botTickTimer);
+            botTickTimer = null;
+        }
+    }
+
+    function clearBotLogs() {
+        const stream = document.getElementById('bot-console-stream');
+        if (stream) stream.innerHTML = '<div class="terminal-line text-muted">[CONSOLE] Logs cleared.</div>';
+    }
+
+    function showToast(msg, type = 'info') {
+        const container = document.getElementById('toast-container');
+        if (!container) return;
+        const toast = document.createElement('div');
+        toast.className = `toast toast-${type}`;
+        toast.innerHTML = msg;
+        container.appendChild(toast);
+        setTimeout(() => toast.remove(), 4000);
+    }
+</script>
+{% endblock %}

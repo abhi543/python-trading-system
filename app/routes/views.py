@@ -16,6 +16,11 @@ def bot_page():
 def crypto_page():
     return render_template('crypto.html')
 
+@views_bp.route('/crypto/bot')
+@views_bp.route('/crypto-bot')
+def crypto_bot_page():
+    return render_template('crypto_bot.html')
+
 @views_bp.route('/debug-env')
 def debug_env():
     from flask import request

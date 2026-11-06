@@ -364,4 +364,76 @@ def reset_crypto_account():
     res = CryptoTradingEngine.reset_account()
     return jsonify(res)
 
+# ==========================================
+# CRYPTO AUTO-TRADING BOT API ENDPOINTS
+# ==========================================
+@api_bp.route('/crypto/bot/status', methods=['GET'])
+def get_crypto_bot_status():
+    from app.services.crypto_bot import crypto_bot_instance
+    return jsonify(crypto_bot_instance.get_status())
+
+@api_bp.route('/crypto/bot/config', methods=['POST'])
+def update_crypto_bot_config():
+    from app.services.crypto_bot import crypto_bot_instance
+    body = request.get_json(silent=True) or {}
+    crypto_bot_instance.update_config(body)
+    return jsonify({"success": True, "status": crypto_bot_instance.get_status()})
+
+@api_bp.route('/crypto/bot/toggle', methods=['POST'])
+def toggle_crypto_bot():
+    from app.services.crypto_bot import crypto_bot_instance
+    body = request.get_json(silent=True) or {}
+    start_req = body.get('start', not crypto_bot_instance.is_running)
+    cfg = body.get('config')
+    if start_req:
+        res = crypto_bot_instance.start(cfg)
+    else:
+        res = crypto_bot_instance.stop()
+    return jsonify(res)
+
+@api_bp.route('/crypto/bot/scan', methods=['POST'])
+def scan_crypto_bot():
+    from app.services.crypto_bot import crypto_bot_instance
+    body = request.get_json(silent=True) or {}
+    cfg = body.get('config')
+    if cfg:
+        crypto_bot_instance.update_config(cfg)
+    target = body.get('symbol')
+    results = crypto_bot_instance.evaluate_signals(target_symbol=target)
+    return jsonify({
+        "success": True,
+        "scanned": len(results),
+        "results": results,
+        "bot_state": crypto_bot_instance.get_status()
+    })
+
+@api_bp.route('/crypto/bot/tick', methods=['POST'])
+def tick_crypto_bot():
+    from app.services.crypto_bot import crypto_bot_instance
+    body = request.get_json(silent=True) or {}
+    cfg = body.get("config") or body
+    if cfg and isinstance(cfg, dict):
+        crypto_bot_instance.update_config(cfg)
+
+    client_running = body.get('is_running')
+    if client_running is None and isinstance(cfg, dict):
+        client_running = cfg.get('is_running')
+    if client_running is not None:
+        crypto_bot_instance.is_running = bool(client_running)
+
+    target = body.get('symbol')
+    results = crypto_bot_instance.evaluate_signals(target_symbol=target)
+    return jsonify({
+        "status": "evaluated",
+        "result": results,
+        "bot_state": crypto_bot_instance.get_status()
+    })
+
+@api_bp.route('/crypto/bot/scanner', methods=['GET'])
+def get_crypto_scanner_results():
+    from app.services.crypto_bot import crypto_bot_instance
+    if not crypto_bot_instance.scanner_results:
+        crypto_bot_instance.evaluate_signals()
+    return jsonify(crypto_bot_instance.scanner_results)
+
 
