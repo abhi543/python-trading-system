@@ -16,7 +16,7 @@
                         <span id="bot-status-text">OFFLINE / STOPPED</span>
                     </span>
                     <span class="bot-badge-outline"><i class="fa-solid fa-bolt"></i> NIFTY 200 / 50 MULTI-BASKET ENGINE</span>
-                    <span class="bot-badge-outline" id="bot-session-badge"><i class="fa-solid fa-moon" style="color: #ffd166;"></i> SESSION: AFTER-HOURS ENGINE (24/7)</span>
+                    <span class="bot-badge-outline" id="bot-session-badge"><i class="fa-solid fa-sun" style="color: var(--green);"></i> SESSION: LIVE NSE MARKET SESSION</span>
                     <span class="bot-badge-outline" id="bot-interval-badge"><i class="fa-solid fa-clock"></i> CYCLE: 60s (1m)</span>
                 </div>
                 <h1 class="bot-title">Algorithmic Auto-Trading Station</h1>
@@ -1407,6 +1407,28 @@
         const stratEl = document.getElementById('bot-strategy');
         if (stratEl) stratEl.value = savedStrat;
 
+        // Detect initial NSE market status (Mon-Fri 09:15 - 15:30 IST)
+        const now = new Date();
+        const utc = now.getTime() + (now.getTimezoneOffset() * 60000);
+        const ist = new Date(utc + (3600000 * 5.5));
+        const day = ist.getDay(); // 0 is Sun, 6 is Sat
+        const mins = ist.getHours() * 60 + ist.getMinutes();
+        const isOpen = (day >= 1 && day <= 5) && (mins >= 555 && mins <= 930);
+        window.isMarketAfterHours = !isOpen;
+
+        const initBadge = document.getElementById('bot-session-badge');
+        if (initBadge) {
+            if (isOpen) {
+                initBadge.innerHTML = '<i class="fa-solid fa-sun" style="color: var(--green);"></i> SESSION: LIVE NSE MARKET SESSION (09:15 - 15:30 IST)';
+                initBadge.style.borderColor = 'rgba(0, 240, 144, 0.4)';
+                initBadge.style.color = 'var(--green)';
+            } else {
+                initBadge.innerHTML = '<i class="fa-solid fa-moon" style="color: #ffd166;"></i> SESSION: AFTER-HOURS ENGINE (24/7)';
+                initBadge.style.borderColor = 'rgba(255, 209, 102, 0.4)';
+                initBadge.style.color = '#ffd166';
+            }
+        }
+
         loadStoredBotSession();
         syncStrategyUIHints();
         updateConfigSummaryRibbon();
@@ -1444,7 +1466,10 @@
 
         if (active) {
             ind.className = 'bot-status-badge status-running';
-            text.innerHTML = '<i class="fa-solid fa-moon"></i> AFTER-MARKET AUTONOMOUS TRADER (24/7 ACTIVE)';
+            const isLive = (window.isMarketAfterHours === false);
+            text.innerHTML = isLive ?
+                '<i class="fa-solid fa-sun" style="color: var(--green);"></i> LIVE NSE MARKET TRADER (REAL-TIME ACTIVE)' :
+                '<i class="fa-solid fa-moon"></i> AFTER-MARKET AUTONOMOUS TRADER (24/7 ACTIVE)';
             btn.className = 'btn-bot-stop';
             btn.innerHTML = '<i class="fa-solid fa-stop"></i> STOP AUTO-BOT';
 
@@ -1567,6 +1592,7 @@
             setBotActiveState(false, false);
         }
 
+        window.isMarketAfterHours = !!data.is_after_hours;
         const sessBadge = document.getElementById('bot-session-badge');
         if (sessBadge) {
             if (data.is_after_hours) {
@@ -1574,9 +1600,18 @@
                 sessBadge.style.borderColor = 'rgba(255, 209, 102, 0.4)';
                 sessBadge.style.color = '#ffd166';
             } else {
-                sessBadge.innerHTML = '<i class="fa-solid fa-sun" style="color: var(--green);"></i> SESSION: LIVE NSE MARKET SESSION';
+                sessBadge.innerHTML = '<i class="fa-solid fa-sun" style="color: var(--green);"></i> SESSION: LIVE NSE MARKET SESSION (09:15 - 15:30 IST)';
                 sessBadge.style.borderColor = 'rgba(0, 240, 144, 0.4)';
                 sessBadge.style.color = 'var(--green)';
+            }
+        }
+
+        if (isBotActive) {
+            const statusText = document.getElementById('bot-status-text');
+            if (statusText) {
+                statusText.innerHTML = data.is_after_hours ?
+                    '<i class="fa-solid fa-moon"></i> AFTER-MARKET AUTONOMOUS TRADER (24/7 ACTIVE)' :
+                    '<i class="fa-solid fa-sun" style="color: var(--green);"></i> LIVE NSE MARKET TRADER (REAL-TIME ACTIVE)';
             }
         }
 
@@ -2059,10 +2094,11 @@
         try {
             const cfg = getCurrentBotConfig();
             cfg.is_running = isBotActive;
+            const tickEvent = (window.isMarketAfterHours === true) ? 'AFTER_HOURS_WALK' : 'LIVE_SWEEP';
             const res = await fetch('/api/bot/tick', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ event: 'AFTER_HOURS_WALK', config: cfg, is_running: isBotActive })
+                body: JSON.stringify({ event: tickEvent, config: cfg, is_running: isBotActive })
             });
             const data = await res.json();
             if (data.bot_state) {

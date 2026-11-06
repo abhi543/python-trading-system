@@ -774,8 +774,8 @@ class AutoTradingBot:
                 shocked_price = round(pos.average_price * 0.965, 2)
                 stock_data["price"] = shocked_price
                 stock_data["percent_change"] = -3.5
-            elif after_hours or simulation_event in ["RANDOM_WALK", "AFTER_HOURS_WALK"]:
-                # Continuous dynamic price drift across after-market hours
+            elif after_hours and (simulation_event in ["RANDOM_WALK", "AFTER_HOURS_WALK"] or not simulation_event):
+                # Continuous dynamic price drift strictly during after-market hours
                 sim_price = get_after_hours_price(symbol, orig_p, pos)
                 stock_data["price"] = sim_price
                 if "closes" in stock_data and len(stock_data["closes"]) > 0:
@@ -948,7 +948,7 @@ class AutoTradingBot:
             "scanner_results": scanner_results
         }
 
-        sweep_tag = "🌙 AFTER-MARKET SWEEP" if after_hours else "NIFTY 50 Scan Complete"
+        sweep_tag = "🌙 AFTER-MARKET SWEEP (Simulated)" if after_hours else "☀️ LIVE NSE MARKET SWEEP (Real Quotes)"
         self.add_log(f"{sweep_tag}: Scanned {len(scanner_results)} stocks | 🟢 {buys_found} BUY signals | 🔴 {sells_found} SELL signals | {trades_executed} Trades executed", "INFO")
 
         return self.last_scan_summary
