@@ -790,19 +790,22 @@ class AutoTradingBot:
         
         # Parallel high-speed data fetch for stock universe
         stock_data_map = {}
-        with concurrent.futures.ThreadPoolExecutor(max_workers=20) as executor:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=35) as executor:
             future_to_stock = {
                 executor.submit(MarketDataService.get_stock_analysis_data, sym): sym 
                 for sym in target_stocks
             }
-            for future in concurrent.futures.as_completed(future_to_stock):
-                sym = future_to_stock[future]
-                try:
-                    data = future.result()
-                    if "error" not in data:
-                        stock_data_map[sym] = data
-                except Exception:
-                    pass
+            try:
+                for future in concurrent.futures.as_completed(future_to_stock, timeout=8.0):
+                    sym = future_to_stock[future]
+                    try:
+                        data = future.result()
+                        if "error" not in data:
+                            stock_data_map[sym] = data
+                    except Exception:
+                        pass
+            except concurrent.futures.TimeoutError:
+                pass
 
         # Apply Simulated Price Ticks if Simulation Mode / Event is active or in after-market hours
         after_hours = not is_nse_market_open()

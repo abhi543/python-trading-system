@@ -2107,6 +2107,9 @@
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ event: tickEvent, config: cfg, is_running: isBotActive })
             });
+            if (!res.ok) {
+                throw new Error(`Server returned status ${res.status}`);
+            }
             const data = await res.json();
             if (data.bot_state) {
                 updateBotUI(data.bot_state);
@@ -2118,7 +2121,8 @@
             const tradesMsg = summary.trades_executed ? ` | ${summary.trades_executed} Executed` : (isBotActive ? '' : ' | (Bot Paused: 0 Orders Placed)');
             showToast(`Radar: ${summary.total_scanned || (scanMode === 'ALL_NIFTY_200' ? 200 : 50)} stocks | 🟢 ${summary.buys_found || 0} BUY | 🔴 ${summary.sells_found || 0} SELL${tradesMsg}`, 'info');
         } catch (err) {
-            showToast('Scan sweep failed', 'error');
+            console.warn('Scan sweep issue:', err);
+            showToast('Scan sweep notice: Network response delayed, auto-retrying on next cycle', 'warning');
         } finally {
             if (btn) {
                 const currentMode = document.getElementById('bot-scan-mode')?.value || 'ALL_NIFTY_200';

@@ -1,10 +1,15 @@
 import requests
+from requests.adapters import HTTPAdapter
 from datetime import datetime
 
-HEADERS = {
+_session = requests.Session()
+_adapter = HTTPAdapter(pool_connections=50, pool_maxsize=50, max_retries=1)
+_session.mount('https://', _adapter)
+_session.mount('http://', _adapter)
+_session.headers.update({
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
     'Accept': 'application/json'
-}
+})
 
 class MarketDataService:
     @staticmethod
@@ -12,7 +17,7 @@ class MarketDataService:
         symbol = symbol.strip().upper()
         url = f"https://query1.finance.yahoo.com/v8/finance/chart/{symbol}?interval={interval}&range={range_val}"
         try:
-            res = requests.get(url, headers=HEADERS, timeout=8)
+            res = _session.get(url, timeout=4)
             if res.status_code == 200:
                 data = res.json()
                 results = data.get('chart', {}).get('result')
@@ -26,7 +31,7 @@ class MarketDataService:
             fallback_symbol = f"{symbol}.NS"
             url_fallback = f"https://query1.finance.yahoo.com/v8/finance/chart/{fallback_symbol}?interval={interval}&range={range_val}"
             try:
-                res = requests.get(url_fallback, headers=HEADERS, timeout=8)
+                res = _session.get(url_fallback, timeout=4)
                 if res.status_code == 200:
                     data = res.json()
                     results = data.get('chart', {}).get('result')
