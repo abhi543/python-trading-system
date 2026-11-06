@@ -7,8 +7,29 @@ class PaperTradingEngine:
     LEVERAGE = 5.0  # NSE Intraday MIS Leverage: 5x (20% margin requirement)
 
     @staticmethod
-    def get_portfolio_summary():
+    def reconcile_account_balance():
+        from app.models.trading import Account, Position, TradeHistory
+        from app import db
         account = Account.query.first()
+        if not account:
+            account = Account(cash_balance=50000.0)
+            db.session.add(account)
+            db.session.commit()
+            return account
+
+        positions = Position.query.filter(Position.quantity > 0).all()
+        total_margin_used = sum((p.quantity * p.average_price) / PaperTradingEngine.LEVERAGE for p in positions)
+        total_realized_pnl = db.session.query(db.func.sum(TradeHistory.realized_pnl)).scalar() or 0.0
+        
+        # Canonical cash balance = Starting cash (₹50k) + Realized P&L - Active Margin Blocked
+        expected_cash = round(max(0.0, 50000.0 + total_realized_pnl - total_margin_used), 2)
+        account.cash_balance = expected_cash
+        db.session.commit()
+        return account
+
+    @staticmethod
+    def get_portfolio_summary():
+        account = PaperTradingEngine.reconcile_account_balance()
         if not account:
             return {"error": "Account not initialized"}
         
@@ -177,7 +198,7 @@ class PaperTradingEngine:
             price = quote["price"]
             
         turnover = round(quantity * price, 2)
-        account = Account.query.first()
+        account = PaperTradingEngine.reconcile_account_balance()
         if not account:
             return {"success": False, "message": "Account not initialized"}
 

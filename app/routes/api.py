@@ -58,6 +58,7 @@ def sync_positions_from_client(client_positions):
                 db.session.delete(p)
 
         db.session.commit()
+        PaperTradingEngine.reconcile_account_balance()
     except Exception:
         pass
 

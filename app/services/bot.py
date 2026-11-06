@@ -819,7 +819,7 @@ class AutoTradingBot:
         # Get existing positions & cash balance
         held_positions = Position.query.filter(Position.quantity > 0).all()
         held_map = {p.symbol: p for p in held_positions}
-        account = Account.query.first()
+        account = PaperTradingEngine.reconcile_account_balance()
         available_cash = account.cash_balance if account else 0.0
         already_traded_today = self.get_intraday_traded_symbols()
 
