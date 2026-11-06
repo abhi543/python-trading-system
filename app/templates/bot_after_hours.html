@@ -1457,9 +1457,7 @@
         loadStoredBotSession();
         syncStrategyUIHints();
         updateConfigSummaryRibbon();
-        fetchBotStatus();
-        loadBotHoldings();
-        loadAccountMetrics();
+        fetchBotOverview();
 
         const savedState = localStorage.getItem('ah_bot_active_v1') === 'true';
         if (savedState) {
@@ -1470,11 +1468,27 @@
         }
         renderBotSessionReport();
 
+        // High-Efficiency Smart Poller: 8s interval + Auto-pause when tab is hidden in background
+        scheduleBotPoller();
+    });
+
+    let isPageVisible = !document.hidden;
+    function scheduleBotPoller() {
+        if (botPoller) clearInterval(botPoller);
         botPoller = setInterval(() => {
-            fetchBotStatus(true);
-            loadBotHoldings();
-            loadAccountMetrics();
-        }, 4000);
+            if (isPageVisible) {
+                fetchBotOverview(true);
+            }
+        }, 8000); // 8-second smart polling interval cuts invocations by 50%
+    }
+
+    document.addEventListener('visibilitychange', () => {
+        if (document.hidden) {
+            isPageVisible = false; // User switched tabs or minimized: STOP POLLING (0 invocations)
+        } else {
+            isPageVisible = true;
+            fetchBotOverview(true); // Instant refresh on tab focus
+        }
     });
 
     // ==========================================
@@ -1581,50 +1595,30 @@
         updateConfigSummaryRibbon();
     }
 
-    async function loadAccountMetrics() {
+    async function fetchBotOverview(silent = false) {
         try {
             const localPositions = (typeof getStoredActivePositions === 'function') ? getStoredActivePositions() : [];
-            let res;
-            if (localPositions.length > 0) {
-                res = await fetch('/api/after-hours/portfolio', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ client_positions: localPositions })
-                });
-            } else {
-                res = await fetch('/api/after-hours/portfolio', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ client_positions: [] })
-                });
-            }
+            const res = await fetch('/api/after-hours/overview', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ client_positions: localPositions })
+            });
+            if (!res.ok) return;
             const data = await res.json();
-            const cash = (data.cash_balance !== undefined) ? data.cash_balance : (data.account ? data.account.cash_balance : 10000000);
-            const equity = (data.total_equity !== undefined) ? data.total_equity : (data.account ? data.account.total_equity : 10000000);
-            let pnl = (data.unrealized_pnl !== undefined) ? data.unrealized_pnl : (data.account ? data.account.unrealized_pnl : 0);
-            if (localPositions.length === 0 && (!data.positions || data.positions.length === 0)) {
-                pnl = 0.0;
-            }
+            if (data.status) updateBotUI(data.status);
+            if (data.portfolio) renderPortfolioUI(data.portfolio, localPositions);
+            if (data.closed_trades) renderClosedTradesUI(data.closed_trades);
+        } catch (err) {
+            if (!silent) console.warn('Overview sync error:', err);
+        }
+    }
 
-            document.getElementById('nav-total-equity').innerText = `₹${equity.toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
-            document.getElementById('nav-cash-balance').innerText = `₹${cash.toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
-            const buyingPower = (data.buying_power !== undefined) ? data.buying_power : (cash * 5);
-            const bpEl = document.getElementById('nav-buying-power');
-            if (bpEl) bpEl.innerText = `₹${buyingPower.toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
-            const pnlEl = document.getElementById('nav-pnl');
-            pnlEl.innerText = `${pnl >= 0 ? '+' : ''}₹${pnl.toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
-            pnlEl.className = pnl >= 0 ? 'metric-value text-green' : 'metric-value text-red';
-        } catch (e) {}
+    async function loadAccountMetrics() {
+        return fetchBotOverview(true);
     }
 
     async function fetchBotStatus(silent = false) {
-        try {
-            const res = await fetch('/api/after-hours/status');
-            const data = await res.json();
-            updateBotUI(data);
-        } catch (err) {
-            if (!silent) showToast('Failed to connect to Bot engine', 'error');
-        }
+        return fetchBotOverview(silent);
     }
 
     function updateBotUI(data) {
@@ -2275,137 +2269,139 @@
         } catch (e) {}
     }
 
+    function renderPortfolioUI(data, localPositions) {
+        if (!data) return;
+        localPositions = localPositions || ((typeof getStoredActivePositions === 'function') ? getStoredActivePositions() : []);
+
+        // 1. Update Navbar Metrics
+        const cash = (data.cash_balance !== undefined) ? data.cash_balance : (data.account ? data.account.cash_balance : 10000000);
+        const equity = (data.total_equity !== undefined) ? data.total_equity : (data.account ? data.account.total_equity : 10000000);
+        let pnl = (data.unrealized_pnl !== undefined) ? data.unrealized_pnl : (data.account ? data.account.unrealized_pnl : 0);
+        if (localPositions.length === 0 && (!data.positions || data.positions.length === 0)) {
+            pnl = 0.0;
+        }
+
+        const eqEl = document.getElementById('nav-total-equity');
+        if (eqEl) eqEl.innerText = `₹${equity.toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+        const cashEl = document.getElementById('nav-cash-balance');
+        if (cashEl) cashEl.innerText = `₹${cash.toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+        const buyingPower = (data.buying_power !== undefined) ? data.buying_power : (cash * 5);
+        const bpEl = document.getElementById('nav-buying-power');
+        if (bpEl) bpEl.innerText = `₹${buyingPower.toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+        const pnlEl = document.getElementById('nav-pnl');
+        if (pnlEl) {
+            pnlEl.innerText = `${pnl >= 0 ? '+' : ''}₹${pnl.toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+            pnlEl.className = pnl >= 0 ? 'metric-value text-green' : 'metric-value text-red';
+        }
+
+        // 2. Update Holdings Table
+        const tbody = document.getElementById('bot-holdings-tbody');
+        if (!tbody) return;
+
+        let backendPositions = data.positions || [];
+        let positions = [];
+        if (backendPositions.length > 0) {
+            positions = backendPositions;
+            saveStoredActivePositions(positions);
+        } else if (localPositions.length > 0) {
+            positions = localPositions;
+        } else {
+            positions = [];
+        }
+
+        window.cachedActivePositions = positions;
+        if (allScannerData && allScannerData.length > 0) {
+            updateRadarPillCounts(allScannerData);
+        }
+        const count = positions.length;
+        const badge = document.getElementById('holdings-badge-count');
+        if (badge) badge.innerText = count;
+        const heroCount = document.getElementById('hero-holdings-count');
+        if (heroCount) heroCount.innerText = count;
+        const tabCount = document.getElementById('tab-holdings-count');
+        if (tabCount) tabCount.innerText = count;
+
+        const activeSymbols = positions.map(p => p.symbol);
+        cleanClosedPositionsFromLock(activeSymbols);
+
+        if (count === 0) {
+            tbody.innerHTML = '<tr><td colspan="10" class="text-center" style="padding: 1.5rem; color: var(--text-muted);">No open positions held. Bot will execute buys when signals trigger.</td></tr>';
+            if (pnlEl) {
+                pnlEl.innerText = '₹0.00';
+                pnlEl.className = 'metric-value text-green';
+            }
+        } else {
+            tbody.innerHTML = '';
+            let totalHoldingsPnl = 0.0;
+            positions.forEach(p => {
+                if (allScannerData && allScannerData.length > 0) {
+                    const quoteItem = allScannerData.find(s => s.symbol === p.symbol);
+                    if (quoteItem && quoteItem.price) {
+                        p.current_price = quoteItem.price;
+                    }
+                }
+
+                p.average_price = getLockedEntryPrice(p.symbol, p.average_price);
+
+                const isShort = (p.side === 'SHORT');
+                const costBasis = p.quantity * p.average_price;
+                const marketVal = p.quantity * p.current_price;
+                const marginUsed = costBasis / (p.leverage || 5);
+                const calcPnl = isShort ? (costBasis - marketVal) : (marketVal - costBasis);
+                const calcPnlPct = marginUsed > 0 ? (calcPnl / marginUsed * 100) : 0.0;
+                p.unrealized_pnl = calcPnl;
+                p.unrealized_pnl_pct = calcPnlPct;
+                totalHoldingsPnl += calcPnl;
+
+                const tr = document.createElement('tr');
+                const pnlClass = p.unrealized_pnl >= 0 ? 'text-green' : 'text-red';
+                const pnlSign = p.unrealized_pnl >= 0 ? '+' : '';
+                const sideBadge = isShort 
+                    ? '<span class="side-badge side-short" style="background: rgba(255, 51, 102, 0.15); color: var(--red); border: 1px solid rgba(255, 51, 102, 0.3); padding: 3px 8px; border-radius: 4px; font-weight: 700; font-size: 0.72rem;"><i class="fa-solid fa-arrow-trend-down"></i> SHORT</span>'
+                    : '<span class="side-badge side-long" style="background: rgba(0, 240, 144, 0.15); color: var(--green); border: 1px solid rgba(0, 240, 144, 0.3); padding: 3px 8px; border-radius: 4px; font-weight: 700; font-size: 0.72rem;"><i class="fa-solid fa-arrow-trend-up"></i> LONG</span>';
+                
+                let slDisplay = `₹${(p.stop_loss || (isShort ? p.average_price * 1.025 : p.average_price * 0.975)).toFixed(2)}`;
+                if (p.trailing_active) {
+                    slDisplay += ` <span style="font-size: 0.68rem; color: var(--green); font-weight: 700;">🛡️ Breakeven</span>`;
+                }
+                let tpDisplay = `₹${(p.take_profit || (isShort ? p.average_price * 0.95 : p.average_price * 1.05)).toFixed(2)}`;
+                if (p.take_profit) {
+                    tpDisplay += ` <span style="font-size: 0.68rem; color: #a78bfa;">🎯 Target</span>`;
+                }
+
+                tr.innerHTML = `
+                    <td>
+                        <strong>${p.symbol.replace('.NS', '')}</strong> 
+                        <span style="font-size:0.7rem; color:var(--text-muted); display: block;">${p.symbol}</span>
+                    </td>
+                    <td>
+                        ${sideBadge}
+                    </td>
+                    <td style="font-weight: 700;">${p.quantity}</td>
+                    <td style="font-weight: 700;">₹${p.average_price.toFixed(2)}</td>
+                    <td style="font-weight: 700;">₹${p.current_price.toFixed(2)}</td>
+                    <td class="${pnlClass}" style="font-weight: 700;">${pnlSign}₹${p.unrealized_pnl.toFixed(2)}</td>
+                    <td class="${pnlClass}" style="font-weight: 700;">${pnlSign}${p.unrealized_pnl_pct.toFixed(2)}%</td>
+                    <td style="color: var(--red); font-weight: 700;">${slDisplay}</td>
+                    <td style="color: var(--green); font-weight: 700;">${tpDisplay}</td>
+                    <td>
+                        <button class="btn-action-close" onclick="exitBotPosition('${p.symbol}', ${p.quantity}, '${p.side || "LONG"}')">
+                            <i class="fa-solid fa-xmark"></i> ${isShort ? 'Cover' : 'Exit'}
+                        </button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+
+            if (pnlEl) {
+                pnlEl.innerText = `${totalHoldingsPnl >= 0 ? '+' : ''}₹${totalHoldingsPnl.toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+                pnlEl.className = totalHoldingsPnl >= 0 ? 'metric-value text-green' : 'metric-value text-red';
+            }
+        }
+    }
+
     async function loadBotHoldings() {
-        try {
-            let localPositions = getStoredActivePositions();
-
-            let res;
-            if (localPositions.length > 0) {
-                try {
-                    res = await fetch('/api/after-hours/portfolio', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ client_positions: localPositions })
-                    });
-                } catch (netErr) {
-                    res = await fetch('/api/after-hours/portfolio');
-                }
-            } else {
-                res = await fetch('/api/after-hours/portfolio');
-            }
-            const data = await res.json();
-            const tbody = document.getElementById('bot-holdings-tbody');
-            if (!tbody) return;
-
-            let backendPositions = data.positions || [];
-
-            // True active positions from live engine: Never filter out open holdings
-            let positions = [];
-            if (backendPositions.length > 0) {
-                positions = backendPositions;
-                saveStoredActivePositions(positions);
-            } else if (localPositions.length > 0) {
-                positions = localPositions;
-            } else {
-                positions = [];
-            }
-
-            window.cachedActivePositions = positions;
-            if (allScannerData && allScannerData.length > 0) {
-                updateRadarPillCounts(allScannerData);
-            }
-            const count = positions.length;
-            const badge = document.getElementById('holdings-badge-count');
-            if (badge) badge.innerText = count;
-            const heroCount = document.getElementById('hero-holdings-count');
-            if (heroCount) heroCount.innerText = count;
-            const tabCount = document.getElementById('tab-holdings-count');
-            if (tabCount) tabCount.innerText = count;
-
-            const activeSymbols = positions.map(p => p.symbol);
-            cleanClosedPositionsFromLock(activeSymbols);
-
-            if (count === 0) {
-                tbody.innerHTML = '<tr><td colspan="10" class="text-center" style="padding: 1.5rem; color: var(--text-muted);">No open positions held. Bot will execute buys when signals trigger.</td></tr>';
-                const pnlEl = document.getElementById('nav-pnl');
-                if (pnlEl) {
-                    pnlEl.innerText = '₹0.00';
-                    pnlEl.className = 'metric-value text-green';
-                }
-            } else {
-                tbody.innerHTML = '';
-                let totalHoldingsPnl = 0.0;
-                positions.forEach(p => {
-                    // Update current_price from scanner data or radar if available
-                    if (allScannerData && allScannerData.length > 0) {
-                        const quoteItem = allScannerData.find(s => s.symbol === p.symbol);
-                        if (quoteItem && quoteItem.price) {
-                            p.current_price = quoteItem.price;
-                        }
-                    }
-
-                    // Strictly lock average price to eliminate multi-container serverless fluctuation
-                    p.average_price = getLockedEntryPrice(p.symbol, p.average_price);
-
-                    const isShort = (p.side === 'SHORT');
-                    const costBasis = p.quantity * p.average_price;
-                    const marketVal = p.quantity * p.current_price;
-                    const marginUsed = costBasis / (p.leverage || 5);
-                    const calcPnl = isShort ? (costBasis - marketVal) : (marketVal - costBasis);
-                    const calcPnlPct = marginUsed > 0 ? (calcPnl / marginUsed * 100) : 0.0;
-                    p.unrealized_pnl = calcPnl;
-                    p.unrealized_pnl_pct = calcPnlPct;
-                    totalHoldingsPnl += calcPnl;
-
-                    const tr = document.createElement('tr');
-                    const pnlClass = p.unrealized_pnl >= 0 ? 'text-green' : 'text-red';
-                    const pnlSign = p.unrealized_pnl >= 0 ? '+' : '';
-                    const sideBadge = isShort 
-                        ? '<span class="side-badge side-short" style="background: rgba(255, 51, 102, 0.15); color: var(--red); border: 1px solid rgba(255, 51, 102, 0.3); padding: 3px 8px; border-radius: 4px; font-weight: 700; font-size: 0.72rem;"><i class="fa-solid fa-arrow-trend-down"></i> SHORT</span>'
-                        : '<span class="side-badge side-long" style="background: rgba(0, 240, 144, 0.15); color: var(--green); border: 1px solid rgba(0, 240, 144, 0.3); padding: 3px 8px; border-radius: 4px; font-weight: 700; font-size: 0.72rem;"><i class="fa-solid fa-arrow-trend-up"></i> LONG</span>';
-                    
-                    let slDisplay = `₹${(p.stop_loss || (isShort ? p.average_price * 1.025 : p.average_price * 0.975)).toFixed(2)}`;
-                    if (p.trailing_active) {
-                        slDisplay += ` <span style="font-size: 0.68rem; color: var(--green); font-weight: 700;">🛡️ Breakeven</span>`;
-                    }
-                    let tpDisplay = `₹${(p.take_profit || (isShort ? p.average_price * 0.95 : p.average_price * 1.05)).toFixed(2)}`;
-                    if (p.take_profit) {
-                        tpDisplay += ` <span style="font-size: 0.68rem; color: #a78bfa;">🎯 Target</span>`;
-                    }
-
-                    tr.innerHTML = `
-                        <td>
-                            <strong>${p.symbol.replace('.NS', '')}</strong> 
-                            <span style="font-size:0.7rem; color:var(--text-muted); display: block;">${p.symbol}</span>
-                        </td>
-                        <td>
-                            ${sideBadge}
-                        </td>
-                        <td style="font-weight: 700;">${p.quantity}</td>
-                        <td style="font-weight: 700;">₹${p.average_price.toFixed(2)}</td>
-                        <td style="font-weight: 700;">₹${p.current_price.toFixed(2)}</td>
-                        <td class="${pnlClass}" style="font-weight: 700;">${pnlSign}₹${p.unrealized_pnl.toFixed(2)}</td>
-                        <td class="${pnlClass}" style="font-weight: 700;">${pnlSign}${p.unrealized_pnl_pct.toFixed(2)}%</td>
-                        <td style="color: var(--red); font-weight: 700;">${slDisplay}</td>
-                        <td style="color: var(--green); font-weight: 700;">${tpDisplay}</td>
-                        <td>
-                            <button class="btn-action-close" onclick="exitBotPosition('${p.symbol}', ${p.quantity}, '${p.side || "LONG"}')">
-                                <i class="fa-solid fa-xmark"></i> ${isShort ? 'Cover' : 'Exit'}
-                            </button>
-                        </td>
-                    `;
-                    tbody.appendChild(tr);
-                });
-
-                const pnlEl = document.getElementById('nav-pnl');
-                if (pnlEl) {
-                    pnlEl.innerText = `${totalHoldingsPnl >= 0 ? '+' : ''}₹${totalHoldingsPnl.toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
-                    pnlEl.className = totalHoldingsPnl >= 0 ? 'metric-value text-green' : 'metric-value text-red';
-                }
-            }
-            // Background sync closed trades badge
-            loadClosedTrades();
-        } catch (e) {}
+        return fetchBotOverview(true);
     }
 
     // ==========================================
@@ -2779,93 +2775,94 @@
         }
     }
 
+    function renderClosedTradesUI(data) {
+        if (!data) return;
+        const trades = data.trades || [];
+        cachedClosedTrades = trades;
+        const summary = data.summary || {};
+
+        const countBadge = document.getElementById('closed-trades-badge-count');
+        if (countBadge) countBadge.innerText = summary.total_closed || 0;
+
+        const pnlEl = document.getElementById('closed-net-pnl');
+        const netPnl = summary.net_realized_pnl || 0.0;
+        if (pnlEl) {
+            pnlEl.innerText = `${netPnl >= 0 ? '+' : ''}₹${netPnl.toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+            pnlEl.className = netPnl >= 0 ? 'score-val text-green' : 'score-val text-red';
+        }
+
+        const chargesEl = document.getElementById('closed-total-charges');
+        const totalCharges = summary.total_charges || 0.0;
+        if (chargesEl) {
+            chargesEl.innerText = `₹${totalCharges.toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+        }
+
+        const winRateEl = document.getElementById('closed-win-rate');
+        if (winRateEl) {
+            winRateEl.innerText = `${summary.win_rate || 0}%`;
+            winRateEl.className = (summary.win_rate || 0) >= 50 ? 'score-val text-green' : 'score-val text-red';
+        }
+
+        const winCountEl = document.getElementById('closed-win-count');
+        if (winCountEl) {
+            winCountEl.innerText = `${summary.wins || 0} Wins / ${summary.losses || 0} Losses`;
+        }
+
+        const totalCountEl = document.getElementById('closed-total-count');
+        if (totalCountEl) totalCountEl.innerText = summary.total_closed || 0;
+
+        const avgPnlEl = document.getElementById('closed-avg-pnl');
+        if (avgPnlEl) {
+            const avgPnl = summary.avg_trade_pnl || 0.0;
+            avgPnlEl.innerText = `${avgPnl >= 0 ? '+' : ''}₹${avgPnl.toFixed(2)}`;
+            avgPnlEl.className = avgPnl >= 0 ? 'score-val text-green' : 'score-val text-red';
+        }
+
+        const tbody = document.getElementById('bot-closed-trades-tbody');
+        if (!tbody) return;
+
+        if (trades.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="11" class="text-center" style="padding: 1.5rem; color: var(--text-muted);">No closed trades recorded yet. Stop-loss liquidations, trailing stop hits, and take-profit exits will be logged here.</td></tr>';
+            return;
+        }
+
+        tbody.innerHTML = '';
+        trades.forEach(t => {
+            const tr = document.createElement('tr');
+            const isWin = (t.realized_pnl || 0) >= 0;
+            const pnlClass = isWin ? 'text-green' : 'text-red';
+            const pnlSign = isWin ? '+' : '';
+            const statusBadge = isWin 
+                ? '<span class="signal-badge signal-buy" style="font-size: 0.68rem;"><i class="fa-solid fa-trophy"></i> PROFIT</span>' 
+                : '<span class="signal-badge signal-sell" style="font-size: 0.68rem;"><i class="fa-solid fa-shield-halved"></i> STOPPED</span>';
+
+            const charges = t.charges || 0.0;
+            const chargeTooltip = `Brokerage: ₹${(t.brokerage||0).toFixed(2)} | STT: ₹${(t.stt||0).toFixed(2)} | Exch: ₹${(t.exchange_charges||0).toFixed(2)} | GST: ₹${(t.gst||0).toFixed(2)} | SEBI: ₹${(t.sebi_charges||0).toFixed(2)} | Stamp: ₹${(t.stamp_duty||0).toFixed(2)}`;
+
+            tr.innerHTML = `
+                <td style="font-size: 0.76rem; color: var(--text-muted); font-family: var(--font-code);">${t.timestamp}</td>
+                <td>
+                    <strong style="font-family: var(--font-code); color: #fff;">${t.displayName}</strong>
+                    <span style="font-size: 0.68rem; color: var(--text-muted); display: block;">${t.symbol}</span>
+                </td>
+                <td>
+                    <span class="side-badge ${t.side === 'COVER' ? 'side-short' : 'side-long'}"><i class="fa-solid ${t.side === 'COVER' ? 'fa-arrow-trend-down' : 'fa-arrow-trend-up'}"></i> ${t.side === 'COVER' ? 'SHORT' : 'LONG'}</span>
+                </td>
+                <td style="font-weight: 700;">${t.quantity}</td>
+                <td>₹${(t.entry_price || 0).toFixed(2)}</td>
+                <td style="font-weight: 700;">₹${(t.exit_price || 0).toFixed(2)}</td>
+                <td>₹${(t.total_value || 0).toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                <td style="color: #fca5a5; font-family: var(--font-code); cursor: help;" title="${chargeTooltip}">-₹${charges.toFixed(2)}</td>
+                <td class="${pnlClass}" style="font-weight: 700;">${pnlSign}₹${(t.realized_pnl || 0).toFixed(2)}</td>
+                <td class="${pnlClass}" style="font-weight: 700;">${pnlSign}${(t.roi_pct || 0).toFixed(2)}%</td>
+                <td>${statusBadge}</td>
+            `;
+            tbody.appendChild(tr);
+        });
+    }
+
     async function loadClosedTrades() {
-        try {
-            const res = await fetch('/api/after-hours/trades/closed');
-            const data = await res.json();
-            const trades = data.trades || [];
-            cachedClosedTrades = trades;
-            const summary = data.summary || {};
-
-            const countBadge = document.getElementById('closed-trades-badge-count');
-            if (countBadge) countBadge.innerText = summary.total_closed || 0;
-
-            const pnlEl = document.getElementById('closed-net-pnl');
-            const netPnl = summary.net_realized_pnl || 0.0;
-            if (pnlEl) {
-                pnlEl.innerText = `${netPnl >= 0 ? '+' : ''}₹${netPnl.toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
-                pnlEl.className = netPnl >= 0 ? 'score-val text-green' : 'score-val text-red';
-            }
-
-            const chargesEl = document.getElementById('closed-total-charges');
-            const totalCharges = summary.total_charges || 0.0;
-            if (chargesEl) {
-                chargesEl.innerText = `₹${totalCharges.toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
-            }
-
-            const winRateEl = document.getElementById('closed-win-rate');
-            if (winRateEl) {
-                winRateEl.innerText = `${summary.win_rate || 0}%`;
-                winRateEl.className = (summary.win_rate || 0) >= 50 ? 'score-val text-green' : 'score-val text-red';
-            }
-
-            const winCountEl = document.getElementById('closed-win-count');
-            if (winCountEl) {
-                winCountEl.innerText = `${summary.wins || 0} Wins / ${summary.losses || 0} Losses`;
-            }
-
-            const totalCountEl = document.getElementById('closed-total-count');
-            if (totalCountEl) totalCountEl.innerText = summary.total_closed || 0;
-
-            const avgPnlEl = document.getElementById('closed-avg-pnl');
-            if (avgPnlEl) {
-                const avgPnl = summary.avg_trade_pnl || 0.0;
-                avgPnlEl.innerText = `${avgPnl >= 0 ? '+' : ''}₹${avgPnl.toFixed(2)}`;
-                avgPnlEl.className = avgPnl >= 0 ? 'score-val text-green' : 'score-val text-red';
-            }
-
-            const tbody = document.getElementById('bot-closed-trades-tbody');
-            if (!tbody) return;
-
-            if (trades.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="11" class="text-center" style="padding: 1.5rem; color: var(--text-muted);">No closed trades recorded yet. Stop-loss liquidations, trailing stop hits, and take-profit exits will be logged here.</td></tr>';
-                return;
-            }
-
-            tbody.innerHTML = '';
-            trades.forEach(t => {
-                const tr = document.createElement('tr');
-                const isWin = (t.realized_pnl || 0) >= 0;
-                const pnlClass = isWin ? 'text-green' : 'text-red';
-                const pnlSign = isWin ? '+' : '';
-                const statusBadge = isWin 
-                    ? '<span class="signal-badge signal-buy" style="font-size: 0.68rem;"><i class="fa-solid fa-trophy"></i> PROFIT</span>' 
-                    : '<span class="signal-badge signal-sell" style="font-size: 0.68rem;"><i class="fa-solid fa-shield-halved"></i> STOPPED</span>';
-
-                const charges = t.charges || 0.0;
-                const chargeTooltip = `Brokerage: ₹${(t.brokerage||0).toFixed(2)} | STT: ₹${(t.stt||0).toFixed(2)} | Exch: ₹${(t.exchange_charges||0).toFixed(2)} | GST: ₹${(t.gst||0).toFixed(2)} | SEBI: ₹${(t.sebi_charges||0).toFixed(2)} | Stamp: ₹${(t.stamp_duty||0).toFixed(2)}`;
-
-                tr.innerHTML = `
-                    <td style="font-size: 0.76rem; color: var(--text-muted); font-family: var(--font-code);">${t.timestamp}</td>
-                    <td>
-                        <strong style="font-family: var(--font-code); color: #fff;">${t.displayName}</strong>
-                        <span style="font-size: 0.68rem; color: var(--text-muted); display: block;">${t.symbol}</span>
-                    </td>
-                    <td>
-                        <span class="side-badge side-long"><i class="fa-solid fa-arrow-trend-up"></i> LONG</span>
-                    </td>
-                    <td style="font-weight: 700;">${t.quantity}</td>
-                    <td>₹${(t.entry_price || 0).toFixed(2)}</td>
-                    <td style="font-weight: 700;">₹${(t.exit_price || 0).toFixed(2)}</td>
-                    <td>₹${(t.total_value || 0).toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
-                    <td style="color: #fca5a5; font-family: var(--font-code); cursor: help;" title="${chargeTooltip}">-₹${charges.toFixed(2)}</td>
-                    <td class="${pnlClass}" style="font-weight: 700;">${pnlSign}₹${(t.realized_pnl || 0).toFixed(2)}</td>
-                    <td class="${pnlClass}" style="font-weight: 700;">${pnlSign}${(t.roi_pct || 0).toFixed(2)}%</td>
-                    <td>${statusBadge}</td>
-                `;
-                tbody.appendChild(tr);
-            });
-        } catch (e) {}
+        return fetchBotOverview(true);
     }
 
     function exportClosedTradesCSV() {

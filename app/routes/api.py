@@ -221,9 +221,7 @@ def get_trades():
         })
     return jsonify(res)
 
-@api_bp.route('/trades/closed', methods=['GET'])
-def get_closed_trades():
-    trades = TradeHistory.query.filter(TradeHistory.side.in_(["SELL", "COVER"])).order_by(TradeHistory.timestamp.desc()).all()
+def _build_closed_trades_summary(trades):
     closed = []
     total_pnl = 0.0
     total_charges = 0.0
@@ -269,7 +267,7 @@ def get_closed_trades():
 
     win_rate = round((wins / len(closed)) * 100, 1) if closed else 0.0
 
-    return jsonify({
+    return {
         "trades": closed,
         "summary": {
             "total_closed": len(closed),
@@ -280,7 +278,12 @@ def get_closed_trades():
             "total_charges": round(total_charges, 2),
             "avg_trade_pnl": round(total_pnl / len(closed), 2) if closed else 0.0
         }
-    })
+    }
+
+@api_bp.route('/trades/closed', methods=['GET'])
+def get_closed_trades():
+    trades = TradeHistory.query.filter(TradeHistory.side.in_(["SELL", "COVER"])).order_by(TradeHistory.timestamp.desc()).all()
+    return jsonify(_build_closed_trades_summary(trades))
 
 @api_bp.route('/watchlist', methods=['GET'])
 def get_watchlist():
@@ -466,6 +469,33 @@ def reset_and_restart_bot():
         "is_running": bot_instance.is_running
     })
 
+@api_bp.route('/bot/overview', methods=['GET', 'POST'])
+def get_bot_overview():
+    """
+    Consolidated single-flight endpoint for ALPHA:
+    Combines status, portfolio metrics, active holdings, and closed trades summary in 1 request.
+    Reduces Vercel serverless function invocations by 66%.
+    """
+    from app.services.bot import bot_instance
+    from app.services.paper_trader import PaperTradingEngine
+    from app.models.trading import TradeHistory
+
+    if request.method == 'POST':
+        body = request.get_json(silent=True) or {}
+        client_positions = body.get('client_positions')
+        sync_positions_from_client(client_positions)
+
+    status_data = bot_instance.get_status()
+    portfolio_data = PaperTradingEngine.get_portfolio_summary()
+    trades = TradeHistory.query.filter(TradeHistory.side.in_(["SELL", "COVER"])).order_by(TradeHistory.timestamp.desc()).all()
+    closed_data = _build_closed_trades_summary(trades)
+
+    return jsonify({
+        "status": status_data,
+        "portfolio": portfolio_data,
+        "closed_trades": closed_data
+    })
+
 @api_bp.route('/bot/status', methods=['GET'])
 def get_bot_status():
     from app.services.bot import bot_instance
@@ -597,6 +627,33 @@ def get_replay_data():
 # ==============================================================================
 # DEDICATED AFTER-HOURS BOT API ENDPOINTS (ISOLATED RULES & ENGINE)
 # ==============================================================================
+@api_bp.route('/after-hours/overview', methods=['GET', 'POST'])
+def get_after_hours_overview():
+    """
+    Consolidated single-flight endpoint for NIGHTHAWK:
+    Combines status, portfolio metrics, active holdings, and closed trades summary in 1 request.
+    Reduces Vercel serverless function invocations by 66%.
+    """
+    from app.services.bot import after_hours_bot_instance
+    from app.services.paper_trader import AfterHoursPaperTradingEngine
+    from app.models.trading import AfterHoursTradeHistory
+
+    if request.method == 'POST':
+        body = request.get_json(silent=True) or {}
+        client_positions = body.get('client_positions')
+        sync_after_hours_positions_from_client(client_positions)
+
+    status_data = after_hours_bot_instance.get_status()
+    portfolio_data = AfterHoursPaperTradingEngine.get_portfolio_summary()
+    trades = AfterHoursTradeHistory.query.filter(AfterHoursTradeHistory.side.in_(["SELL", "COVER"])).order_by(AfterHoursTradeHistory.timestamp.desc()).all()
+    closed_data = _build_after_hours_closed_trades_summary(trades)
+
+    return jsonify({
+        "status": status_data,
+        "portfolio": portfolio_data,
+        "closed_trades": closed_data
+    })
+
 @api_bp.route('/after-hours/status', methods=['GET'])
 def get_after_hours_status():
     from app.services.bot import after_hours_bot_instance
@@ -820,10 +877,7 @@ def reset_and_restart_after_hours_bot():
         "portfolio": AfterHoursPaperTradingEngine.get_portfolio_summary()
     })
 
-@api_bp.route('/after-hours/closed-trades', methods=['GET'])
-@api_bp.route('/after-hours/trades/closed', methods=['GET'])
-def get_after_hours_closed_trades():
-    trades = AfterHoursTradeHistory.query.filter(AfterHoursTradeHistory.side.in_(["SELL", "COVER"])).order_by(AfterHoursTradeHistory.timestamp.desc()).all()
+def _build_after_hours_closed_trades_summary(trades):
     closed = []
     total_pnl = 0.0
     total_charges = 0.0
@@ -861,7 +915,7 @@ def get_after_hours_closed_trades():
 
     win_rate = round((wins / len(closed) * 100), 1) if closed else 0.0
 
-    return jsonify({
+    return {
         "trades": closed,
         "summary": {
             "total_closed": len(closed),
@@ -872,7 +926,13 @@ def get_after_hours_closed_trades():
             "total_charges": round(total_charges, 2),
             "net_after_charges": round(total_pnl - total_charges, 2)
         }
-    })
+    }
+
+@api_bp.route('/after-hours/closed-trades', methods=['GET'])
+@api_bp.route('/after-hours/trades/closed', methods=['GET'])
+def get_after_hours_closed_trades():
+    trades = AfterHoursTradeHistory.query.filter(AfterHoursTradeHistory.side.in_(["SELL", "COVER"])).order_by(AfterHoursTradeHistory.timestamp.desc()).all()
+    return jsonify(_build_after_hours_closed_trades_summary(trades))
 
 @api_bp.route('/after-hours/reset', methods=['POST'])
 def reset_after_hours_bot():

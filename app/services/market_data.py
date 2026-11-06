@@ -1,3 +1,4 @@
+import time
 import requests
 from requests.adapters import HTTPAdapter
 from datetime import datetime
@@ -11,10 +12,23 @@ _session.headers.update({
     'Accept': 'application/json'
 })
 
+# In-memory quote & chart cache (20s TTL) to eliminate duplicate network calls and slash Vercel compute GB-hours
+_CHART_CACHE = {}
+_CACHE_TTL_SECONDS = 20.0
+
 class MarketDataService:
     @staticmethod
     def _fetch_chart_data(symbol: str, interval: str = "1d", range_val: str = "5d") -> tuple:
         symbol = symbol.strip().upper()
+        cache_key = f"{symbol}:{interval}:{range_val}"
+        now_ts = time.time()
+
+        # Instant Cache Hit: eliminates repeated external API latency and saves serverless execution time
+        if cache_key in _CHART_CACHE:
+            cached_res, resolved_sym, cached_at = _CHART_CACHE[cache_key]
+            if (now_ts - cached_at) < _CACHE_TTL_SECONDS:
+                return cached_res, resolved_sym
+
         url = f"https://query1.finance.yahoo.com/v8/finance/chart/{symbol}?interval={interval}&range={range_val}"
         try:
             res = _session.get(url, timeout=4)
@@ -22,6 +36,9 @@ class MarketDataService:
                 data = res.json()
                 results = data.get('chart', {}).get('result')
                 if results and len(results) > 0:
+                    _CHART_CACHE[cache_key] = (results[0], symbol, now_ts)
+                    if len(_CHART_CACHE) > 500:
+                        _CHART_CACHE.clear()
                     return results[0], symbol
         except Exception:
             pass
@@ -36,6 +53,7 @@ class MarketDataService:
                     data = res.json()
                     results = data.get('chart', {}).get('result')
                     if results and len(results) > 0:
+                        _CHART_CACHE[cache_key] = (results[0], fallback_symbol, now_ts)
                         return results[0], fallback_symbol
             except Exception:
                 pass
