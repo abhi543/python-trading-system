@@ -2943,9 +2943,6 @@
             const sideLabel = (t.side === 'COVER' || t.side === 'SHORT') ? 'SHORT' : 'LONG';
             csv += `"${t.timestamp}","${t.displayName}","${sideLabel}",${t.quantity},${t.entry_price || 0},${t.exit_price || t.price || 0},${t.total_value || 0},${t.charges || 0},${t.brokerage || 0},${t.stt || 0},${t.exchange_charges || 0},${t.gst || 0},${t.sebi_charges || 0},${t.stamp_duty || 0},${t.realized_pnl},${t.roi_pct}%,"${status}"\n`;
         });
-            const status = (t.realized_pnl || 0) >= 0 ? 'PROFIT' : 'LOSS';
-            csv += `"${t.timestamp}","${t.displayName}","LONG",${t.quantity},${t.entry_price},${t.exit_price},${t.total_value},${t.charges || 0},${t.brokerage || 0},${t.stt || 0},${t.exchange_charges || 0},${t.gst || 0},${t.sebi_charges || 0},${t.stamp_duty || 0},${t.realized_pnl},${t.roi_pct}%,"${status}"\n`;
-        });
         const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
