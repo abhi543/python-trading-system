@@ -233,6 +233,10 @@ class AutoTradingBot:
 
     def get_intraday_traded_symbols(self) -> set:
         """Returns set of symbols that have already had an entry trade today during the current IST session"""
+        # In NIGHTHAWK (24/7 Sandbox Lab), stocks can be traded multiple times once closed
+        if self.name == "NIGHTHAWK":
+            return set()
+
         from datetime import datetime, timezone, timedelta
         
         traded = set()
@@ -1016,7 +1020,7 @@ class AutoTradingBot:
 
                     # Otherwise, if we do not hold this stock and have a position slot, open a LONG trade
                     elif symbol not in held_map and has_position_slot:
-                        if symbol in already_traded_today:
+                        if self.name != "NIGHTHAWK" and symbol in already_traded_today:
                             eval_res["action_executed"] = "SKIPPED (Already Traded Today)"
                             self.add_log(f"⏸️ {display_name} BUY skipped: Intraday 1-trade limit reached today", "INFO")
                         else:
@@ -1129,7 +1133,7 @@ class AutoTradingBot:
 
                     # Case B: If we do NOT hold this stock, enter a SHORT position!
                     elif symbol not in held_map and has_position_slot:
-                        if symbol in already_traded_today:
+                        if self.name != "NIGHTHAWK" and symbol in already_traded_today:
                             eval_res["action_executed"] = "SKIPPED (Already Traded Today)"
                             self.add_log(f"⏸️ {display_name} SHORT skipped: Intraday 1-trade limit reached today", "INFO")
                         else:

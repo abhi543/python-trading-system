@@ -575,21 +575,9 @@ class AfterHoursPaperTradingEngine:
 
     @staticmethod
     def is_symbol_traded_today(symbol: str) -> bool:
-        try:
-            pos = AfterHoursPosition.query.filter_by(symbol=symbol).first()
-            if pos and pos.quantity > 0:
-                return True
-            now_utc = datetime.now(timezone.utc)
-            now_ist = now_utc + timedelta(hours=5, minutes=30)
-            start_of_ist_day_utc = datetime(now_ist.year, now_ist.month, now_ist.day, 0, 0, 0) - timedelta(hours=5, minutes=30)
-            trade = AfterHoursTradeHistory.query.filter(
-                AfterHoursTradeHistory.symbol == symbol,
-                AfterHoursTradeHistory.side.in_(["BUY", "SHORT"]),
-                AfterHoursTradeHistory.timestamp >= start_of_ist_day_utc
-            ).first()
-            return trade is not None
-        except Exception:
-            return False
+        # NIGHTHAWK (24/7 Strategy Sandbox Lab): No 1-trade limit per day.
+        # Once a position is closed, re-entry on new signals is immediately permitted.
+        return False
 
     @staticmethod
     def execute_order(symbol: str, side: str, quantity: float, execution_price: float = None, force_bypass_day_limit: bool = False):
@@ -684,8 +672,6 @@ class AfterHoursPaperTradingEngine:
         elif side in ["BUY"]:
             if position and position.quantity > 0:
                 return {"success": False, "message": f"Position already exists for {symbol}. Intraday averaging is disabled."}
-            if not force_bypass_day_limit and AfterHoursPaperTradingEngine.is_symbol_traded_today(symbol):
-                return {"success": False, "message": f"Intraday 1-trade limit reached for {symbol}."}
             charges_data = PaperTradingEngine.calculate_transaction_charges(turnover, "BUY")
             total_charges = charges_data["total_charges"]
             margin_required = round((turnover / AfterHoursPaperTradingEngine.LEVERAGE) + total_charges, 2)
@@ -722,8 +708,6 @@ class AfterHoursPaperTradingEngine:
         elif side in ["SELL", "SHORT"]:
             if position and position.quantity > 0:
                 return {"success": False, "message": f"Position already exists for {symbol}. Intraday averaging is disabled."}
-            if not force_bypass_day_limit and AfterHoursPaperTradingEngine.is_symbol_traded_today(symbol):
-                return {"success": False, "message": f"Intraday 1-trade limit reached for {symbol}."}
             charges_data = PaperTradingEngine.calculate_transaction_charges(turnover, "SELL")
             total_charges = charges_data["total_charges"]
             margin_required = round((turnover / AfterHoursPaperTradingEngine.LEVERAGE) + total_charges, 2)
