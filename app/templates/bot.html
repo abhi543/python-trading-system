@@ -2885,6 +2885,22 @@
             const charges = t.charges || 0.0;
             const chargeTooltip = `Brokerage: ₹${(t.brokerage||0).toFixed(2)} | STT: ₹${(t.stt||0).toFixed(2)} | Exch: ₹${(t.exchange_charges||0).toFixed(2)} | GST: ₹${(t.gst||0).toFixed(2)} | SEBI: ₹${(t.sebi_charges||0).toFixed(2)} | Stamp: ₹${(t.stamp_duty||0).toFixed(2)}`;
 
+            const notional = t.total_value || t.turnover || ((t.quantity || 0) * (t.exit_price || t.price || 0)) || 0;
+            let entryP = t.entry_price;
+            if (!entryP || entryP === 0) {
+                const qty = t.quantity || 1;
+                const pnl = t.realized_pnl || 0;
+                if (t.side === 'COVER' || t.side === 'SHORT') {
+                    const costBasis = notional + pnl;
+                    entryP = (qty > 0 && costBasis > 0) ? (costBasis / qty) : (t.exit_price || t.price || 0);
+                } else {
+                    const costBasis = notional - pnl;
+                    entryP = (qty > 0 && costBasis > 0) ? (costBasis / qty) : (t.exit_price || t.price || 0);
+                }
+            }
+            t.entry_price = roundNum(entryP, 2);
+            t.total_value = roundNum(notional, 2);
+
             tr.innerHTML = `
                 <td style="font-size: 0.76rem; color: var(--text-muted); font-family: var(--font-code);">${t.timestamp}</td>
                 <td>
@@ -2895,9 +2911,9 @@
                     <span class="side-badge ${t.side === 'COVER' ? 'side-short' : 'side-long'}"><i class="fa-solid ${t.side === 'COVER' ? 'fa-arrow-trend-down' : 'fa-arrow-trend-up'}"></i> ${t.side === 'COVER' ? 'SHORT' : 'LONG'}</span>
                 </td>
                 <td style="font-weight: 700;">${t.quantity}</td>
-                <td>₹${(t.entry_price || 0).toFixed(2)}</td>
-                <td style="font-weight: 700;">₹${(t.exit_price || 0).toFixed(2)}</td>
-                <td>₹${(t.total_value || 0).toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                <td style="font-weight: 700;">₹${(entryP || 0).toFixed(2)}</td>
+                <td style="font-weight: 700;">₹${(t.exit_price || t.price || 0).toFixed(2)}</td>
+                <td>₹${(notional || 0).toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
                 <td style="color: #fca5a5; font-family: var(--font-code); cursor: help;" title="${chargeTooltip}">-₹${charges.toFixed(2)}</td>
                 <td class="${pnlClass}" style="font-weight: 700;">${pnlSign}₹${(t.realized_pnl || 0).toFixed(2)}</td>
                 <td class="${pnlClass}" style="font-weight: 700;">${pnlSign}${(t.roi_pct || 0).toFixed(2)}%</td>
@@ -2905,6 +2921,11 @@
             `;
             tbody.appendChild(tr);
         });
+        saveStoredClosedTrades(mergedTrades);
+    }
+
+    function roundNum(val, dec = 2) {
+        return Number(Math.round(val + 'e' + dec) + 'e-' + dec) || 0;
     }
 
     async function loadClosedTrades() {
@@ -2918,6 +2939,10 @@
         }
         let csv = 'Timestamp,Stock,Side,Quantity,EntryPrice,ExitPrice,NotionalTotal,Charges,Brokerage,STT,ExchCharges,GST,SEBICharges,StampDuty,NetRealizedPnL,ROIPct,Status\n';
         cachedClosedTrades.forEach(t => {
+            const status = (t.realized_pnl || 0) >= 0 ? 'PROFIT' : 'LOSS';
+            const sideLabel = (t.side === 'COVER' || t.side === 'SHORT') ? 'SHORT' : 'LONG';
+            csv += `"${t.timestamp}","${t.displayName}","${sideLabel}",${t.quantity},${t.entry_price || 0},${t.exit_price || t.price || 0},${t.total_value || 0},${t.charges || 0},${t.brokerage || 0},${t.stt || 0},${t.exchange_charges || 0},${t.gst || 0},${t.sebi_charges || 0},${t.stamp_duty || 0},${t.realized_pnl},${t.roi_pct}%,"${status}"\n`;
+        });
             const status = (t.realized_pnl || 0) >= 0 ? 'PROFIT' : 'LOSS';
             csv += `"${t.timestamp}","${t.displayName}","LONG",${t.quantity},${t.entry_price},${t.exit_price},${t.total_value},${t.charges || 0},${t.brokerage || 0},${t.stt || 0},${t.exchange_charges || 0},${t.gst || 0},${t.sebi_charges || 0},${t.stamp_duty || 0},${t.realized_pnl},${t.roi_pct}%,"${status}"\n`;
         });

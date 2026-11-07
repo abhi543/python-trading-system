@@ -915,6 +915,7 @@ def _build_after_hours_closed_trades_summary(trades):
 
         cost_basis = (t.total + pnl) if t.side == 'COVER' else (t.total - pnl)
         roi_pct = round((pnl / cost_basis) * 100, 2) if cost_basis > 0 else 0.0
+        entry_p = round(cost_basis / t.quantity, 2) if (t.quantity > 0 and cost_basis > 0) else t.price
 
         closed.append({
             "id": t.id,
@@ -922,8 +923,10 @@ def _build_after_hours_closed_trades_summary(trades):
             "displayName": t.symbol.replace(".NS", ""),
             "side": t.side,
             "quantity": t.quantity,
+            "entry_price": entry_p,
             "exit_price": t.price,
             "price": t.price,
+            "total_value": round(t.total, 2),
             "turnover": round(t.total, 2),
             "realized_pnl": round(pnl, 2),
             "charges": charges,
