@@ -520,8 +520,8 @@ class AutoTradingBot:
             if hasattr(pos, 'peak_price'):
                 pos.peak_price = extreme
 
-            # OPTION B: Trailing Stop-Loss & Breakeven Shield (Only for SMA / RSI strategies)
-            if self.use_trailing_stop and self.strategy != "123_REVERSAL":
+            # OPTION B: Trailing Stop-Loss & Breakeven Shield (Protects all strategies including 1-2-3 Reversal)
+            if self.use_trailing_stop:
                 # Stage 1: Breakeven Shield at +2.0%
                 if pnl_pct >= self.trailing_trigger_pct and not getattr(pos, 'trailing_active', False):
                     pos.trailing_active = True
@@ -626,17 +626,16 @@ class AutoTradingBot:
                     "action_executed": "LIQUIDATED" if allow_order_execution else "OFFLINE (No orders placed)", "ema_200": ema_200, "trend_200": trend_200, "vol_ratio": vol_ratio, "atr_14": atr_14
                 }
 
-            # Check Take-Profit:
+            # Check Take-Profit (Dual Mode: Indicator Measured Move Target OR Configured % Target):
             tp_level = getattr(pos, 'take_profit', 0.0) or 0.0
             is_tp_hit = False
             tp_reason = ""
-            if tp_level > 0:
-                is_tp_hit = (current_price >= tp_level) if not is_short else (current_price <= tp_level)
-                if is_tp_hit:
-                    tp_reason = f"Indicator Target achieved @ ₹{current_price:.2f} (Target: ₹{tp_level:.2f}, +{pnl_pct:.2f}%)"
-            elif self.strategy != "123_REVERSAL" and (pnl_pct >= abs(self.take_profit_pct)):
+            if tp_level > 0 and ((current_price >= tp_level) if not is_short else (current_price <= tp_level)):
                 is_tp_hit = True
-                tp_reason = f"Take-Profit target achieved at +{pnl_pct:.2f}%"
+                tp_reason = f"Indicator Target achieved @ ₹{current_price:.2f} (Target: ₹{tp_level:.2f}, +{pnl_pct:.2f}%)"
+            elif pnl_pct >= abs(self.take_profit_pct):
+                is_tp_hit = True
+                tp_reason = f"Take-Profit target achieved at +{pnl_pct:.2f}% (Target: +{self.take_profit_pct:.1f}%)"
 
             if is_tp_hit:
                 if allow_order_execution:

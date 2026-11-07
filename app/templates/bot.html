@@ -1785,7 +1785,7 @@
         const exposureVal = marginVal * 5;
         if (ribCap) ribCap.innerHTML = `<i class="fa-solid fa-bolt" style="color: var(--green);"></i> Margin: <strong>₹${marginVal.toLocaleString('en-IN')}</strong> <span style="opacity: 0.85;">(5x: ₹${exposureVal.toLocaleString('en-IN')})</span>`;
         if (ribSl) ribSl.innerHTML = (stratVal === '123_REVERSAL') ? `<i class="fa-solid fa-shield-halved"></i> SL: <strong>Pattern Stop (Point 3)</strong>` : `<i class="fa-solid fa-shield-halved"></i> SL: <strong>${slVal}%</strong>`;
-        if (ribTp) ribTp.innerHTML = (stratVal === '123_REVERSAL') ? `<i class="fa-solid fa-bullseye"></i> TP: <strong>Measured Move</strong>` : `<i class="fa-solid fa-bullseye"></i> TP: <strong>${tpVal}%</strong>`;
+        if (ribTp) ribTp.innerHTML = (stratVal === '123_REVERSAL') ? `<i class="fa-solid fa-bullseye"></i> TP: <strong>Dual (${tpVal}% / Measured Move)</strong>` : `<i class="fa-solid fa-bullseye"></i> TP: <strong>${tpVal}%</strong>`;
         if (ribEma) ribEma.innerHTML = emaOn ? `<i class="fa-solid fa-filter" style="color: var(--green);"></i> 200 EMA: <strong>ON</strong>` : `<i class="fa-solid fa-filter" style="color: var(--text-muted);"></i> 200 EMA: <strong>OFF</strong>`;
         if (ribTrail) ribTrail.innerHTML = trailOn ? `<i class="fa-solid fa-anchor" style="color: var(--blue);"></i> Trailing SL: <strong>ON</strong>` : `<i class="fa-solid fa-anchor" style="color: var(--text-muted);"></i> Trailing SL: <strong>OFF</strong>`;
     }
@@ -1902,7 +1902,10 @@
 
         if (unlBadge) unlBadge.style.display = is123 ? 'inline-block' : 'none';
         if (slBadge) slBadge.style.display = is123 ? 'inline-block' : 'none';
-        if (tpBadge) tpBadge.style.display = is123 ? 'inline-block' : 'none';
+        if (tpBadge) {
+            tpBadge.innerHTML = is123 ? '🎯 Dual Target: % Gain OR Measured Move' : '🎯 % Target';
+            tpBadge.style.display = 'inline-block';
+        }
 
         if (posInput) {
             posInput.style.opacity = is123 ? '0.6' : '1.0';
@@ -1910,11 +1913,11 @@
         }
         if (slInput) {
             slInput.style.opacity = is123 ? '0.6' : '1.0';
-            slInput.title = is123 ? 'Dynamic stop loss given by 1-2-3 indicator' : '';
+            slInput.title = is123 ? 'Dynamic stop loss given by Point 3 of 1-2-3 pattern' : '';
         }
         if (tpInput) {
-            tpInput.style.opacity = is123 ? '0.6' : '1.0';
-            tpInput.title = is123 ? 'Dynamic target given by 1-2-3 indicator' : '';
+            tpInput.style.opacity = '1.0';
+            tpInput.title = is123 ? 'Quick Profit Booking % (bot books profit when either this % gain or Measured Move is hit)' : 'Target %';
         }
     }
 
