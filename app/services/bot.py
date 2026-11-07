@@ -287,12 +287,10 @@ class AutoTradingBot:
             self.session_stop_time = persisted.get("session_stop_time", self.session_stop_time)
 
         market_open = is_nse_market_open()
-        can_run = market_open if self.name == "ALPHA" else not market_open
+        can_run = market_open if self.name == "ALPHA" else True
         time_restriction_msg = ""
         if self.name == "ALPHA" and not market_open:
             time_restriction_msg = "ALPHA runs exclusively during live NSE market hours (09:15 AM – 03:30 PM IST). Market is currently closed. Switch to NIGHTHAWK for after-hours trading."
-        elif self.name == "NIGHTHAWK" and market_open:
-            time_restriction_msg = "NIGHTHAWK runs exclusively after market hours (after 03:30 PM IST & weekends). Live market is currently OPEN. Switch to ALPHA for live day trading."
 
         return {
             "name": self.name,
@@ -422,8 +420,8 @@ class AutoTradingBot:
             self.update_config(config)
 
         # Enforce Operating Hours:
-        # 1. ALPHA runs ONLY during live market hours (09:15 AM – 03:30 PM IST Mon-Fri)
-        # 2. NIGHTHAWK runs ONLY after market hours (after 03:30 PM IST & weekends)
+        # ALPHA runs ONLY during live market hours (09:15 AM – 03:30 PM IST Mon-Fri)
+        # NIGHTHAWK is the 24/7 After-Hours Strategy Lab & Simulator (runs anytime)
         market_open = is_nse_market_open()
 
         if self.name == "ALPHA" and not market_open:
@@ -435,18 +433,6 @@ class AutoTradingBot:
                 "is_market_closed": True,
                 "allowed_engine": "NIGHTHAWK",
                 "switch_url": "/bot-after-hours",
-                "status": self.get_status()
-            }
-
-        if self.name == "NIGHTHAWK" and market_open:
-            msg = "NIGHTHAWK operates strictly after market close (after 03:30 PM IST or weekends). The live NSE Market is currently OPEN! Please use ALPHA for live day trading."
-            self.add_log(f"🛑 [NIGHTHAWK BLOCKED] {msg}", "WARNING")
-            return {
-                "success": False,
-                "error": msg,
-                "is_market_open": True,
-                "allowed_engine": "ALPHA",
-                "switch_url": "/bot",
                 "status": self.get_status()
             }
 
@@ -817,19 +803,7 @@ class AutoTradingBot:
                 "switch_url": "/bot-after-hours"
             }
 
-        if self.name == "NIGHTHAWK" and market_open and not is_explicit_test:
-            if self.is_running:
-                self.is_running = False
-                self.session_status = "LIVE_MARKET_PAUSED"
-                self.persist_state()
-                self.add_log("⏸️ [NIGHTHAWK SLEEP] NSE Live Market is currently OPEN. NIGHTHAWK paused. Use ALPHA for live day trading.", "WARNING")
-            return {
-                "total_scanned": 0, "buys_found": 0, "sells_found": 0, "trades_executed": 0,
-                "message": "Live Market Open: NIGHTHAWK runs exclusively after market hours (after 03:30 PM IST or weekends).",
-                "is_market_open": True,
-                "allowed_engine": "ALPHA",
-                "switch_url": "/bot"
-            }
+
 
         # 1. Handle After-Hours Instant Test Triggers
         if simulation_event == "FORCE_BUY":
