@@ -337,7 +337,6 @@ def backtest():
 @api_bp.route('/reset-account', methods=['POST'])
 def reset_account():
     Position.query.delete()
-    TradeHistory.query.delete()
     WatchlistItem.query.delete()
     from app.models.trading import NIFTY_50_DEFAULT
     for s in NIFTY_50_DEFAULT:
@@ -438,7 +437,6 @@ def reset_and_restart_bot():
         PaperTradingEngine.execute_order(pos.symbol, exit_side, pos.quantity)
     
     Position.query.delete()
-    TradeHistory.query.delete()
     WatchlistItem.query.delete()
     from app.models.trading import NIFTY_50_DEFAULT
     for s in NIFTY_50_DEFAULT:
@@ -838,7 +836,6 @@ def exit_all_after_hours_positions():
 def reset_after_hours_account():
     """Resets NIGHTHAWK account back to ₹1,00,00,000 (1 Crore) and clears after-hours holdings"""
     AfterHoursPosition.query.delete()
-    AfterHoursTradeHistory.query.delete()
     account = AfterHoursAccount.query.first()
     if account:
         account.cash_balance = 10000000.0  # 1 Crore
@@ -870,7 +867,6 @@ def reset_and_restart_after_hours_bot():
     """Squares off NIGHTHAWK positions, restores ₹1 Crore capital, and restarts NIGHTHAWK"""
     from app.services.bot import after_hours_bot_instance
     AfterHoursPosition.query.delete()
-    AfterHoursTradeHistory.query.delete()
     account = AfterHoursAccount.query.first()
     if account:
         account.cash_balance = 10000000.0

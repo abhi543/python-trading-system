@@ -1458,6 +1458,10 @@
         }
 
         loadStoredBotSession();
+        const initialClosed = getStoredClosedTrades();
+        if (initialClosed && initialClosed.length > 0) {
+            renderClosedTradesUI({ trades: initialClosed });
+        }
         syncStrategyUIHints();
         updateConfigSummaryRibbon();
         fetchBotOverview();
@@ -2775,45 +2779,87 @@
         }
     }
 
+    const AH_CLOSED_TRADES_KEY = 'nighthawk_closed_trades_ledger_v1';
+
+    function getStoredClosedTrades() {
+        try {
+            const raw = localStorage.getItem(AH_CLOSED_TRADES_KEY);
+            return raw ? JSON.parse(raw) : [];
+        } catch (e) {
+            return [];
+        }
+    }
+
+    function saveStoredClosedTrades(trades) {
+        try {
+            localStorage.setItem(AH_CLOSED_TRADES_KEY, JSON.stringify(trades));
+        } catch (e) {}
+    }
+
     function renderClosedTradesUI(data) {
         if (!data) return;
-        const trades = data.trades || [];
-        cachedClosedTrades = trades;
-        const summary = data.summary || {};
+        const serverTrades = data.trades || [];
+        const localTrades = getStoredClosedTrades();
+
+        // Merge server and local trades so trades NEVER vanish across Vercel deployments/cold starts
+        const tradeMap = new Map();
+        const getKey = t => `${t.timestamp}_${t.symbol}_${t.side}_${t.quantity}_${t.exit_price}`;
+        
+        localTrades.forEach(t => tradeMap.set(getKey(t), t));
+        serverTrades.forEach(t => tradeMap.set(getKey(t), t));
+
+        const mergedTrades = Array.from(tradeMap.values()).sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+        saveStoredClosedTrades(mergedTrades);
+        cachedClosedTrades = mergedTrades;
+
+        // Recalculate summary from persistent merged trades
+        let totalPnl = 0.0;
+        let totalCharges = 0.0;
+        let wins = 0;
+        let losses = 0;
+
+        mergedTrades.forEach(t => {
+            const p = parseFloat(t.realized_pnl || 0.0);
+            totalPnl += p;
+            totalCharges += parseFloat(t.charges || 0.0);
+            if (p > 0) wins++;
+            else if (p < 0) losses++;
+        });
+
+        const totalClosed = mergedTrades.length;
+        const winRate = totalClosed > 0 ? Math.round((wins / totalClosed) * 100) : 0;
+        const avgPnl = totalClosed > 0 ? (totalPnl / totalClosed) : 0.0;
 
         const countBadge = document.getElementById('closed-trades-badge-count');
-        if (countBadge) countBadge.innerText = summary.total_closed || 0;
+        if (countBadge) countBadge.innerText = totalClosed;
 
         const pnlEl = document.getElementById('closed-net-pnl');
-        const netPnl = summary.net_realized_pnl || 0.0;
         if (pnlEl) {
-            pnlEl.innerText = `${netPnl >= 0 ? '+' : ''}₹${netPnl.toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
-            pnlEl.className = netPnl >= 0 ? 'score-val text-green' : 'score-val text-red';
+            pnlEl.innerText = `${totalPnl >= 0 ? '+' : ''}₹${totalPnl.toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+            pnlEl.className = totalPnl >= 0 ? 'score-val text-green' : 'score-val text-red';
         }
 
         const chargesEl = document.getElementById('closed-total-charges');
-        const totalCharges = summary.total_charges || 0.0;
         if (chargesEl) {
             chargesEl.innerText = `₹${totalCharges.toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
         }
 
         const winRateEl = document.getElementById('closed-win-rate');
         if (winRateEl) {
-            winRateEl.innerText = `${summary.win_rate || 0}%`;
-            winRateEl.className = (summary.win_rate || 0) >= 50 ? 'score-val text-green' : 'score-val text-red';
+            winRateEl.innerText = `${winRate}%`;
+            winRateEl.className = winRate >= 50 ? 'score-val text-green' : 'score-val text-red';
         }
 
         const winCountEl = document.getElementById('closed-win-count');
         if (winCountEl) {
-            winCountEl.innerText = `${summary.wins || 0} Wins / ${summary.losses || 0} Losses`;
+            winCountEl.innerText = `${wins} Wins / ${losses} Losses`;
         }
 
         const totalCountEl = document.getElementById('closed-total-count');
-        if (totalCountEl) totalCountEl.innerText = summary.total_closed || 0;
+        if (totalCountEl) totalCountEl.innerText = totalClosed;
 
         const avgPnlEl = document.getElementById('closed-avg-pnl');
         if (avgPnlEl) {
-            const avgPnl = summary.avg_trade_pnl || 0.0;
             avgPnlEl.innerText = `${avgPnl >= 0 ? '+' : ''}₹${avgPnl.toFixed(2)}`;
             avgPnlEl.className = avgPnl >= 0 ? 'score-val text-green' : 'score-val text-red';
         }
@@ -2821,13 +2867,13 @@
         const tbody = document.getElementById('bot-closed-trades-tbody');
         if (!tbody) return;
 
-        if (trades.length === 0) {
+        if (mergedTrades.length === 0) {
             tbody.innerHTML = '<tr><td colspan="11" class="text-center" style="padding: 1.5rem; color: var(--text-muted);">No closed trades recorded yet. Stop-loss liquidations, trailing stop hits, and take-profit exits will be logged here.</td></tr>';
             return;
         }
 
         tbody.innerHTML = '';
-        trades.forEach(t => {
+        mergedTrades.forEach(t => {
             const tr = document.createElement('tr');
             const isWin = (t.realized_pnl || 0) >= 0;
             const pnlClass = isWin ? 'text-green' : 'text-red';
