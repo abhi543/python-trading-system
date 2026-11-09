@@ -49,11 +49,37 @@
                     <div class="sweep-progress-track">
                         <div class="sweep-progress-bar" id="sweep-progress-fill" style="width: 0%;"></div>
                     </div>
+
+                <!-- LIVE RISK & MARGIN UTILIZATION GAUGE -->
+                <div class="risk-gauge-container" id="risk-gauge-box" style="margin-top: 0.85rem; background: rgba(0, 0, 0, 0.35); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 8px; padding: 0.75rem 1rem;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.45rem; flex-wrap: wrap; gap: 0.5rem;">
+                        <span style="font-size: 0.76rem; font-weight: 700; color: #cbd5e1; letter-spacing: 0.5px; display: inline-flex; align-items: center; gap: 6px;">
+                            <i class="fa-solid fa-shield-halved" style="color: #38bdf8;"></i> RISK &amp; MARGIN UTILIZATION GAUGE
+                        </span>
+                        <div style="display: flex; align-items: center; gap: 0.75rem; font-size: 0.72rem; flex-wrap: wrap;">
+                            <span style="color: var(--text-muted);">Max Downside: <strong id="gauge-max-risk" style="color: #f87171;">-₹0.00 (-0.00%)</strong></span>
+                            <span style="color: var(--text-muted);">|</span>
+                            <span style="color: var(--text-muted);">Exposure: <strong id="gauge-total-exposure" style="color: #e2e8f0;">₹0.00</strong></span>
+                            <span style="color: var(--text-muted);">|</span>
+                            <span style="color: var(--text-muted);">Shielded: <strong id="gauge-shielded-count" style="color: #00f090;">0 / 0</strong></span>
+                        </div>
+                    </div>
+                    <div style="position: relative; height: 10px; background: rgba(255, 255, 255, 0.06); border-radius: 5px; overflow: hidden; border: 1px solid rgba(255, 255, 255, 0.05);">
+                        <div id="gauge-margin-fill" style="width: 0%; height: 100%; background: linear-gradient(90deg, #00f090, #38bdf8); transition: width 0.4s ease, background 0.4s ease; border-radius: 5px;"></div>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 0.35rem; font-size: 0.7rem; color: var(--text-muted);">
+                        <span>Margin Used: <strong id="gauge-margin-text" style="color: #38bdf8; font-family: var(--font-code);">₹0.00 / ₹0.00 (0.0%)</strong></span>
+                        <span id="gauge-margin-status" style="color: #00f090; font-weight: 700;">HEALTHY BUFFER</span>
+                    </div>
+                </div>
                 </div>
             </div>
 
             <div class="bot-hero-actions">
-                <button id="bot-primary-btn" class="btn-bot-start" onclick="toggleBot()">
+                                <button id="btn-audio-toggle" class="btn-bot-scan" onclick="toggleAudioAlerts()" title="Toggle Real-Time Audio Alerts & Chimes" style="border-color: rgba(56, 189, 248, 0.4); color: #38bdf8;">
+                    <i class="fa-solid fa-volume-high" id="audio-icon" style="color: #38bdf8;"></i> SOUND: <span id="audio-status-text">ON</span>
+                </button>
+<button id="bot-primary-btn" class="btn-bot-start" onclick="toggleBot()">
                     <i class="fa-solid fa-play"></i> START AFTER-HOURS BOT
                 </button>
                 <button id="bot-scan-btn" class="btn-bot-scan" onclick="tickBotNow()">
@@ -401,6 +427,12 @@
                                 </tbody>
                             </table>
                         </div>
+                        <!-- HOLDINGS HEATMAP CONTAINER -->
+                        <div id="holdings-heatmap-container" style="display: none; padding: 1.25rem;">
+                            <div id="holdings-heatmap-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 1rem;">
+                                <!-- Dynamically populated by renderHoldingsHeatmap() -->
+                            </div>
+                        </div>
                     </div>
 
                     <!-- TAB 1: ACTIVE HOLDINGS -->
@@ -441,6 +473,14 @@
                                     <option value="VAL_DESC">Highest Value &darr;</option>
                                     <option value="SYM_ASC">Symbol (A-Z)</option>
                                 </select>
+                                                            <div class="view-mode-toggle" style="display: inline-flex; background: rgba(0,0,0,0.4); border: 1px solid rgba(255,255,255,0.12); border-radius: 6px; padding: 2px;">
+                                    <button type="button" id="btn-view-table" onclick="setHoldingsViewMode('table')" class="btn-sm" style="padding: 4px 8px; font-size: 0.72rem; border-radius: 4px; border: none; background: rgba(56, 189, 248, 0.25); color: #38bdf8; cursor: pointer; font-weight: 700;">
+                                        <i class="fa-solid fa-table-list"></i> Table
+                                    </button>
+                                    <button type="button" id="btn-view-heatmap" onclick="setHoldingsViewMode('heatmap')" class="btn-sm" style="padding: 4px 8px; font-size: 0.72rem; border-radius: 4px; border: none; background: transparent; color: var(--text-muted); cursor: pointer; font-weight: 700;">
+                                        <i class="fa-solid fa-grip"></i> Heatmap
+                                    </button>
+                                </div>
                             </div>
                         </div>
 
@@ -605,8 +645,285 @@
 
 </div>
 
+
+<!-- 1-CLICK BROKER ORDER TICKET MODAL -->
+<div id="broker-ticket-modal" class="broker-modal-backdrop" style="display: none;" onclick="handleModalBackdropClick(event, 'broker-ticket-modal')">
+    <div class="broker-modal-content">
+        <div class="broker-modal-header">
+            <div style="display: flex; align-items: center; gap: 0.75rem;">
+                <div class="ticket-icon-circle"><i class="fa-solid fa-ticket"></i></div>
+                <div>
+                    <h3 style="margin: 0; font-size: 1.05rem; font-weight: 800; color: #fff; letter-spacing: 0.5px;" id="ticket-modal-title">BROKER ORDER TICKET</h3>
+                    <p style="margin: 2px 0 0 0; font-size: 0.72rem; color: var(--text-muted);" id="ticket-modal-subtitle">Ready-to-copy institutional order ticket for manual broker placement</p>
+                </div>
+            </div>
+            <button class="broker-modal-close-btn" onclick="closeBrokerTicket()">&times;</button>
+        </div>
+
+        <div class="broker-modal-body">
+            <!-- Order Summary Badges -->
+            <div style="display: flex; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 1rem;">
+                <span id="ticket-side-badge" class="badge" style="font-size: 0.8rem; padding: 4px 10px; font-weight: 800;">BUY / LONG</span>
+                <span id="ticket-exchange-badge" class="badge" style="background: rgba(255,255,255,0.06); color: #cbd5e1; border: 1px solid rgba(255,255,255,0.12); font-size: 0.76rem; padding: 4px 10px;">NSE INTRADAY (MIS)</span>
+                <span id="ticket-leverage-badge" class="badge" style="background: rgba(0,240,144,0.12); color: #00f090; border: 1px solid rgba(0,240,144,0.25); font-size: 0.76rem; padding: 4px 10px;">5X LEVERAGE</span>
+                <span id="ticket-strategy-badge" class="badge" style="background: rgba(168,85,247,0.15); color: #c084fc; border: 1px solid rgba(168,85,247,0.3); font-size: 0.76rem; padding: 4px 10px;">1-2-3 REVERSAL</span>
+            </div>
+
+            <!-- Parameters Grid -->
+            <div class="ticket-grid">
+                <div class="ticket-field">
+                    <span class="ticket-label">SYMBOL / INSTRUMENT</span>
+                    <strong class="ticket-val" id="ticket-symbol" style="color: #fff; font-size: 1.05rem; font-family: var(--font-code);">RELIANCE.NS</strong>
+                </div>
+                <div class="ticket-field">
+                    <span class="ticket-label">ORDER QUANTITY</span>
+                    <strong class="ticket-val" id="ticket-qty" style="color: #38bdf8; font-size: 1.05rem;">25 Shares</strong>
+                </div>
+                <div class="ticket-field">
+                    <span class="ticket-label">LIMIT / ENTRY PRICE</span>
+                    <strong class="ticket-val" id="ticket-price" style="color: #e2e8f0;">₹2,745.50</strong>
+                </div>
+                <div class="ticket-field">
+                    <span class="ticket-label">5X MARGIN REQUIRED</span>
+                    <strong class="ticket-val" id="ticket-margin" style="color: #00f090;">₹13,727.50</strong>
+                </div>
+                <div class="ticket-field" style="border-left: 2px solid #ef4444;">
+                    <span class="ticket-label">CLAMPED STOP-LOSS</span>
+                    <strong class="ticket-val" id="ticket-sl" style="color: #f87171;">₹2,690.00 (-2.02%)</strong>
+                </div>
+                <div class="ticket-field" style="border-left: 2px solid #00f090;">
+                    <span class="ticket-label">PROFIT TARGET</span>
+                    <strong class="ticket-val" id="ticket-tp" style="color: #00f090;">₹2,855.00 (+3.99%)</strong>
+                </div>
+                <div class="ticket-field">
+                    <span class="ticket-label">TOTAL NOTIONAL VALUE</span>
+                    <strong class="ticket-val" id="ticket-notional" style="color: #cbd5e1;">₹68,637.50</strong>
+                </div>
+                <div class="ticket-field">
+                    <span class="ticket-label">RISK : REWARD RATIO</span>
+                    <strong class="ticket-val" id="ticket-rr" style="color: #fbbf24;">1 : 1.97</strong>
+                </div>
+            </div>
+
+            <!-- Pre-formatted Order String Box -->
+            <div style="margin-top: 1rem;">
+                <label style="font-size: 0.72rem; color: var(--text-muted); font-weight: 700; display: block; margin-bottom: 0.35rem;">
+                    ONE-LINE BROKER CLIPBOARD STRING:
+                </label>
+                <div style="position: relative;">
+                    <textarea id="ticket-copy-text" readonly rows="2" style="width: 100%; background: rgba(0,0,0,0.5); border: 1px solid rgba(255,255,255,0.12); border-radius: 6px; padding: 8px 10px; font-family: var(--font-code); font-size: 0.75rem; color: #38bdf8; resize: none; outline: none;"></textarea>
+                </div>
+            </div>
+        </div>
+
+        <div class="broker-modal-footer">
+            <button id="btn-ticket-copy" class="btn-bot-start" onclick="copyTicketToClipboard()" style="padding: 8px 16px; font-size: 0.8rem;">
+                <i class="fa-solid fa-copy"></i> COPY ORDER DETAILS
+            </button>
+            <a id="ticket-tv-link" href="#" target="_blank" class="btn-sm btn-outline" style="text-decoration: none; display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px; font-size: 0.8rem; border-color: rgba(56, 189, 248, 0.4); color: #38bdf8;">
+                <i class="fa-solid fa-arrow-up-right-from-square"></i> TRADINGVIEW CHART
+            </a>
+            <button class="btn-sm btn-outline" onclick="closeBrokerTicket()" style="padding: 8px 14px; font-size: 0.8rem;">
+                CLOSE
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- 1-2-3 REVERSAL MINI-CHART VISUALIZER MODAL -->
+<div id="chart-visualizer-modal" class="broker-modal-backdrop" style="display: none;" onclick="handleModalBackdropClick(event, 'chart-visualizer-modal')">
+    <div class="broker-modal-content" style="max-width: 680px;">
+        <div class="broker-modal-header">
+            <div style="display: flex; align-items: center; gap: 0.75rem;">
+                <div class="ticket-icon-circle" style="background: rgba(168, 85, 247, 0.2); color: #c084fc; border-color: rgba(168, 85, 247, 0.4);"><i class="fa-solid fa-bezier-curve"></i></div>
+                <div>
+                    <h3 style="margin: 0; font-size: 1.05rem; font-weight: 800; color: #fff; letter-spacing: 0.5px;" id="viz-modal-title">1-2-3 REVERSAL PATTERN VISUALIZER</h3>
+                    <p style="margin: 2px 0 0 0; font-size: 0.72rem; color: var(--text-muted);" id="viz-modal-subtitle">Algorithmic Pivot &amp; Breakout Structural Analysis</p>
+                </div>
+            </div>
+            <button class="broker-modal-close-btn" onclick="closeChartVisualizer()">&times;</button>
+        </div>
+
+        <div class="broker-modal-body">
+            <!-- Score & Pattern Quality Badges -->
+            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 0.85rem; padding: 0.6rem 0.85rem; background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.06); border-radius: 8px;">
+                <div style="display: flex; gap: 0.5rem; align-items: center;">
+                    <span id="viz-symbol-badge" style="font-weight: 800; font-family: var(--font-code); color: #fff; font-size: 0.95rem;">--</span>
+                    <span id="viz-side-badge" class="badge" style="font-size: 0.75rem; padding: 3px 8px;">LONG</span>
+                </div>
+                <div style="display: flex; gap: 0.6rem; align-items: center; font-size: 0.76rem;">
+                    <span>Score: <strong id="viz-score" style="color: #00f090; font-size: 0.85rem;">85/100</strong></span>
+                    <span>Grade: <strong id="viz-grade" style="color: #38bdf8; font-size: 0.85rem;">A+</strong></span>
+                    <span>R:R: <strong id="viz-rr" style="color: #fbbf24; font-size: 0.85rem;">1 : 2.0</strong></span>
+                </div>
+            </div>
+
+            <!-- SVG Visualizer Canvas Container -->
+            <div style="background: #080d1a; border: 1px solid rgba(255,255,255,0.08); border-radius: 8px; padding: 12px; position: relative; overflow: hidden;">
+                <svg id="viz-svg-canvas" viewBox="0 0 600 280" style="width: 100%; height: auto; display: block;"></svg>
+            </div>
+
+            <!-- Legend & Explainer -->
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 0.5rem; margin-top: 0.75rem; font-size: 0.7rem;">
+                <div style="padding: 6px 8px; background: rgba(56, 189, 248, 0.08); border-left: 2px solid #38bdf8; border-radius: 4px;">
+                    <span style="color: #38bdf8; font-weight: 700;">Point 1:</span> Macro Pivot
+                </div>
+                <div style="padding: 6px 8px; background: rgba(168, 85, 247, 0.08); border-left: 2px solid #a855f7; border-radius: 4px;">
+                    <span style="color: #c084fc; font-weight: 700;">Point 2:</span> Breakout Neckline
+                </div>
+                <div style="padding: 6px 8px; background: rgba(251, 191, 36, 0.08); border-left: 2px solid #fbbf24; border-radius: 4px;">
+                    <span style="color: #fbbf24; font-weight: 700;">Point 3:</span> Reversal Swing
+                </div>
+                <div style="padding: 6px 8px; background: rgba(239, 68, 68, 0.08); border-left: 2px solid #ef4444; border-radius: 4px;">
+                    <span style="color: #f87171; font-weight: 700;">Red Line:</span> Clamped SL
+                </div>
+                <div style="padding: 6px 8px; background: rgba(0, 240, 144, 0.08); border-left: 2px solid #00f090; border-radius: 4px;">
+                    <span style="color: #00f090; font-weight: 700;">Green Line:</span> Profit Target
+                </div>
+            </div>
+
+            <div id="viz-reason-text" style="margin-top: 0.75rem; font-size: 0.72rem; color: var(--text-muted); line-height: 1.4; padding: 6px 10px; background: rgba(255,255,255,0.02); border-radius: 6px;">
+                Algorithmic 1-2-3 reversal setup with confirmation above Neckline Breakout.
+            </div>
+        </div>
+
+        <div class="broker-modal-footer">
+            <button class="btn-sm btn-outline" onclick="closeChartVisualizer()" style="padding: 6px 14px; font-size: 0.78rem;">
+                CLOSE
+            </button>
+        </div>
+    </div>
+</div>
+
 <!-- STYLES -->
 <style>
+    /* ==========================================
+       UI ENHANCEMENTS: MODALS, HEATMAP & GAUGES
+       ========================================== */
+    .broker-modal-backdrop {
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.78);
+        backdrop-filter: blur(8px);
+        -webkit-backdrop-filter: blur(8px);
+        z-index: 99999;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 1rem;
+        animation: fadeInModal 0.2s ease-out;
+    }
+    @keyframes fadeInModal {
+        from { opacity: 0; transform: scale(0.97); }
+        to { opacity: 1; transform: scale(1); }
+    }
+    .broker-modal-content {
+        background: #0f172a;
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        border-radius: 12px;
+        width: 100%;
+        max-width: 580px;
+        box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.8), 0 0 30px rgba(56, 189, 248, 0.1);
+        overflow: hidden;
+    }
+    .broker-modal-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 1rem 1.25rem;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+        background: rgba(255, 255, 255, 0.02);
+    }
+    .broker-modal-body {
+        padding: 1.25rem;
+    }
+    .broker-modal-footer {
+        display: flex;
+        justify-content: flex-end;
+        align-items: center;
+        gap: 0.6rem;
+        padding: 0.85rem 1.25rem;
+        border-top: 1px solid rgba(255, 255, 255, 0.08);
+        background: rgba(255, 255, 255, 0.02);
+        flex-wrap: wrap;
+    }
+    .broker-modal-close-btn {
+        background: none;
+        border: none;
+        color: var(--text-muted);
+        font-size: 1.5rem;
+        cursor: pointer;
+        line-height: 1;
+        transition: color 0.15s;
+    }
+    .broker-modal-close-btn:hover {
+        color: #fff;
+    }
+    .ticket-icon-circle {
+        width: 38px;
+        height: 38px;
+        border-radius: 8px;
+        background: rgba(56, 189, 248, 0.15);
+        border: 1px solid rgba(56, 189, 248, 0.3);
+        color: #38bdf8;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1rem;
+    }
+    .ticket-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 0.65rem;
+    }
+    .ticket-field {
+        background: rgba(255, 255, 255, 0.02);
+        border: 1px solid rgba(255, 255, 255, 0.06);
+        border-radius: 6px;
+        padding: 0.6rem 0.75rem;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+    }
+    .ticket-label {
+        font-size: 0.65rem;
+        color: var(--text-muted);
+        font-weight: 700;
+        letter-spacing: 0.5px;
+        margin-bottom: 2px;
+    }
+    .ticket-val {
+        font-size: 0.95rem;
+        font-weight: 800;
+        font-family: var(--font-code);
+    }
+    .heatmap-tile {
+        background: rgba(15, 23, 42, 0.9);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 8px;
+        padding: 1rem;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        transition: transform 0.2s, box-shadow 0.2s, border-color 0.2s;
+        position: relative;
+        overflow: hidden;
+    }
+    .heatmap-tile:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.6);
+        border-color: rgba(56, 189, 248, 0.4);
+    }
+    .heatmap-pnl-banner {
+        border-radius: 6px;
+        padding: 6px 10px;
+        margin: 0.6rem 0;
+        font-family: var(--font-code);
+        font-weight: 800;
+        text-align: center;
+        border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
     /* SIDE BADGES */
     .side-badge {
         display: inline-flex;
@@ -1477,6 +1794,700 @@
 
 <!-- CLIENT JAVASCRIPT FOR BOT PAGE -->
 <script>
+    // ==========================================
+    
+    // ==========================================
+    // AUDIO EVENT DETECTOR FOR LIVE RUNS
+    // ==========================================
+    let previousActiveSymbols = new Set();
+    let previousTrailingSymbols = new Set();
+    let isInitialAudioLoad = true;
+
+    function detectAudioEvents(positions, data) {
+        if (!positions) return;
+        if (isInitialAudioLoad) {
+            positions.forEach(p => {
+                previousActiveSymbols.add(p.symbol);
+                if (p.trailing_active) previousTrailingSymbols.add(p.symbol);
+            });
+            isInitialAudioLoad = false;
+            return;
+        }
+
+        positions.forEach(p => {
+            if (!previousActiveSymbols.has(p.symbol)) {
+                playSignalChime(p.side || 'BUY');
+                previousActiveSymbols.add(p.symbol);
+            }
+            if (p.trailing_active && !previousTrailingSymbols.has(p.symbol)) {
+                playBreakevenTone();
+                previousTrailingSymbols.add(p.symbol);
+            }
+        });
+
+        const currentSyms = new Set(positions.map(p => p.symbol));
+        previousActiveSymbols.forEach(sym => {
+            if (!currentSyms.has(sym)) {
+                previousActiveSymbols.delete(sym);
+                previousTrailingSymbols.delete(sym);
+            }
+        });
+    }
+
+    // AUDIO ALERTS & SOUND CHIMES (WEB AUDIO API)
+    // ==========================================
+    let botAudioContext = null;
+    let soundAlertsEnabled = true;
+
+    function initBotAudioContext() {
+        if (!botAudioContext) {
+            const AudioCtx = window.AudioContext || window.webkitAudioContext;
+            if (AudioCtx) {
+                botAudioContext = new AudioCtx();
+            }
+        }
+        if (botAudioContext && botAudioContext.state === 'suspended') {
+            botAudioContext.resume();
+        }
+    }
+
+    function loadSoundSettings() {
+        const saved = localStorage.getItem('bot_sound_enabled');
+        if (saved !== null) {
+            soundAlertsEnabled = (saved === 'true');
+        } else {
+            soundAlertsEnabled = true;
+        }
+        updateSoundUI();
+    }
+
+    function toggleAudioAlerts() {
+        initBotAudioContext();
+        soundAlertsEnabled = !soundAlertsEnabled;
+        localStorage.setItem('bot_sound_enabled', soundAlertsEnabled);
+        updateSoundUI();
+        if (soundAlertsEnabled) {
+            playSignalChime('BUY');
+            showToast('Sound Alerts: Enabled', 'success');
+        } else {
+            showToast('Sound Alerts: Disabled', 'info');
+        }
+    }
+
+    function updateSoundUI() {
+        const icon = document.getElementById('audio-icon');
+        const text = document.getElementById('audio-status-text');
+        const btn = document.getElementById('btn-audio-toggle');
+        if (icon && text && btn) {
+            if (soundAlertsEnabled) {
+                icon.className = 'fa-solid fa-volume-high';
+                icon.style.color = '#38bdf8';
+                text.innerText = 'ON';
+                btn.style.borderColor = 'rgba(56, 189, 248, 0.4)';
+            } else {
+                icon.className = 'fa-solid fa-volume-xmark';
+                icon.style.color = 'var(--text-muted)';
+                text.innerText = 'OFF';
+                btn.style.borderColor = 'rgba(255, 255, 255, 0.12)';
+            }
+        }
+    }
+
+    function playSignalChime(side) {
+        if (!soundAlertsEnabled) return;
+        try {
+            initBotAudioContext();
+            if (!botAudioContext) return;
+            const now = botAudioContext.currentTime;
+            const osc = botAudioContext.createOscillator();
+            const gain = botAudioContext.createGain();
+            osc.type = 'sine';
+            osc.connect(gain);
+            gain.connect(botAudioContext.destination);
+
+            if (side === 'SHORT' || side === 'SELL') {
+                osc.frequency.setValueAtTime(783.99, now);
+                osc.frequency.exponentialRampToValueAtTime(659.25, now + 0.12);
+                osc.frequency.exponentialRampToValueAtTime(523.25, now + 0.25);
+            } else {
+                osc.frequency.setValueAtTime(523.25, now);
+                osc.frequency.exponentialRampToValueAtTime(659.25, now + 0.12);
+                osc.frequency.exponentialRampToValueAtTime(783.99, now + 0.25);
+            }
+
+            gain.gain.setValueAtTime(0.001, now);
+            gain.gain.exponentialRampToValueAtTime(0.18, now + 0.04);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + 0.45);
+
+            osc.start(now);
+            osc.stop(now + 0.46);
+        } catch (e) {
+            console.warn('Audio playback error:', e);
+        }
+    }
+
+    function playTakeProfitChime() {
+        if (!soundAlertsEnabled) return;
+        try {
+            initBotAudioContext();
+            if (!botAudioContext) return;
+            const now = botAudioContext.currentTime;
+            [
+                { freq: 523.25, start: 0, dur: 0.35, gain: 0.12 },
+                { freq: 659.25, start: 0.1, dur: 0.35, gain: 0.14 },
+                { freq: 1046.50, start: 0.2, dur: 0.45, gain: 0.18 }
+            ].forEach(note => {
+                const osc = botAudioContext.createOscillator();
+                const g = botAudioContext.createGain();
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(note.freq, now + note.start);
+                osc.connect(g);
+                g.connect(botAudioContext.destination);
+                g.gain.setValueAtTime(0.001, now + note.start);
+                g.gain.exponentialRampToValueAtTime(note.gain, now + note.start + 0.04);
+                g.gain.exponentialRampToValueAtTime(0.0001, now + note.start + note.dur);
+                osc.start(now + note.start);
+                osc.stop(now + note.start + note.dur + 0.01);
+            });
+        } catch (e) {}
+    }
+
+    function playBreakevenTone() {
+        if (!soundAlertsEnabled) return;
+        try {
+            initBotAudioContext();
+            if (!botAudioContext) return;
+            const now = botAudioContext.currentTime;
+            [0, 0.12].forEach(offset => {
+                const osc = botAudioContext.createOscillator();
+                const g = botAudioContext.createGain();
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(880, now + offset);
+                osc.connect(g);
+                g.connect(botAudioContext.destination);
+                g.gain.setValueAtTime(0.001, now + offset);
+                g.gain.exponentialRampToValueAtTime(0.12, now + offset + 0.02);
+                g.gain.exponentialRampToValueAtTime(0.0001, now + offset + 0.1);
+                osc.start(now + offset);
+                osc.stop(now + offset + 0.11);
+            });
+        } catch (e) {}
+    }
+
+    function playStopLossTone() {
+        if (!soundAlertsEnabled) return;
+        try {
+            initBotAudioContext();
+            if (!botAudioContext) return;
+            const now = botAudioContext.currentTime;
+            const osc = botAudioContext.createOscillator();
+            const g = botAudioContext.createGain();
+            osc.type = 'sawtooth';
+            osc.frequency.setValueAtTime(220, now);
+            osc.frequency.exponentialRampToValueAtTime(146.83, now + 0.3);
+            osc.connect(g);
+            g.connect(botAudioContext.destination);
+            g.gain.setValueAtTime(0.001, now);
+            g.gain.exponentialRampToValueAtTime(0.10, now + 0.05);
+            g.gain.exponentialRampToValueAtTime(0.0001, now + 0.35);
+            osc.start(now);
+            osc.stop(now + 0.36);
+        } catch (e) {}
+    }
+
+    // ==========================================
+    // 1-CLICK BROKER ORDER TICKET MODAL
+    // ==========================================
+    let currentTicketData = null;
+
+    function openBrokerTicket(symbol, side, price, sl, tp, qty, score, grade) {
+        initBotAudioContext();
+        const cleanSym = (symbol || '').replace('.NS', '');
+        const numPrice = parseFloat(price || 0);
+        const isShort = (side === 'SHORT' || side === 'SELL');
+        const numSl = parseFloat(sl || (isShort ? numPrice * 1.02 : numPrice * 0.98));
+        const numTp = parseFloat(tp || (isShort ? numPrice * 0.96 : numPrice * 1.04));
+        const numQty = parseInt(qty || 1, 10);
+        const leverage = 5;
+
+        const notional = numPrice * numQty;
+        const margin = notional / leverage;
+
+        const slDiff = Math.abs(numPrice - numSl);
+        const slPct = numPrice > 0 ? ((slDiff / numPrice) * 100) : 0;
+        const tpDiff = Math.abs(numTp - numPrice);
+        const tpPct = numPrice > 0 ? ((tpDiff / numPrice) * 100) : 0;
+        const rr = slDiff > 0 ? (tpDiff / slDiff) : 0;
+
+        currentTicketData = {
+            symbol: symbol,
+            cleanSym: cleanSym,
+            side: isShort ? 'SELL' : 'BUY',
+            price: numPrice,
+            sl: numSl,
+            tp: numTp,
+            qty: numQty,
+            margin: margin,
+            notional: notional,
+            slPct: slPct,
+            tpPct: tpPct,
+            rr: rr
+        };
+
+        const titleEl = document.getElementById('ticket-modal-title');
+        if (titleEl) titleEl.innerText = `${isShort ? 'SELL (SHORT)' : 'BUY (LONG)'} ORDER TICKET — ${cleanSym}`;
+        
+        const symEl = document.getElementById('ticket-symbol');
+        if (symEl) symEl.innerText = symbol;
+
+        const qtyEl = document.getElementById('ticket-qty');
+        if (qtyEl) qtyEl.innerText = `${numQty} Shares`;
+
+        const priceEl = document.getElementById('ticket-price');
+        if (priceEl) priceEl.innerText = `₹${numPrice.toFixed(2)}`;
+
+        const marginEl = document.getElementById('ticket-margin');
+        if (marginEl) marginEl.innerText = `₹${margin.toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+
+        const slEl = document.getElementById('ticket-sl');
+        if (slEl) slEl.innerText = `₹${numSl.toFixed(2)} (${isShort ? '+' : '-'}${slPct.toFixed(2)}%)`;
+
+        const tpEl = document.getElementById('ticket-tp');
+        if (tpEl) tpEl.innerText = `₹${numTp.toFixed(2)} (${isShort ? '-' : '+'}${tpPct.toFixed(2)}%)`;
+
+        const notionalEl = document.getElementById('ticket-notional');
+        if (notionalEl) notionalEl.innerText = `₹${notional.toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+
+        const rrEl = document.getElementById('ticket-rr');
+        if (rrEl) rrEl.innerText = `1 : ${rr.toFixed(2)}`;
+
+        const sideBadge = document.getElementById('ticket-side-badge');
+        if (sideBadge) {
+            if (isShort) {
+                sideBadge.innerText = 'SELL / SHORT (MIS)';
+                sideBadge.style.background = 'rgba(239, 68, 68, 0.2)';
+                sideBadge.style.color = '#f87171';
+                sideBadge.style.border = '1px solid rgba(239, 68, 68, 0.4)';
+            } else {
+                sideBadge.innerText = 'BUY / LONG (MIS)';
+                sideBadge.style.background = 'rgba(0, 240, 144, 0.2)';
+                sideBadge.style.color = '#00f090';
+                sideBadge.style.border = '1px solid rgba(0, 240, 144, 0.4)';
+            }
+        }
+
+        const orderString = `${isShort ? 'SELL' : 'BUY'} ${cleanSym} | QTY: ${numQty} | MIS 5X | ENTRY: ₹${numPrice.toFixed(2)} | SL: ₹${numSl.toFixed(2)} (${isShort ? '+' : '-'}${slPct.toFixed(2)}%) | TARGET: ₹${numTp.toFixed(2)} (${isShort ? '-' : '+'}${tpPct.toFixed(2)}%) | MARGIN: ₹${margin.toFixed(0)}`;
+        const copyArea = document.getElementById('ticket-copy-text');
+        if (copyArea) copyArea.value = orderString;
+
+        const tvLink = document.getElementById('ticket-tv-link');
+        if (tvLink) tvLink.href = `https://in.tradingview.com/chart/?symbol=NSE:${cleanSym}`;
+
+        const modal = document.getElementById('broker-ticket-modal');
+        if (modal) modal.style.display = 'flex';
+    }
+
+    function closeBrokerTicket() {
+        const modal = document.getElementById('broker-ticket-modal');
+        if (modal) modal.style.display = 'none';
+    }
+
+    function copyTicketToClipboard() {
+        const copyArea = document.getElementById('ticket-copy-text');
+        if (!copyArea) return;
+        copyArea.select();
+        copyArea.setSelectionRange(0, 99999);
+        navigator.clipboard.writeText(copyArea.value).then(() => {
+            const copyBtn = document.getElementById('btn-ticket-copy');
+            if (copyBtn) {
+                const oldHtml = copyBtn.innerHTML;
+                copyBtn.innerHTML = '<i class="fa-solid fa-check"></i> COPIED TO CLIPBOARD!';
+                copyBtn.style.background = 'linear-gradient(135deg, #10b981 0%, #059669 100%)';
+                setTimeout(() => {
+                    copyBtn.innerHTML = oldHtml;
+                    copyBtn.style.background = '';
+                }, 2000);
+            }
+            showToast('Order ticket copied to clipboard!', 'success');
+        }).catch(err => {
+            showToast('Clipboard permission denied', 'error');
+        });
+    }
+
+    // ==========================================
+    // 1-2-3 REVERSAL SVG CHART VISUALIZER
+    // ==========================================
+    function openChartVisualizer(symbol, price, sl, tp, signal, score, grade, reason) {
+        initBotAudioContext();
+        const cleanSym = (symbol || '').replace('.NS', '');
+        const numPrice = parseFloat(price || 0);
+        const isShort = (signal === 'SELL' || signal === 'SHORT');
+        const numSl = parseFloat(sl || (isShort ? numPrice * 1.02 : numPrice * 0.98));
+        const numTp = parseFloat(tp || (isShort ? numPrice * 0.96 : numPrice * 1.04));
+
+        const symEl = document.getElementById('viz-symbol-badge');
+        if (symEl) symEl.innerText = cleanSym;
+
+        const sideBadge = document.getElementById('viz-side-badge');
+        if (sideBadge) {
+            sideBadge.innerText = isShort ? 'SHORT REVERSAL' : 'LONG REVERSAL';
+            sideBadge.style.background = isShort ? 'rgba(239, 68, 68, 0.2)' : 'rgba(0, 240, 144, 0.2)';
+            sideBadge.style.color = isShort ? '#f87171' : '#00f090';
+        }
+
+        const slDiff = Math.abs(numPrice - numSl);
+        const tpDiff = Math.abs(numTp - numPrice);
+        const rr = slDiff > 0 ? (tpDiff / slDiff) : 2.0;
+
+        const scoreEl = document.getElementById('viz-score');
+        if (scoreEl) scoreEl.innerText = `${score || 85}/100`;
+
+        const gradeEl = document.getElementById('viz-grade');
+        if (gradeEl) gradeEl.innerText = grade || 'A+';
+
+        const rrEl = document.getElementById('viz-rr');
+        if (rrEl) rrEl.innerText = `1 : ${rr.toFixed(2)}`;
+
+        const reasonEl = document.getElementById('viz-reason-text');
+        if (reasonEl) reasonEl.innerText = reason || `Algorithmic 1-2-3 Reversal breakout confirmed with Clamped SL protection at ₹${numSl.toFixed(2)} and Target at ₹${numTp.toFixed(2)}.`;
+
+        render123Svg(isShort, numPrice, numSl, numTp);
+
+        const modal = document.getElementById('chart-visualizer-modal');
+        if (modal) modal.style.display = 'flex';
+    }
+
+    function closeChartVisualizer() {
+        const modal = document.getElementById('chart-visualizer-modal');
+        if (modal) modal.style.display = 'none';
+    }
+
+    function handleModalBackdropClick(event, modalId) {
+        if (event.target.id === modalId) {
+            const modal = document.getElementById(modalId);
+            if (modal) modal.style.display = 'none';
+        }
+    }
+
+    function render123Svg(isShort, entry, sl, tp) {
+        const svg = document.getElementById('viz-svg-canvas');
+        if (!svg) return;
+
+        let p0, p1, p2, p3, pBreak, pFuture;
+        let slY, tpY, entryY;
+
+        if (!isShort) {
+            p0 = { x: 40, y: 70 };
+            p1 = { x: 140, y: 220 };
+            p2 = { x: 260, y: 120 };
+            p3 = { x: 370, y: 175 };
+            pBreak = { x: 460, y: 120 };
+            pFuture = { x: 560, y: 70 };
+
+            entryY = 120;
+            slY = 205;
+            tpY = 70;
+        } else {
+            p0 = { x: 40, y: 210 };
+            p1 = { x: 140, y: 60 };
+            p2 = { x: 260, y: 160 };
+            p3 = { x: 370, y: 105 };
+            pBreak = { x: 460, y: 160 };
+            pFuture = { x: 560, y: 210 };
+
+            entryY = 160;
+            slY = 75;
+            tpY = 210;
+        }
+
+        svg.innerHTML = `
+            <defs>
+                <linearGradient id="curveGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                    <stop offset="0%" stop-color="#94a3b8" />
+                    <stop offset="35%" stop-color="#38bdf8" />
+                    <stop offset="70%" stop-color="#a855f7" />
+                    <stop offset="100%" stop-color="#00f090" />
+                </linearGradient>
+                <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+                    <feGaussianBlur stdDeviation="3" result="glow"/>
+                    <feComposite in="SourceGraphic" in2="glow" operator="over"/>
+                </filter>
+            </defs>
+
+            <!-- Horizontal Grids -->
+            <line x1="30" y1="60" x2="570" y2="60" stroke="rgba(255,255,255,0.05)" stroke-dasharray="4,4" />
+            <line x1="30" y1="120" x2="570" y2="120" stroke="rgba(255,255,255,0.05)" stroke-dasharray="4,4" />
+            <line x1="30" y1="180" x2="570" y2="180" stroke="rgba(255,255,255,0.05)" stroke-dasharray="4,4" />
+            <line x1="30" y1="240" x2="570" y2="240" stroke="rgba(255,255,255,0.05)" stroke-dasharray="4,4" />
+
+            <!-- Target Level -->
+            <line x1="200" y1="${tpY}" x2="570" y2="${tpY}" stroke="#00f090" stroke-width="1.5" stroke-dasharray="5,4" />
+            <text x="565" y="${tpY - 6}" fill="#00f090" font-size="10" font-weight="700" text-anchor="end" font-family="monospace">TARGET: ₹${tp.toFixed(2)}</text>
+
+            <!-- Neckline / Entry Level -->
+            <line x1="${p2.x - 30}" y1="${entryY}" x2="570" y2="${entryY}" stroke="#38bdf8" stroke-width="1.5" stroke-dasharray="6,4" />
+            <text x="${p2.x + 10}" y="${entryY - 8}" fill="#38bdf8" font-size="10" font-weight="700" font-family="monospace">NECKLINE / ENTRY: ₹${entry.toFixed(2)}</text>
+
+            <!-- Clamped Stop-Loss Level -->
+            <line x1="260" y1="${slY}" x2="570" y2="${slY}" stroke="#ef4444" stroke-width="1.5" stroke-dasharray="5,4" />
+            <text x="565" y="${slY + (isShort ? -6 : 14)}" fill="#ef4444" font-size="10" font-weight="700" text-anchor="end" font-family="monospace">CLAMPED SL: ₹${sl.toFixed(2)}</text>
+
+            <!-- Main Curve Path -->
+            <path d="M ${p0.x} ${p0.y} L ${p1.x} ${p1.y} L ${p2.x} ${p2.y} L ${p3.x} ${p3.y} L ${pBreak.x} ${pBreak.y} L ${pFuture.x} ${pFuture.y}" 
+                  fill="none" stroke="url(#curveGrad)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" />
+
+            <!-- Point 1 -->
+            <circle cx="${p1.x}" cy="${p1.y}" r="6" fill="#38bdf8" filter="url(#glow)" />
+            <text x="${p1.x}" y="${p1.y + (isShort ? -12 : 20)}" fill="#38bdf8" font-size="11" font-weight="800" text-anchor="middle" font-family="sans-serif">Point 1</text>
+
+            <!-- Point 2 -->
+            <circle cx="${p2.x}" cy="${p2.y}" r="6" fill="#c084fc" filter="url(#glow)" />
+            <text x="${p2.x}" y="${p2.y + (isShort ? 20 : -12)}" fill="#c084fc" font-size="11" font-weight="800" text-anchor="middle" font-family="sans-serif">Point 2</text>
+
+            <!-- Point 3 -->
+            <circle cx="${p3.x}" cy="${p3.y}" r="6" fill="#fbbf24" filter="url(#glow)" />
+            <text x="${p3.x}" y="${p3.y + (isShort ? -12 : 20)}" fill="#fbbf24" font-size="11" font-weight="800" text-anchor="middle" font-family="sans-serif">Point 3</text>
+
+            <!-- Breakout Point -->
+            <circle cx="${pBreak.x}" cy="${pBreak.y}" r="7" fill="#00f090" filter="url(#glow)" />
+            <text x="${pBreak.x}" y="${pBreak.y + (isShort ? 22 : -14)}" fill="#00f090" font-size="11" font-weight="800" text-anchor="middle" font-family="sans-serif">ENTRY BREAK</text>
+        `;
+    }
+
+    // ==========================================
+    // HOLDINGS HEATMAP VIEW
+    // ==========================================
+    window.holdingsViewMode = localStorage.getItem('bot_holdings_view_mode') || 'table';
+
+    function setHoldingsViewMode(mode) {
+        window.holdingsViewMode = mode;
+        localStorage.setItem('bot_holdings_view_mode', mode);
+        
+        const tableWrapper = document.querySelector('#view-active-holdings .table-wrapper');
+        const heatmapContainer = document.getElementById('holdings-heatmap-container');
+        const btnTable = document.getElementById('btn-view-table');
+        const btnHeatmap = document.getElementById('btn-view-heatmap');
+
+        if (mode === 'heatmap') {
+            if (tableWrapper) tableWrapper.style.display = 'none';
+            if (heatmapContainer) heatmapContainer.style.display = 'block';
+            if (btnTable) {
+                btnTable.style.background = 'transparent';
+                btnTable.style.color = 'var(--text-muted)';
+            }
+            if (btnHeatmap) {
+                btnHeatmap.style.background = 'rgba(56, 189, 248, 0.25)';
+                btnHeatmap.style.color = '#38bdf8';
+            }
+            renderHoldingsHeatmap();
+        } else {
+            if (tableWrapper) tableWrapper.style.display = 'block';
+            if (heatmapContainer) heatmapContainer.style.display = 'none';
+            if (btnTable) {
+                btnTable.style.background = 'rgba(56, 189, 248, 0.25)';
+                btnTable.style.color = '#38bdf8';
+            }
+            if (btnHeatmap) {
+                btnHeatmap.style.background = 'transparent';
+                btnHeatmap.style.color = 'var(--text-muted)';
+            }
+        }
+    }
+
+    function renderHoldingsHeatmap() {
+        const container = document.getElementById('holdings-heatmap-grid');
+        if (!container) return;
+
+        const allPositions = window.cachedActivePositions || [];
+        const searchInput = document.getElementById('holdings-search-input');
+        const query = searchInput ? searchInput.value.trim().toUpperCase() : '';
+        
+        let filtered = [...allPositions];
+        if (query) {
+            filtered = filtered.filter(p => (p.symbol && p.symbol.toUpperCase().includes(query)));
+        }
+        if (window.activeHoldingsFilter === 'LONG') filtered = filtered.filter(p => p.side !== 'SHORT');
+        else if (window.activeHoldingsFilter === 'SHORT') filtered = filtered.filter(p => p.side === 'SHORT');
+        else if (window.activeHoldingsFilter === 'PROFIT') filtered = filtered.filter(p => (p.unrealized_pnl || 0) >= 0);
+        else if (window.activeHoldingsFilter === 'LOSS') filtered = filtered.filter(p => (p.unrealized_pnl || 0) < 0);
+
+        if (filtered.length === 0) {
+            container.innerHTML = `<div style="grid-column: 1 / -1; text-align: center; padding: 2.5rem; color: var(--text-muted); background: rgba(255,255,255,0.02); border-radius: 8px;">
+                <i class="fa-solid fa-grip" style="font-size: 1.5rem; margin-bottom: 0.5rem;"></i><br>
+                No active positions match criteria for heatmap display.
+            </div>`;
+            return;
+        }
+
+        container.innerHTML = '';
+        filtered.forEach(p => {
+            const isShort = (p.side === 'SHORT');
+            const pnl = p.unrealized_pnl || 0;
+            const pnlPct = p.unrealized_pnl_pct || 0;
+            const cleanSym = p.symbol.replace('.NS', '');
+            
+            let tileBg = 'rgba(15, 23, 42, 0.9)';
+            let bannerBg = 'rgba(255, 255, 255, 0.05)';
+            let pnlColor = '#cbd5e1';
+
+            if (pnlPct >= 1.5) {
+                tileBg = 'linear-gradient(145deg, rgba(6, 78, 59, 0.85) 0%, rgba(15, 23, 42, 0.95) 100%)';
+                bannerBg = 'rgba(0, 240, 144, 0.2)';
+                pnlColor = '#00f090';
+            } else if (pnlPct > 0.1) {
+                tileBg = 'linear-gradient(145deg, rgba(6, 78, 59, 0.45) 0%, rgba(15, 23, 42, 0.95) 100%)';
+                bannerBg = 'rgba(0, 240, 144, 0.12)';
+                pnlColor = '#34d399';
+            } else if (pnlPct <= -1.5) {
+                tileBg = 'linear-gradient(145deg, rgba(127, 29, 29, 0.85) 0%, rgba(15, 23, 42, 0.95) 100%)';
+                bannerBg = 'rgba(239, 68, 68, 0.2)';
+                pnlColor = '#f87171';
+            } else if (pnlPct < -0.1) {
+                tileBg = 'linear-gradient(145deg, rgba(127, 29, 29, 0.45) 0%, rgba(15, 23, 42, 0.95) 100%)';
+                bannerBg = 'rgba(239, 68, 68, 0.12)';
+                pnlColor = '#f87171';
+            }
+
+            const sl = p.stop_loss || (isShort ? p.average_price * 1.02 : p.average_price * 0.98);
+            const tp = p.take_profit || (isShort ? p.average_price * 0.96 : p.average_price * 1.04);
+            const notional = (p.quantity || 0) * (p.current_price || p.average_price || 0);
+
+            const card = document.createElement('div');
+            card.className = 'heatmap-tile';
+            card.style.background = tileBg;
+            card.innerHTML = `
+                <div>
+                    <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.5rem;">
+                        <div>
+                            <div style="font-weight: 800; font-size: 1.1rem; color: #fff; font-family: var(--font-code);">${cleanSym}</div>
+                            <div style="font-size: 0.68rem; color: var(--text-muted);">${p.symbol}</div>
+                        </div>
+                        <div style="display: flex; gap: 4px; align-items: center;">
+                            <span class="side-badge ${isShort ? 'side-short' : 'side-long'}" style="font-size: 0.68rem; padding: 2px 6px;">
+                                ${isShort ? 'SHORT' : 'LONG'}
+                            </span>
+                            ${p.trailing_active ? '<span title="Breakeven Shield Active" style="font-size: 0.72rem;">🛡️</span>' : ''}
+                        </div>
+                    </div>
+
+                    <div class="heatmap-pnl-banner" style="background: ${bannerBg}; color: ${pnlColor}; font-size: 1.05rem;">
+                        ${pnl >= 0 ? '+' : ''}₹${pnl.toFixed(2)} (${pnl >= 0 ? '+' : ''}${pnlPct.toFixed(2)}%)
+                    </div>
+
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px; font-size: 0.7rem; color: var(--text-muted); margin-bottom: 0.75rem;">
+                        <div>Qty: <strong style="color: #fff;">${p.quantity}</strong></div>
+                        <div>Value: <strong style="color: #cbd5e1;">₹${notional.toFixed(0)}</strong></div>
+                        <div>Avg: <strong style="color: #e2e8f0;">₹${(p.average_price||0).toFixed(1)}</strong></div>
+                        <div>LTP: <strong style="color: #38bdf8;">₹${(p.current_price||0).toFixed(1)}</strong></div>
+                        <div>SL: <strong style="color: #f87171;">₹${sl.toFixed(1)}</strong></div>
+                        <div>TP: <strong style="color: #00f090;">₹${tp.toFixed(1)}</strong></div>
+                    </div>
+                </div>
+
+                <div style="display: flex; gap: 6px; margin-top: 0.5rem;">
+                    <button class="btn-sm btn-outline" style="flex: 1; padding: 5px 6px; font-size: 0.72rem; display: inline-flex; align-items: center; justify-content: center; gap: 4px;" 
+                            onclick="openBrokerTicket('${p.symbol}', '${p.side || 'LONG'}', ${p.average_price}, ${sl}, ${tp}, ${p.quantity})">
+                        <i class="fa-solid fa-ticket"></i> Ticket
+                    </button>
+                    <button class="btn-sm" style="flex: 1; padding: 5px 6px; font-size: 0.72rem; background: rgba(239,68,68,0.2); color: #f87171; border: 1px solid rgba(239,68,68,0.4); display: inline-flex; align-items: center; justify-content: center; gap: 4px; cursor: pointer; border-radius: 4px;"
+                            onclick="exitBotPosition('${p.symbol}', ${p.quantity}, '${p.side || 'LONG'}')">
+                        <i class="fa-solid fa-xmark"></i> ${isShort ? 'Cover' : 'Exit'}
+                    </button>
+                </div>
+            `;
+            container.appendChild(card);
+        });
+    }
+
+    // ==========================================
+    // RISK & MARGIN UTILIZATION GAUGE
+    // ==========================================
+    function updateRiskUtilizationGauge(data, positions) {
+        const gaugeBox = document.getElementById('risk-gauge-box');
+        if (!gaugeBox) return;
+
+        const cash = (data && data.portfolio_value) ? data.portfolio_value : 50000;
+        const leverage = 5;
+        const buyingPower = (data && data.buying_power !== undefined) ? data.buying_power : (cash * leverage);
+
+        let totalCostBasis = 0.0;
+        let totalExposure = 0.0;
+        let totalMaxRisk = 0.0;
+        let shieldedCount = 0;
+
+        (positions || []).forEach(p => {
+            const qty = p.quantity || 0;
+            const avg = p.average_price || 0;
+            const cur = p.current_price || avg;
+            const lev = p.leverage || leverage;
+            const isShort = (p.side === 'SHORT');
+
+            const cost = qty * avg;
+            const notional = qty * cur;
+            totalCostBasis += (cost / lev);
+            totalExposure += notional;
+
+            const defaultSl = isShort ? avg * 1.02 : avg * 0.98;
+            const sl = p.stop_loss || defaultSl;
+
+            if (p.trailing_active) {
+                shieldedCount++;
+            }
+
+            const riskPerShare = isShort ? Math.max(0, sl - cur) : Math.max(0, cur - sl);
+            totalMaxRisk += (riskPerShare * qty);
+        });
+
+        const marginUsed = totalCostBasis;
+        const totalMarginCap = buyingPower / leverage;
+        const marginPct = totalMarginCap > 0 ? Math.min(100, (marginUsed / totalMarginCap) * 100) : 0;
+        const riskPctOfCash = totalMarginCap > 0 ? (totalMaxRisk / totalMarginCap) * 100 : 0;
+
+        const fillEl = document.getElementById('gauge-margin-fill');
+        const textEl = document.getElementById('gauge-margin-text');
+        const statusEl = document.getElementById('gauge-margin-status');
+        const maxRiskEl = document.getElementById('gauge-max-risk');
+        const exposureEl = document.getElementById('gauge-total-exposure');
+        const shieldedEl = document.getElementById('gauge-shielded-count');
+
+        if (fillEl) {
+            fillEl.style.width = `${marginPct.toFixed(1)}%`;
+            if (marginPct > 75) {
+                fillEl.style.background = 'linear-gradient(90deg, #f59e0b, #ef4444)';
+            } else if (marginPct > 45) {
+                fillEl.style.background = 'linear-gradient(90deg, #38bdf8, #f59e0b)';
+            } else {
+                fillEl.style.background = 'linear-gradient(90deg, #00f090, #38bdf8)';
+            }
+        }
+
+        if (textEl) {
+            textEl.innerText = `₹${marginUsed.toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2})} / ₹${totalMarginCap.toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2})} (${marginPct.toFixed(1)}%)`;
+        }
+
+        if (statusEl) {
+            if (marginPct >= 80) {
+                statusEl.innerHTML = '<span style="color: #ef4444;"><i class="fa-solid fa-triangle-exclamation"></i> HIGH UTILIZATION (CONSERVATIVE)</span>';
+            } else if (marginPct >= 50) {
+                statusEl.innerHTML = '<span style="color: #f59e0b;"><i class="fa-solid fa-gauge"></i> MODERATE ALLOCATION</span>';
+            } else {
+                statusEl.innerHTML = '<span style="color: #00f090;"><i class="fa-solid fa-circle-check"></i> HEALTHY BUFFER</span>';
+            }
+        }
+
+        if (maxRiskEl) {
+            maxRiskEl.innerText = `-₹${totalMaxRisk.toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2})} (-${riskPctOfCash.toFixed(2)}%)`;
+        }
+
+        if (exposureEl) {
+            exposureEl.innerText = `₹${totalExposure.toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+        }
+
+        if (shieldedEl) {
+            shieldedEl.innerText = `${shieldedCount} / ${(positions || []).length}`;
+        }
+    }
+
     let isBotActive = false;
     let botPoller = null;
     let botTickTimer = null;
@@ -1514,6 +2525,9 @@
             }
         }
 
+        loadSoundSettings();
+        setHoldingsViewMode(window.holdingsViewMode || 'table');
+        document.addEventListener('click', () => { initBotAudioContext(); }, { once: true });
         loadStoredBotSession();
         const initialClosed = getStoredClosedTrades();
         if (initialClosed && initialClosed.length > 0) {
@@ -2078,8 +3092,14 @@
                 <td>${actionBadge}</td>
                 <td>
                     <div style="display: flex; gap: 4px; align-items: center;">
-                        <a href="/?symbol=${s.symbol}" class="btn-sm btn-outline" style="text-decoration: none; display: inline-flex; align-items: center; gap: 4px; padding: 4px 8px; font-size: 0.72rem;">
-                            <i class="fa-solid fa-chart-line"></i> Terminal
+                        <button class="btn-sm btn-outline" style="padding: 4px 6px; font-size: 0.72rem; display: inline-flex; align-items: center; gap: 3px; border-color: rgba(168, 85, 247, 0.4); color: #c084fc;" onclick="openChartVisualizer('${s.symbol}', ${s.price}, ${s.stop_loss || 0}, ${s.take_profit || 0}, '${s.signal}', ${s.reversal_score || 0}, '${s.reversal_grade || ''}', '${(s.reason || '').replace(/'/g, "\\'")}')" title="1-2-3 Chart Visualizer">
+                            <i class="fa-solid fa-bezier-curve"></i> Chart
+                        </button>
+                        <button class="btn-sm btn-outline" style="padding: 4px 6px; font-size: 0.72rem; display: inline-flex; align-items: center; gap: 3px; border-color: rgba(56, 189, 248, 0.4); color: #38bdf8;" onclick="openBrokerTicket('${s.symbol}', '${s.signal === 'SELL' ? 'SHORT' : 'BUY'}', ${s.price}, ${s.stop_loss || (s.signal === 'SELL' ? s.price * 1.02 : s.price * 0.98)}, ${s.take_profit || (s.signal === 'SELL' ? s.price * 0.96 : s.price * 1.04)}, 1, ${s.reversal_score || 0}, '${s.reversal_grade || ''}')" title="1-Click Broker Order Ticket">
+                            <i class="fa-solid fa-ticket"></i> Ticket
+                        </button>
+                        <a href="/?symbol=${s.symbol}" class="btn-sm btn-outline" style="text-decoration: none; display: inline-flex; align-items: center; gap: 4px; padding: 4px 6px; font-size: 0.72rem;">
+                            <i class="fa-solid fa-chart-line"></i>
                         </a>
                         ${exitBtn}
                     </div>
@@ -2087,6 +3107,7 @@
             `;
             tbody.appendChild(tr);
         });
+        renderHoldingsHeatmap();
     }
 
     function renderLogs(logs) {
@@ -2387,6 +3408,8 @@
                 pnlEl.className = 'metric-value text-green';
             }
             applyHoldingsFilter();
+            updateRiskUtilizationGauge({ portfolio_value: cash, buying_power: buyingPower }, positions);
+            detectAudioEvents(positions, data);
         } else {
             let totalHoldingsPnl = 0.0;
             positions.forEach(p => {
@@ -2416,6 +3439,8 @@
             }
 
             applyHoldingsFilter();
+            updateRiskUtilizationGauge({ portfolio_value: cash, buying_power: buyingPower }, positions);
+            detectAudioEvents(positions, data);
         }
     }
 
@@ -2510,11 +3535,13 @@
 
         if (totalCount === 0) {
             tbody.innerHTML = '<tr><td colspan="10" class="text-center" style="padding: 1.5rem; color: var(--text-muted);">No open positions held. Bot will execute buys when signals trigger.</td></tr>';
+            renderHoldingsHeatmap();
             return;
         }
 
         if (filtered.length === 0) {
             tbody.innerHTML = `<tr><td colspan="10" class="text-center" style="padding: 1.5rem; color: var(--text-muted);"><i class="fa-solid fa-filter" style="margin-right: 6px;"></i> No holdings match filter "${window.activeHoldingsFilter}"${query ? ` and query "${query}"` : ''}. <button class="btn-sm btn-outline" onclick="resetHoldingsFilter()" style="margin-left: 8px; font-size: 0.72rem;">Clear Filter</button></td></tr>`;
+            renderHoldingsHeatmap();
             return;
         }
 
@@ -2553,9 +3580,17 @@
                 <td style="color: var(--red); font-weight: 700;">${slDisplay}</td>
                 <td style="color: var(--green); font-weight: 700;">${tpDisplay}</td>
                 <td>
-                    <button class="btn-action-close" onclick="exitBotPosition('${p.symbol}', ${p.quantity}, '${p.side || "LONG"}')">
-                        <i class="fa-solid fa-xmark"></i> ${isShort ? 'Cover' : 'Exit'}
-                    </button>
+                    <div style="display: flex; gap: 4px; align-items: center;">
+                        <button class="btn-sm btn-outline" style="padding: 3px 6px; font-size: 0.72rem; border-color: rgba(56, 189, 248, 0.4); color: #38bdf8;" onclick="openBrokerTicket('${p.symbol}', '${p.side || 'LONG'}', ${p.average_price}, ${p.stop_loss}, ${p.take_profit}, ${p.quantity})" title="1-Click Broker Order Ticket">
+                            <i class="fa-solid fa-ticket"></i>
+                        </button>
+                        <button class="btn-sm btn-outline" style="padding: 3px 6px; font-size: 0.72rem; border-color: rgba(168, 85, 247, 0.4); color: #c084fc;" onclick="openChartVisualizer('${p.symbol}', ${p.current_price || p.average_price}, ${p.stop_loss}, ${p.take_profit}, '${p.side || 'LONG'}', 85, 'A+', 'Active position monitored by 1-2-3 Reversal strategy.')" title="1-2-3 Pattern Chart">
+                            <i class="fa-solid fa-bezier-curve"></i>
+                        </button>
+                        <button class="btn-action-close" onclick="exitBotPosition('${p.symbol}', ${p.quantity}, '${p.side || "LONG"}')">
+                            <i class="fa-solid fa-xmark"></i> ${isShort ? 'Cover' : 'Exit'}
+                        </button>
+                    </div>
                 </td>
             `;
             tbody.appendChild(tr);
@@ -2677,8 +3712,13 @@
             } else if (t.side === 'SELL' || t.side === 'COVER') {
                 const tradePnl = parseFloat(t.realized_pnl || 0.0);
                 pnl += tradePnl;
-                if (tradePnl > 0) wins++;
-                else if (tradePnl < 0) losses++;
+                if (tradePnl > 0) {
+                    wins++;
+                    playTakeProfitChime();
+                } else if (tradePnl < 0) {
+                    losses++;
+                    playStopLossTone();
+                }
             }
         });
 
