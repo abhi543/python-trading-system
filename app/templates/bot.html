@@ -303,6 +303,9 @@
                             <button id="btn-export-session-csv" class="btn-sm btn-outline" onclick="exportSessionTradesCSV()">
                                 <i class="fa-solid fa-file-csv" style="color: var(--green);"></i> Export Session CSV
                             </button>
+                            <button id="btn-export-holdings-csv" class="btn-sm btn-outline" onclick="exportHoldingsCSV()" style="display: none;">
+                                <i class="fa-solid fa-file-csv" style="color: var(--blue);"></i> Export Holdings CSV
+                            </button>
                             <button id="btn-export-csv" class="btn-sm btn-outline" onclick="exportClosedTradesCSV()" style="display: none;">
                                 <i class="fa-solid fa-file-csv" style="color: #ffd166;"></i> Export All Closed
                             </button>
@@ -401,28 +404,69 @@
                     </div>
 
                     <!-- TAB 1: ACTIVE HOLDINGS -->
-                    <div id="view-active-holdings" class="table-wrapper" style="display: none;">
-                        <table class="data-table">
-                            <thead>
-                                <tr>
-                                    <th>SYMBOL</th>
-                                    <th>SIDE</th>
-                                    <th>QTY</th>
-                                    <th>AVG PRICE</th>
-                                    <th>CURRENT</th>
-                                    <th>P&L (₹)</th>
-                                    <th>P&L (%)</th>
-                                    <th>STOP-LOSS</th>
-                                    <th>TARGET</th>
-                                    <th>MANUAL EXIT</th>
-                                </tr>
-                            </thead>
-                            <tbody id="bot-holdings-tbody">
-                                <tr>
-                                    <td colspan="10" class="text-center" style="padding: 1.5rem; color: var(--text-muted);">No open positions held.</td>
-                                </tr>
-                            </tbody>
-                        </table>
+                    <div id="view-active-holdings" style="display: none;">
+                        <!-- HOLDINGS SEARCH & FILTER TOOLBAR -->
+                        <div class="holdings-toolbar" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.75rem; padding: 0.85rem 1.25rem; background: rgba(255, 255, 255, 0.02); border-bottom: 1px solid rgba(255, 255, 255, 0.06);">
+                            <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; flex: 1; min-width: 280px;">
+                                <div style="position: relative; min-width: 170px; max-width: 240px; flex: 1;">
+                                    <i class="fa-solid fa-magnifying-glass" style="position: absolute; left: 10px; top: 50%; transform: translateY(-50%); font-size: 0.75rem; color: var(--text-muted);"></i>
+                                    <input type="text" id="holdings-search-input" placeholder="Search stock (e.g. INFY)..." oninput="applyHoldingsFilter()" 
+                                           style="width: 100%; background: rgba(0, 0, 0, 0.35); border: 1px solid rgba(255, 255, 255, 0.12); border-radius: 6px; padding: 6px 10px 6px 28px; font-size: 0.78rem; color: #fff; outline: none;">
+                                </div>
+                                <div class="holdings-filter-chips" style="display: flex; gap: 5px; flex-wrap: wrap;">
+                                    <button type="button" class="btn-sm btn-outline active-filter-chip" id="chip-h-all" onclick="setHoldingsFilter('ALL')" style="font-size: 0.72rem; padding: 4px 10px; border-radius: 6px;">
+                                        All (<span id="h-count-all">0</span>)
+                                    </button>
+                                    <button type="button" class="btn-sm btn-outline" id="chip-h-long" onclick="setHoldingsFilter('LONG')" style="font-size: 0.72rem; padding: 4px 10px; border-radius: 6px; color: var(--green); border-color: rgba(0, 240, 144, 0.3);">
+                                        <i class="fa-solid fa-arrow-trend-up"></i> LONG (<span id="h-count-long">0</span>)
+                                    </button>
+                                    <button type="button" class="btn-sm btn-outline" id="chip-h-short" onclick="setHoldingsFilter('SHORT')" style="font-size: 0.72rem; padding: 4px 10px; border-radius: 6px; color: var(--red); border-color: rgba(255, 51, 102, 0.3);">
+                                        <i class="fa-solid fa-arrow-trend-down"></i> SHORT (<span id="h-count-short">0</span>)
+                                    </button>
+                                    <button type="button" class="btn-sm btn-outline" id="chip-h-profit" onclick="setHoldingsFilter('PROFIT')" style="font-size: 0.72rem; padding: 4px 10px; border-radius: 6px; color: #00f090; border-color: rgba(0, 240, 144, 0.3);">
+                                        <i class="fa-solid fa-trophy"></i> Profit (<span id="h-count-profit">0</span>)
+                                    </button>
+                                    <button type="button" class="btn-sm btn-outline" id="chip-h-loss" onclick="setHoldingsFilter('LOSS')" style="font-size: 0.72rem; padding: 4px 10px; border-radius: 6px; color: #ff5252; border-color: rgba(255, 82, 82, 0.3);">
+                                        <i class="fa-solid fa-shield-halved"></i> Loss (<span id="h-count-loss">0</span>)
+                                    </button>
+                                </div>
+                            </div>
+                            <div style="display: flex; align-items: center; gap: 0.6rem;">
+                                <span id="holdings-filter-status" style="font-size: 0.72rem; color: var(--text-muted); font-family: var(--font-code);">Showing all</span>
+                                <select id="holdings-sort-select" onchange="applyHoldingsFilter()" 
+                                        style="background: rgba(0, 0, 0, 0.35); border: 1px solid rgba(255, 255, 255, 0.12); border-radius: 6px; padding: 5px 8px; font-size: 0.72rem; color: #e2e8f0; outline: none; cursor: pointer;">
+                                    <option value="DEFAULT">Sort: Default</option>
+                                    <option value="PNL_DESC">Highest Profit &darr;</option>
+                                    <option value="PNL_ASC">Highest Loss &uarr;</option>
+                                    <option value="VAL_DESC">Highest Value &darr;</option>
+                                    <option value="SYM_ASC">Symbol (A-Z)</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="table-wrapper">
+                            <table class="data-table">
+                                <thead>
+                                    <tr>
+                                        <th>SYMBOL</th>
+                                        <th>SIDE</th>
+                                        <th>QTY</th>
+                                        <th>AVG PRICE</th>
+                                        <th>CURRENT</th>
+                                        <th>P&L (₹)</th>
+                                        <th>P&L (%)</th>
+                                        <th>STOP-LOSS</th>
+                                        <th>TARGET</th>
+                                        <th>MANUAL EXIT</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="bot-holdings-tbody">
+                                    <tr>
+                                        <td colspan="10" class="text-center" style="padding: 1.5rem; color: var(--text-muted);">No open positions held.</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
 
                     <!-- TAB 2: CLOSED TRADES REPORT & PERFORMANCE SCORECARD -->
@@ -1055,6 +1099,19 @@
         font-size: 0.68rem;
         font-family: var(--font-code);
         font-weight: 800;
+    }
+
+    /* HOLDINGS TOOLBAR & FILTER CHIPS */
+    .holdings-toolbar input:focus {
+        border-color: rgba(0, 240, 144, 0.4) !important;
+        box-shadow: 0 0 0 2px rgba(0, 240, 144, 0.15);
+    }
+
+    .active-filter-chip {
+        background: rgba(255, 255, 255, 0.14) !important;
+        border-color: rgba(255, 255, 255, 0.4) !important;
+        color: #fff !important;
+        font-weight: 800 !important;
     }
 
     /* STICKY HEADER & FROSTED GLASS */
@@ -2334,8 +2391,8 @@
                 pnlEl.innerText = '₹0.00';
                 pnlEl.className = 'metric-value text-green';
             }
+            applyHoldingsFilter();
         } else {
-            tbody.innerHTML = '';
             let totalHoldingsPnl = 0.0;
             positions.forEach(p => {
                 if (allScannerData && allScannerData.length > 0) {
@@ -2356,52 +2413,210 @@
                 p.unrealized_pnl = calcPnl;
                 p.unrealized_pnl_pct = calcPnlPct;
                 totalHoldingsPnl += calcPnl;
-
-                const tr = document.createElement('tr');
-                const pnlClass = p.unrealized_pnl >= 0 ? 'text-green' : 'text-red';
-                const pnlSign = p.unrealized_pnl >= 0 ? '+' : '';
-                const sideBadge = isShort 
-                    ? '<span class="side-badge side-short" style="background: rgba(255, 51, 102, 0.15); color: var(--red); border: 1px solid rgba(255, 51, 102, 0.3); padding: 3px 8px; border-radius: 4px; font-weight: 700; font-size: 0.72rem;"><i class="fa-solid fa-arrow-trend-down"></i> SHORT</span>'
-                    : '<span class="side-badge side-long" style="background: rgba(0, 240, 144, 0.15); color: var(--green); border: 1px solid rgba(0, 240, 144, 0.3); padding: 3px 8px; border-radius: 4px; font-weight: 700; font-size: 0.72rem;"><i class="fa-solid fa-arrow-trend-up"></i> LONG</span>';
-                
-                let slDisplay = `₹${(p.stop_loss || (isShort ? p.average_price * 1.025 : p.average_price * 0.975)).toFixed(2)}`;
-                if (p.trailing_active) {
-                    slDisplay += ` <span style="font-size: 0.68rem; color: var(--green); font-weight: 700;">🛡️ Breakeven</span>`;
-                }
-                let tpDisplay = `₹${(p.take_profit || (isShort ? p.average_price * 0.95 : p.average_price * 1.05)).toFixed(2)}`;
-                if (p.take_profit) {
-                    tpDisplay += ` <span style="font-size: 0.68rem; color: #a78bfa;">🎯 Target</span>`;
-                }
-
-                tr.innerHTML = `
-                    <td>
-                        <strong>${p.symbol.replace('.NS', '')}</strong> 
-                        <span style="font-size:0.7rem; color:var(--text-muted); display: block;">${p.symbol}</span>
-                    </td>
-                    <td>
-                        ${sideBadge}
-                    </td>
-                    <td style="font-weight: 700;">${p.quantity}</td>
-                    <td style="font-weight: 700;">₹${p.average_price.toFixed(2)}</td>
-                    <td style="font-weight: 700;">₹${p.current_price.toFixed(2)}</td>
-                    <td class="${pnlClass}" style="font-weight: 700;">${pnlSign}₹${p.unrealized_pnl.toFixed(2)}</td>
-                    <td class="${pnlClass}" style="font-weight: 700;">${pnlSign}${p.unrealized_pnl_pct.toFixed(2)}%</td>
-                    <td style="color: var(--red); font-weight: 700;">${slDisplay}</td>
-                    <td style="color: var(--green); font-weight: 700;">${tpDisplay}</td>
-                    <td>
-                        <button class="btn-action-close" onclick="exitBotPosition('${p.symbol}', ${p.quantity}, '${p.side || "LONG"}')">
-                            <i class="fa-solid fa-xmark"></i> ${isShort ? 'Cover' : 'Exit'}
-                        </button>
-                    </td>
-                `;
-                tbody.appendChild(tr);
             });
 
             if (pnlEl) {
                 pnlEl.innerText = `${totalHoldingsPnl >= 0 ? '+' : ''}₹${totalHoldingsPnl.toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
                 pnlEl.className = totalHoldingsPnl >= 0 ? 'metric-value text-green' : 'metric-value text-red';
             }
+
+            applyHoldingsFilter();
         }
+    }
+
+    // ==========================================
+    // ACTIVE HOLDINGS FILTER, SORT & EXPORT
+    // ==========================================
+    window.activeHoldingsFilter = 'ALL';
+
+    function setHoldingsFilter(filter) {
+        window.activeHoldingsFilter = filter;
+        ['all', 'long', 'short', 'profit', 'loss'].forEach(f => {
+            const btn = document.getElementById(`chip-h-${f}`);
+            if (btn) {
+                if (f === filter.toLowerCase()) {
+                    btn.classList.add('active-filter-chip');
+                } else {
+                    btn.classList.remove('active-filter-chip');
+                }
+            }
+        });
+        applyHoldingsFilter();
+    }
+
+    function resetHoldingsFilter() {
+        const input = document.getElementById('holdings-search-input');
+        if (input) input.value = '';
+        setHoldingsFilter('ALL');
+    }
+
+    function applyHoldingsFilter() {
+        const tbody = document.getElementById('bot-holdings-tbody');
+        if (!tbody) return;
+
+        const allPositions = window.cachedActivePositions || [];
+        const searchInput = document.getElementById('holdings-search-input');
+        const query = searchInput ? searchInput.value.trim().toUpperCase() : '';
+        const sortSelect = document.getElementById('holdings-sort-select');
+        const sortBy = sortSelect ? sortSelect.value : 'DEFAULT';
+
+        // Update counts on filter chips
+        const totalCount = allPositions.length;
+        const longCount = allPositions.filter(p => p.side !== 'SHORT').length;
+        const shortCount = allPositions.filter(p => p.side === 'SHORT').length;
+        const profitCount = allPositions.filter(p => (p.unrealized_pnl || 0) >= 0).length;
+        const lossCount = allPositions.filter(p => (p.unrealized_pnl || 0) < 0).length;
+
+        const elAll = document.getElementById('h-count-all');
+        if (elAll) elAll.innerText = totalCount;
+        const elLong = document.getElementById('h-count-long');
+        if (elLong) elLong.innerText = longCount;
+        const elShort = document.getElementById('h-count-short');
+        if (elShort) elShort.innerText = shortCount;
+        const elProfit = document.getElementById('h-count-profit');
+        if (elProfit) elProfit.innerText = profitCount;
+        const elLoss = document.getElementById('h-count-loss');
+        if (elLoss) elLoss.innerText = lossCount;
+
+        // Apply filter
+        let filtered = [...allPositions];
+        if (query) {
+            filtered = filtered.filter(p => 
+                (p.symbol && p.symbol.toUpperCase().includes(query)) ||
+                (p.displayName && p.displayName.toUpperCase().includes(query))
+            );
+        }
+
+        if (window.activeHoldingsFilter === 'LONG') {
+            filtered = filtered.filter(p => p.side !== 'SHORT');
+        } else if (window.activeHoldingsFilter === 'SHORT') {
+            filtered = filtered.filter(p => p.side === 'SHORT');
+        } else if (window.activeHoldingsFilter === 'PROFIT') {
+            filtered = filtered.filter(p => (p.unrealized_pnl || 0) >= 0);
+        } else if (window.activeHoldingsFilter === 'LOSS') {
+            filtered = filtered.filter(p => (p.unrealized_pnl || 0) < 0);
+        }
+
+        // Apply sort
+        if (sortBy === 'PNL_DESC') {
+            filtered.sort((a, b) => (b.unrealized_pnl || 0) - (a.unrealized_pnl || 0));
+        } else if (sortBy === 'PNL_ASC') {
+            filtered.sort((a, b) => (a.unrealized_pnl || 0) - (b.unrealized_pnl || 0));
+        } else if (sortBy === 'VAL_DESC') {
+            filtered.sort((a, b) => ((b.quantity || 0) * (b.current_price || 0)) - ((a.quantity || 0) * (a.current_price || 0)));
+        } else if (sortBy === 'SYM_ASC') {
+            filtered.sort((a, b) => (a.symbol || '').localeCompare(b.symbol || ''));
+        }
+
+        const statusEl = document.getElementById('holdings-filter-status');
+        if (statusEl) {
+            statusEl.innerText = (filtered.length === totalCount) ? `Showing all ${totalCount}` : `Showing ${filtered.length} of ${totalCount}`;
+        }
+
+        if (totalCount === 0) {
+            tbody.innerHTML = '<tr><td colspan="10" class="text-center" style="padding: 1.5rem; color: var(--text-muted);">No open positions held. Bot will execute buys when signals trigger.</td></tr>';
+            return;
+        }
+
+        if (filtered.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="10" class="text-center" style="padding: 1.5rem; color: var(--text-muted);"><i class="fa-solid fa-filter" style="margin-right: 6px;"></i> No holdings match filter "${window.activeHoldingsFilter}"${query ? ` and query "${query}"` : ''}. <button class="btn-sm btn-outline" onclick="resetHoldingsFilter()" style="margin-left: 8px; font-size: 0.72rem;">Clear Filter</button></td></tr>`;
+            return;
+        }
+
+        tbody.innerHTML = '';
+        filtered.forEach(p => {
+            const isShort = (p.side === 'SHORT');
+            const tr = document.createElement('tr');
+            const pnlClass = (p.unrealized_pnl || 0) >= 0 ? 'text-green' : 'text-red';
+            const pnlSign = (p.unrealized_pnl || 0) >= 0 ? '+' : '';
+            const sideBadge = isShort 
+                ? '<span class="side-badge side-short" style="background: rgba(255, 51, 102, 0.15); color: var(--red); border: 1px solid rgba(255, 51, 102, 0.3); padding: 3px 8px; border-radius: 4px; font-weight: 700; font-size: 0.72rem;"><i class="fa-solid fa-arrow-trend-down"></i> SHORT</span>'
+                : '<span class="side-badge side-long" style="background: rgba(0, 240, 144, 0.15); color: var(--green); border: 1px solid rgba(0, 240, 144, 0.3); padding: 3px 8px; border-radius: 4px; font-weight: 700; font-size: 0.72rem;"><i class="fa-solid fa-arrow-trend-up"></i> LONG</span>';
+            
+            let slDisplay = `₹${(p.stop_loss || (isShort ? p.average_price * 1.025 : p.average_price * 0.975)).toFixed(2)}`;
+            if (p.trailing_active) {
+                slDisplay += ` <span style="font-size: 0.68rem; color: var(--green); font-weight: 700;">🛡️ Breakeven</span>`;
+            }
+            let tpDisplay = `₹${(p.take_profit || (isShort ? p.average_price * 0.95 : p.average_price * 1.05)).toFixed(2)}`;
+            if (p.take_profit) {
+                tpDisplay += ` <span style="font-size: 0.68rem; color: #a78bfa;">🎯 Target</span>`;
+            }
+
+            tr.innerHTML = `
+                <td>
+                    <strong>${p.symbol.replace('.NS', '')}</strong> 
+                    <span style="font-size:0.7rem; color:var(--text-muted); display: block;">${p.symbol}</span>
+                </td>
+                <td>
+                    ${sideBadge}
+                </td>
+                <td style="font-weight: 700;">${p.quantity}</td>
+                <td style="font-weight: 700;">₹${(p.average_price || 0).toFixed(2)}</td>
+                <td style="font-weight: 700;">₹${(p.current_price || 0).toFixed(2)}</td>
+                <td class="${pnlClass}" style="font-weight: 700;">${pnlSign}₹${(p.unrealized_pnl || 0).toFixed(2)}</td>
+                <td class="${pnlClass}" style="font-weight: 700;">${pnlSign}${(p.unrealized_pnl_pct || 0).toFixed(2)}%</td>
+                <td style="color: var(--red); font-weight: 700;">${slDisplay}</td>
+                <td style="color: var(--green); font-weight: 700;">${tpDisplay}</td>
+                <td>
+                    <button class="btn-action-close" onclick="exitBotPosition('${p.symbol}', ${p.quantity}, '${p.side || "LONG"}')">
+                        <i class="fa-solid fa-xmark"></i> ${isShort ? 'Cover' : 'Exit'}
+                    </button>
+                </td>
+            `;
+            tbody.appendChild(tr);
+        });
+    }
+
+    function exportHoldingsCSV() {
+        const positions = window.cachedActivePositions || [];
+        if (positions.length === 0) {
+            showToast('No active holdings to export', 'warning');
+            return;
+        }
+
+        const searchInput = document.getElementById('holdings-search-input');
+        const query = searchInput ? searchInput.value.trim().toUpperCase() : '';
+        let listToExport = [...positions];
+
+        if (window.activeHoldingsFilter && window.activeHoldingsFilter !== 'ALL') {
+            if (window.activeHoldingsFilter === 'LONG') listToExport = listToExport.filter(p => p.side !== 'SHORT');
+            else if (window.activeHoldingsFilter === 'SHORT') listToExport = listToExport.filter(p => p.side === 'SHORT');
+            else if (window.activeHoldingsFilter === 'PROFIT') listToExport = listToExport.filter(p => (p.unrealized_pnl || 0) >= 0);
+            else if (window.activeHoldingsFilter === 'LOSS') listToExport = listToExport.filter(p => (p.unrealized_pnl || 0) < 0);
+        }
+        if (query) {
+            listToExport = listToExport.filter(p => 
+                (p.symbol && p.symbol.toUpperCase().includes(query)) ||
+                (p.displayName && p.displayName.toUpperCase().includes(query))
+            );
+        }
+
+        let csv = 'Stock,Symbol,Side,Quantity,AveragePrice,CurrentPrice,MarketValue,MarginUsed,UnrealizedPnL,UnrealizedPnLPct,StopLoss,TakeProfit,BreakevenShield\n';
+        listToExport.forEach(p => {
+            const isShort = (p.side === 'SHORT');
+            const costBasis = (p.quantity || 0) * (p.average_price || 0);
+            const marketVal = (p.quantity || 0) * (p.current_price || 0);
+            const marginUsed = costBasis / (p.leverage || 5);
+            const pnl = p.unrealized_pnl || 0;
+            const pnlPct = p.unrealized_pnl_pct || 0;
+            const sl = p.stop_loss || (isShort ? p.average_price * 1.025 : p.average_price * 0.975);
+            const tp = p.take_profit || (isShort ? p.average_price * 0.95 : p.average_price * 1.05);
+            const shield = p.trailing_active ? 'ACTIVE' : 'OFF';
+
+            csv += `"${p.symbol.replace('.NS', '')}","${p.symbol}","${p.side || 'LONG'}",${p.quantity},${(p.average_price||0).toFixed(2)},${(p.current_price||0).toFixed(2)},${marketVal.toFixed(2)},${marginUsed.toFixed(2)},${pnl.toFixed(2)},"${pnlPct.toFixed(2)}%",${sl.toFixed(2)},${tp.toFixed(2)},"${shield}"\n`;
+        });
+
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        const pagePrefix = window.location.pathname.includes('after-hours') ? 'nighthawk' : 'alpha';
+        a.download = `${pagePrefix}_active_holdings_${new Date().toISOString().slice(0, 10)}.csv`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        showToast(`Exported ${listToExport.length} active holdings to CSV`, 'success');
     }
 
     async function loadBotHoldings() {
@@ -2732,6 +2947,7 @@
         const viewActive = document.getElementById('view-active-holdings');
         const viewClosed = document.getElementById('view-closed-trades');
         const btnSessionCsv = document.getElementById('btn-export-session-csv');
+        const btnHoldingsCsv = document.getElementById('btn-export-holdings-csv');
         const btnCsv = document.getElementById('btn-export-csv');
 
         // Reset tab buttons
@@ -2745,6 +2961,7 @@
         if (viewClosed) viewClosed.style.display = 'none';
 
         if (btnSessionCsv) btnSessionCsv.style.display = 'none';
+        if (btnHoldingsCsv) btnHoldingsCsv.style.display = 'none';
         if (btnCsv) btnCsv.style.display = 'none';
 
         if (tab === 'session') {
@@ -2755,6 +2972,7 @@
         } else if (tab === 'active') {
             if (btnActive) btnActive.classList.add('active');
             if (viewActive) viewActive.style.display = 'block';
+            if (btnHoldingsCsv) btnHoldingsCsv.style.display = 'inline-flex';
             loadBotHoldings();
         } else if (tab === 'closed') {
             if (btnClosed) btnClosed.classList.add('active');
