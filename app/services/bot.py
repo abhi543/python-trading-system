@@ -107,7 +107,13 @@ class AutoTradingBot:
         self.strategy = persisted.get("strategy", "123_REVERSAL")
         self.allocation_per_trade = float(persisted.get("allocation_per_trade", default_alloc))
         self.leverage = float(persisted.get("leverage", 5.0))  # 5x NSE Intraday MIS Leverage
-        self.max_positions = int(persisted.get("max_positions", 3))
+        self.max_positions = int(persisted.get("max_positions", 0))
+        self.slippage_pct = float(persisted.get("slippage_pct", 0.0))
+        try:
+            from app.services.paper_trader import AfterHoursPaperTradingEngine
+            AfterHoursPaperTradingEngine.slippage_pct = self.slippage_pct
+        except Exception:
+            pass
         self.interval_seconds = 60  # 1 minute (60 seconds)
         self.fast_period = 9
         self.slow_period = 21
@@ -315,7 +321,8 @@ class AutoTradingBot:
             "leverage": self.leverage,
             "buying_power_per_trade": self.allocation_per_trade * self.leverage,
             "max_positions": self.max_positions,
-            "is_unlimited_positions": (self.strategy == "123_REVERSAL"),
+            "is_unlimited_positions": (self.max_positions <= 0),
+            "slippage_pct": getattr(self, 'slippage_pct', 0.0),
             "interval_seconds": self.interval_seconds,
             "fast_period": self.fast_period,
             "slow_period": self.slow_period,
@@ -362,6 +369,13 @@ class AutoTradingBot:
             self.leverage = float(config["leverage"])
         if "max_positions" in config:
             self.max_positions = int(config["max_positions"])
+        if "slippage_pct" in config:
+            self.slippage_pct = float(config["slippage_pct"])
+            try:
+                from app.services.paper_trader import AfterHoursPaperTradingEngine
+                AfterHoursPaperTradingEngine.slippage_pct = self.slippage_pct
+            except Exception:
+                pass
         if "fast_period" in config:
             self.fast_period = int(config["fast_period"])
         if "slow_period" in config:
@@ -807,7 +821,7 @@ class AutoTradingBot:
 
         # 0. Enforce Operating Hours: ALPHA strictly during Live Market, NIGHTHAWK strictly After Hours
         market_open = is_nse_market_open()
-        is_explicit_test = simulation_event in ["FORCE_BUY", "STOP_SHOCK", "BULL_SURGE", "TRAIL_PUSH"]
+        is_explicit_test = simulation_event in ["FORCE_BUY", "STOP_SHOCK", "FLASH_CRASH", "BULL_SURGE", "BULL_RUNNER", "TRAIL_PUSH", "WHIPSAW_CHOP"]
 
         if self.name == "ALPHA" and not market_open and not is_explicit_test:
             if self.is_running:
@@ -863,7 +877,7 @@ class AutoTradingBot:
             })
             self.add_log(f"⚡ [TEST SIGNAL] Instant BUY executed: {trade_qty} shares of {force_sym.replace('.NS', '')} @ ₹{p:.2f} (Total: ₹{trade_qty*p:,.2f})", "SUCCESS")
 
-        elif simulation_event in ["BULL_SURGE", "TRAIL_PUSH", "STOP_SHOCK"]:
+        elif simulation_event in ["BULL_SURGE", "BULL_RUNNER", "TRAIL_PUSH", "STOP_SHOCK", "FLASH_CRASH", "WHIPSAW_CHOP"]:
             # If no open positions exist, automatically seed one so the user can immediately observe the risk exit!
             held_positions = self.pos_model.query.filter(self.pos_model.quantity > 0).all()
             if not held_positions:
@@ -942,21 +956,29 @@ class AutoTradingBot:
             pos = held_map.get(symbol)
             orig_p = stock_data["price"]
             
-            if simulation_event == "BULL_SURGE" and pos:
-                # Force price up to +2.5% above entry to trigger Breakeven Shield
-                surged_price = round(pos.average_price * 1.025, 2)
+            if simulation_event in ["BULL_SURGE", "BULL_RUNNER"] and pos:
+                # Best Scenario 1: Momentum Bull Surge (+3.5%) to trigger Breakeven Shield & Take-Profit
+                surged_price = round(pos.average_price * 1.035, 2)
                 stock_data["price"] = surged_price
                 stock_data["percent_change"] = round(((surged_price - pos.average_price) / pos.average_price) * 100, 2)
             elif simulation_event == "TRAIL_PUSH" and pos:
-                # Force price up to +4.5% to trail stop upward
+                # Best Scenario 2: Strong trend push (+4.5%) to trail stop upward
                 trailed_price = round(pos.average_price * 1.045, 2)
                 stock_data["price"] = trailed_price
                 stock_data["percent_change"] = round(((trailed_price - pos.average_price) / pos.average_price) * 100, 2)
-            elif simulation_event == "STOP_SHOCK" and pos:
-                # Drop price to -3.5% below stop loss level to trigger liquidation
-                shocked_price = round(pos.average_price * 0.965, 2)
+            elif simulation_event in ["STOP_SHOCK", "FLASH_CRASH"] and pos:
+                # Worst Scenario 1: Macro Flash Crash (-2.5%) across active holdings to test simultaneous SL liquidation
+                shocked_price = round(pos.average_price * 0.975, 2)
                 stock_data["price"] = shocked_price
-                stock_data["percent_change"] = -3.5
+                stock_data["percent_change"] = -2.5
+            elif simulation_event == "WHIPSAW_CHOP":
+                # Worst Scenario 2: Whipsaw False Breakout - drops -1.2% to test false breakout trap
+                if pos:
+                    whip_price = round(pos.average_price * 0.988, 2)
+                    stock_data["price"] = whip_price
+                    stock_data["percent_change"] = -1.2
+                else:
+                    stock_data["price"] = round(orig_p * 1.002, 2)
             elif self.is_after_hours_forced or (after_hours and (simulation_event in ["RANDOM_WALK", "AFTER_HOURS_WALK"] or not simulation_event)):
                 # Continuous dynamic price drift in NIGHTHAWK 24/7 sandbox and after-market hours
                 sim_price = get_after_hours_price(symbol, orig_p, pos)
@@ -997,8 +1019,9 @@ class AutoTradingBot:
             display_name = eval_res["displayName"]
 
             # AUTO-TRADE EXECUTION LOGIC (TWO-WAY: LONG & SHORT):
-            is_unlimited_positions = (self.strategy == "123_REVERSAL")
-            has_position_slot = is_unlimited_positions or (len(held_map) < self.max_positions)
+            max_limit = getattr(self, 'max_positions', 0)
+            # If max_positions is 0 or negative, allow unlimited. Otherwise strictly enforce the cap!
+            has_position_slot = (max_limit <= 0) or (len(held_map) < max_limit)
 
             if sig == "BUY":
                 buys_found += 1

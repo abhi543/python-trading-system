@@ -153,9 +153,15 @@
                 </div>
 
                 <div class="config-item" id="cfg-item-max-positions">
-                    <label><i class="fa-solid fa-boxes-stacked"></i> MAX CONCURRENT POSITIONS</label>
-                    <input type="number" id="bot-max-positions" class="config-input" value="3" min="1" max="50" onchange="onStrategyChange()">
+                    <label><i class="fa-solid fa-boxes-stacked"></i> MAX CONCURRENT POSITIONS (0 = UNLIMITED)</label>
+                    <input type="number" id="bot-max-positions" class="config-input" value="0" min="0" max="50" onchange="onStrategyChange()">
                     <span id="badge-unlimited-pos" class="badge" style="font-size: 0.68rem; background: rgba(0, 240, 144, 0.15); color: var(--green); border: 1px solid rgba(0, 240, 144, 0.3); margin-top: 4px; display: inline-block;">✨ Unlimited (1-2-3 Mode)</span>
+                </div>
+
+                <div class="config-item" id="cfg-item-slippage">
+                    <label><i class="fa-solid fa-arrows-split-up-and-left" style="color: #ffd166;"></i> SIMULATED SLIPPAGE (%)</label>
+                    <input type="number" id="bot-slippage-pct" class="config-input" value="0.0" step="0.05" min="0.0" max="2.0" onchange="onStrategyChange()">
+                    <span class="badge" style="font-size: 0.68rem; background: rgba(255, 209, 102, 0.15); color: #ffd166; border: 1px solid rgba(255, 209, 102, 0.3); margin-top: 4px; display: inline-block;">⚖️ Bid-Ask spread &amp; execution drag</span>
                 </div>
 
                 <div class="config-item" id="cfg-item-stop-loss">
@@ -249,6 +255,93 @@
             <!-- LEFT COLUMN: SIGNAL RADAR & POSITIONS -->
             <div class="bot-left-col">
                 
+                <!-- NIGHTHAWK STRESS LAB & REGIME SIMULATOR -->
+                <div class="bot-stress-card">
+                    <div class="section-card-header" style="background: rgba(139, 92, 246, 0.08); border-bottom: 1px solid rgba(139, 92, 246, 0.25);">
+                        <div>
+                            <h3 style="color: #c084fc;">
+                                <i class="fa-solid fa-flask-vial"></i> NIGHTHAWK STRESS LAB — BEST &amp; WORST REGIME SIMULATOR
+                            </h3>
+                            <span class="card-caption">Instantly stress-test your risk controls, trailing stops, hard SL liquidations &amp; slippage friction</span>
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 0.75rem;">
+                            <span style="font-size: 0.72rem; color: var(--text-muted); text-transform: uppercase; font-weight: 700;">Active Regime:</span>
+                            <span class="regime-badge regime-neutral" id="active-regime-pill">
+                                <i class="fa-solid fa-wave-square"></i> NORMAL DRIFT
+                            </span>
+                        </div>
+                    </div>
+
+                    <!-- SCENARIO TRIGGER BUTTONS -->
+                    <div class="stress-grid-actions">
+                        <!-- WORST CASE 1: FLASH CRASH -->
+                        <button type="button" class="btn-stress-event danger" onclick="triggerStressEvent('FLASH_CRASH')" title="Simulate -2.5% correlated macro shock across all holdings">
+                            <span class="stress-btn-title" style="color: #f87171;"><i class="fa-solid fa-tornado"></i> FLASH CRASH (-2.5%)</span>
+                            <span class="stress-btn-desc">Macro shock across all holdings. Verifies 1.0% Hard SL containment &amp; zero catastrophic loss.</span>
+                        </button>
+
+                        <!-- WORST CASE 2: WHIPSAW CHOP -->
+                        <button type="button" class="btn-stress-event warning" onclick="triggerStressEvent('WHIPSAW_CHOP')" title="Simulate range-bound chop &amp; -1.2% false breakout trap">
+                            <span class="stress-btn-title" style="color: #fbbf24;"><i class="fa-solid fa-bolt"></i> WHIPSAW CHOP (-1.2%)</span>
+                            <span class="stress-btn-desc">False breakout trap. Verifies tight Point 3 SL or quick exit before deeper drawdown.</span>
+                        </button>
+
+                        <!-- BEST CASE 1: BULL RUNNER -->
+                        <button type="button" class="btn-stress-event success" onclick="triggerStressEvent('BULL_RUNNER')" title="Simulate +3.5% momentum surge to trigger Breakeven Shield">
+                            <span class="stress-btn-title" style="color: #34d399;"><i class="fa-solid fa-water"></i> BULL RUNNER (+3.5%)</span>
+                            <span class="stress-btn-desc">Strong momentum breakout. Verifies +1.0% Breakeven Shield lock &amp; Take-Profit.</span>
+                        </button>
+
+                        <!-- BEST CASE 2: TRAILING PUSH -->
+                        <button type="button" class="btn-stress-event success" onclick="triggerStressEvent('TRAIL_PUSH')" title="Simulate +4.5% runner extension to test multi-tier trailing stop escalation">
+                            <span class="stress-btn-title" style="color: #38bdf8;"><i class="fa-solid fa-arrow-trend-up"></i> TRAILING PUSH (+4.5%)</span>
+                            <span class="stress-btn-desc">Trend extension. Escalates Trailing Stop upward to lock peak unrealized gains.</span>
+                        </button>
+                    </div>
+
+                    <!-- STRESS LAB DEFENSE CONTROLS & UTILITIES -->
+                    <div class="stress-controls-row">
+                        <div style="display: flex; align-items: center; gap: 1.25rem; flex-wrap: wrap;">
+                            <!-- MAX CONCURRENT POSITIONS CAP -->
+                            <div style="display: flex; align-items: center; gap: 0.5rem;">
+                                <label for="stress-max-positions" style="font-size: 0.75rem; font-weight: 700; color: var(--text-muted);">
+                                    <i class="fa-solid fa-boxes-stacked" style="color: var(--blue);"></i> Max Positions Cap:
+                                </label>
+                                <select id="stress-max-positions" class="config-input" style="padding: 0.35rem 0.6rem; font-size: 0.78rem; width: auto;" onchange="updateStressRiskControls()">
+                                    <option value="0">Unlimited (Default)</option>
+                                    <option value="5">5 Positions (Safe Live Desk)</option>
+                                    <option value="8">8 Positions (Balanced)</option>
+                                    <option value="12">12 Positions (Aggressive)</option>
+                                    <option value="3">3 Positions (Ultra Conservative)</option>
+                                </select>
+                            </div>
+
+                            <!-- SIMULATED SLIPPAGE & SPREAD -->
+                            <div style="display: flex; align-items: center; gap: 0.5rem;">
+                                <label for="stress-slippage" style="font-size: 0.75rem; font-weight: 700; color: var(--text-muted);">
+                                    <i class="fa-solid fa-arrows-split-up-and-left" style="color: #ffd166;"></i> Slippage Drag:
+                                </label>
+                                <select id="stress-slippage" class="config-input" style="padding: 0.35rem 0.6rem; font-size: 0.78rem; width: auto;" onchange="updateStressRiskControls()">
+                                    <option value="0.0">0.00% (Zero Friction)</option>
+                                    <option value="0.05">0.05% (Liquid Nifty 50)</option>
+                                    <option value="0.10">0.10% (Midcap / Normal)</option>
+                                    <option value="0.15">0.15% (Volatile High Drag)</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <!-- SEED & RESET SHORTCUTS -->
+                        <div style="display: flex; align-items: center; gap: 0.5rem;">
+                            <button type="button" class="btn-sm btn-outline" onclick="triggerStressEvent('FORCE_BUY')" style="border-color: rgba(139, 92, 246, 0.4); color: #c084fc; font-weight: 700;" title="Instantly seed 1 position to test risk exits if holdings are empty">
+                                <i class="fa-solid fa-bullseye"></i> Seed Test Trade
+                            </button>
+                            <button type="button" class="btn-sm btn-outline" onclick="triggerStressEvent('AFTER_HOURS_WALK')" style="border-color: var(--border); color: var(--text-muted); font-weight: 600;" title="Reset back to standard simulated dynamic price walk">
+                                <i class="fa-solid fa-rotate-left"></i> Reset Regime
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- NIFTY LIVE SIGNAL RADAR -->
                 <div class="bot-section-card">
                     <div class="section-card-header">
@@ -1626,6 +1719,99 @@
         }
     }
 
+    .bot-stress-card {
+        background: linear-gradient(135deg, rgba(20, 27, 45, 0.95), rgba(15, 23, 42, 0.98));
+        border: 1px solid rgba(139, 92, 246, 0.35);
+        border-radius: 12px;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+        margin-bottom: 1.5rem;
+        overflow: hidden;
+    }
+    .stress-grid-actions {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 0.75rem;
+        padding: 1rem 1.35rem;
+    }
+    .btn-stress-event {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        padding: 0.85rem 1rem;
+        border-radius: 8px;
+        border: 1px solid var(--border);
+        background: rgba(30, 41, 59, 0.7);
+        color: #fff;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        text-align: left;
+    }
+    .btn-stress-event:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+    }
+    .btn-stress-event.danger:hover {
+        border-color: #ef4444;
+        background: rgba(239, 68, 68, 0.15);
+    }
+    .btn-stress-event.warning:hover {
+        border-color: #f59e0b;
+        background: rgba(245, 158, 11, 0.15);
+    }
+    .btn-stress-event.success:hover {
+        border-color: #10b981;
+        background: rgba(16, 185, 129, 0.15);
+    }
+    .stress-btn-title {
+        font-weight: 700;
+        font-size: 0.85rem;
+        margin-bottom: 0.35rem;
+        display: flex;
+        align-items: center;
+        gap: 0.4rem;
+    }
+    .stress-btn-desc {
+        font-size: 0.72rem;
+        color: var(--text-muted);
+        line-height: 1.35;
+    }
+    .stress-controls-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+        flex-wrap: wrap;
+        padding: 0.85rem 1.35rem;
+        background: rgba(15, 23, 42, 0.6);
+        border-top: 1px solid rgba(255, 255, 255, 0.05);
+    }
+    .regime-badge {
+        padding: 0.35rem 0.75rem;
+        border-radius: 9999px;
+        font-size: 0.75rem;
+        font-weight: 700;
+        letter-spacing: 0.03em;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+        transition: all 0.2s ease;
+    }
+    .regime-neutral {
+        background: rgba(139, 92, 246, 0.15);
+        color: #a78bfa;
+        border: 1px solid rgba(139, 92, 246, 0.4);
+    }
+    .regime-danger {
+        background: rgba(239, 68, 68, 0.18);
+        color: #f87171;
+        border: 1px solid rgba(239, 68, 68, 0.5);
+    }
+    .regime-success {
+        background: rgba(16, 185, 129, 0.18);
+        color: #34d399;
+        border: 1px solid rgba(16, 185, 129, 0.5);
+    }
+
     .bot-section-card {
         background: var(--bg-card);
         border: 1px solid var(--border);
@@ -2767,8 +2953,25 @@
         if (data.allocation_per_trade !== undefined && !document.getElementById('bot-allocation').matches(':focus')) {
             document.getElementById('bot-allocation').value = data.allocation_per_trade;
         }
-        if (data.max_positions !== undefined && !document.getElementById('bot-max-positions').matches(':focus')) {
-            document.getElementById('bot-max-positions').value = data.max_positions;
+        if (data.max_positions !== undefined) {
+            const drawerMax = document.getElementById('bot-max-positions');
+            if (drawerMax && !drawerMax.matches(':focus')) {
+                drawerMax.value = data.max_positions;
+            }
+            const stressMax = document.getElementById('stress-max-positions');
+            if (stressMax && !stressMax.matches(':focus')) {
+                stressMax.value = data.max_positions.toString();
+            }
+        }
+        if (data.slippage_pct !== undefined) {
+            const drawerSlip = document.getElementById('bot-slippage-pct');
+            if (drawerSlip && !drawerSlip.matches(':focus')) {
+                drawerSlip.value = data.slippage_pct;
+            }
+            const stressSlip = document.getElementById('stress-slippage');
+            if (stressSlip && !stressSlip.matches(':focus')) {
+                stressSlip.value = data.slippage_pct.toString();
+            }
         }
         if (data.stop_loss_pct !== undefined && !document.getElementById('bot-stop-loss').matches(':focus')) {
             document.getElementById('bot-stop-loss').value = data.stop_loss_pct;
@@ -2967,7 +3170,14 @@
         const slInput = document.getElementById('bot-stop-loss');
         const tpInput = document.getElementById('bot-take-profit');
 
-        if (unlBadge) unlBadge.style.display = is123 ? 'inline-block' : 'none';
+        if (unlBadge) {
+            unlBadge.style.display = is123 ? 'inline-block' : 'none';
+            if (posInput && parseInt(posInput.value) > 0) {
+                unlBadge.innerHTML = `🛡️ Capped at ${posInput.value} Max Positions`;
+            } else {
+                unlBadge.innerHTML = '✨ Unlimited (0 = Unlimited)';
+            }
+        }
         if (slBadge) {
             slBadge.innerHTML = is123 ? '🛡️ Point 3 Stop (Max Clamped Ceiling)' : '🛑 Fixed % Stop-Loss';
             slBadge.style.display = 'inline-block';
@@ -2978,8 +3188,8 @@
         }
 
         if (posInput) {
-            posInput.style.opacity = is123 ? '0.6' : '1.0';
-            posInput.title = is123 ? 'Unlimited positions for 1-2-3 Reversal strategy' : '';
+            posInput.style.opacity = '1.0';
+            posInput.title = 'Max concurrent positions (0 = Unlimited)';
         }
         if (slInput) {
             slInput.style.opacity = '1.0';
@@ -3200,13 +3410,32 @@
     }
 
     function getCurrentBotConfig() {
+        const stressMax = document.getElementById('stress-max-positions');
+        const drawerMax = document.getElementById('bot-max-positions');
+        let maxPos = 0;
+        if (stressMax && stressMax.value !== undefined) {
+            maxPos = parseInt(stressMax.value);
+        } else if (drawerMax && drawerMax.value !== undefined) {
+            maxPos = parseInt(drawerMax.value);
+        }
+
+        const stressSlip = document.getElementById('stress-slippage');
+        const drawerSlip = document.getElementById('bot-slippage-pct');
+        let slippage = 0.0;
+        if (stressSlip && stressSlip.value !== undefined) {
+            slippage = parseFloat(stressSlip.value);
+        } else if (drawerSlip && drawerSlip.value !== undefined) {
+            slippage = parseFloat(drawerSlip.value);
+        }
+
         return {
             is_running: isBotActive,
             scan_mode: document.getElementById('bot-scan-mode')?.value || 'ALL_NIFTY_200',
             single_symbol: document.getElementById('bot-symbol')?.value?.trim()?.toUpperCase() || 'RELIANCE.NS',
             strategy: document.getElementById('bot-strategy')?.value || '123_REVERSAL',
             allocation_per_trade: parseFloat(document.getElementById('bot-allocation')?.value) || 200000,
-            max_positions: parseInt(document.getElementById('bot-max-positions')?.value) || 3,
+            max_positions: isNaN(maxPos) ? 0 : maxPos,
+            slippage_pct: isNaN(slippage) ? 0.0 : slippage,
             interval_seconds: 60,
             stop_loss_pct: parseFloat(document.getElementById('bot-stop-loss')?.value) || 1.0,
             take_profit_pct: parseFloat(document.getElementById('bot-take-profit')?.value) || 1.0,
@@ -3295,6 +3524,85 @@
                 btn.disabled = false;
             }
             isScanning = false;
+        }
+    }
+
+    let currentSimRegime = 'NORMAL DRIFT';
+
+    async function triggerStressEvent(eventName) {
+        const regimePill = document.getElementById('active-regime-pill');
+        const regimeMap = {
+            'FLASH_CRASH': { label: '<i class="fa-solid fa-tornado"></i> FLASH CRASH (-2.5%)', cls: 'regime-danger' },
+            'WHIPSAW_CHOP': { label: '<i class="fa-solid fa-bolt"></i> WHIPSAW CHOP (-1.2%)', cls: 'regime-danger' },
+            'BULL_RUNNER': { label: '<i class="fa-solid fa-water"></i> BULL RUNNER (+3.5%)', cls: 'regime-success' },
+            'TRAIL_PUSH': { label: '<i class="fa-solid fa-chart-line-up"></i> TRAILING PUSH (+4.5%)', cls: 'regime-success' },
+            'FORCE_BUY': { label: '<i class="fa-solid fa-bullseye"></i> SEED POSITION', cls: 'regime-neutral' },
+            'AFTER_HOURS_WALK': { label: '<i class="fa-solid fa-wave-square"></i> NORMAL DRIFT', cls: 'regime-neutral' }
+        };
+        
+        const regimeInfo = regimeMap[eventName] || { label: eventName, cls: 'regime-neutral' };
+        currentSimRegime = regimeInfo.label;
+        if (regimePill) {
+            regimePill.innerHTML = regimeInfo.label;
+            regimePill.className = `regime-badge ${regimeInfo.cls}`;
+        }
+
+        showToast(`Executing Regime Simulation: ${eventName}...`, 'info');
+
+        try {
+            const cfg = getCurrentBotConfig();
+            cfg.is_running = isBotActive;
+            const res = await fetch('/api/after-hours/tick', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    event: eventName,
+                    config: cfg,
+                    is_running: isBotActive,
+                    client_positions: getStoredActivePositions()
+                })
+            });
+            if (!res.ok) {
+                throw new Error(`Server returned HTTP ${res.status}`);
+            }
+            const data = await res.json();
+            if (data.bot_state) {
+                updateBotUI(data.bot_state);
+            }
+            await loadAccountMetrics();
+            await loadBotHoldings();
+            showToast(`Regime Event [${eventName}] Processed! Check Active Holdings & Ledger`, 'success');
+        } catch (err) {
+            console.error('Stress simulation error:', err);
+            showToast('Stress simulation error: ' + err.message, 'error');
+        }
+    }
+
+    async function updateStressRiskControls() {
+        const maxPosVal = parseInt(document.getElementById('stress-max-positions')?.value ?? 0);
+        const slippageVal = parseFloat(document.getElementById('stress-slippage')?.value ?? 0.0);
+
+        // Sync with drawer inputs
+        const drawerMaxPos = document.getElementById('bot-max-positions');
+        if (drawerMaxPos) drawerMaxPos.value = maxPosVal;
+        const drawerSlippage = document.getElementById('bot-slippage-pct');
+        if (drawerSlippage) drawerSlippage.value = slippageVal;
+
+        const cfg = getCurrentBotConfig();
+        cfg.max_positions = maxPosVal;
+        cfg.slippage_pct = slippageVal;
+
+        try {
+            const res = await fetch('/api/after-hours/config', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(cfg)
+            });
+            const data = await res.json();
+            if (data.bot_state) updateBotUI(data.bot_state);
+            showToast(`Risk Controls Applied: Max Positions = ${maxPosVal === 0 ? 'Unlimited' : maxPosVal}, Slippage = ${slippageVal}%`, 'success');
+        } catch (e) {
+            showToast('Risk controls update failed: ' + e.message, 'error');
         }
     }
 

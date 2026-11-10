@@ -475,6 +475,7 @@ class PaperTradingEngine:
 class AfterHoursPaperTradingEngine:
     LEVERAGE = 5.0
     INITIAL_CASH = 10000000.0  # ₹1 Crore (₹10,000,000)
+    slippage_pct = 0.0
 
     @staticmethod
     def reconcile_account_balance():
@@ -602,6 +603,15 @@ class AfterHoursPaperTradingEngine:
             price = quote["price"]
 
         turnover = round(quantity * price, 2)
+        # Apply simulated spread & slippage friction if configured
+        slip = float(getattr(AfterHoursPaperTradingEngine, 'slippage_pct', 0.0) or 0.0)
+        if slip > 0:
+            if side in ["BUY", "COVER"]:
+                price = round(price * (1.0 + slip / 100.0), 2)
+            elif side in ["SELL", "SHORT"]:
+                price = round(price * (1.0 - slip / 100.0), 2)
+            turnover = round(quantity * price, 2)
+
         account = AfterHoursPaperTradingEngine.reconcile_account_balance()
         if not account:
             return {"success": False, "message": "After-hours account not initialized"}
