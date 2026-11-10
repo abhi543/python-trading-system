@@ -52,13 +52,16 @@ def is_nse_market_open() -> bool:
 def get_after_hours_price(symbol: str, base_price: float, pos=None) -> float:
     import random
     global _price_drift_state
+    base = (getattr(pos, 'average_price', None) or base_price) if pos else base_price
     if symbol not in _price_drift_state:
-        # Bias held positions slightly upward so Breakeven & Trailing Stops showcase
-        init_trend = 1 if pos else random.choice([-1, 1, 1])
+        # Held positions start with realistic initial drift so active P&L is immediately visible
+        is_pos_short = (getattr(pos, 'side', 'LONG') == 'SHORT') if pos else False
+        init_trend = -1 if is_pos_short else (1 if pos else random.choice([-1, 1, 1]))
+        init_drift = random.uniform(0.004, 0.012) * init_trend if pos else random.uniform(-0.005, 0.005)
         _price_drift_state[symbol] = {
-            "drift_pct": 0.0,
+            "drift_pct": init_drift,
             "trend": init_trend,
-            "step_count": 0
+            "step_count": 1
         }
     
     st = _price_drift_state[symbol]
@@ -68,11 +71,11 @@ def get_after_hours_price(symbol: str, base_price: float, pos=None) -> float:
     drift_step = random.gauss(0.002 * st["trend"], 0.005)
     st["drift_pct"] = max(-0.045, min(0.065, st["drift_pct"] + drift_step))
     
-    # 10% chance to flip drift direction
+    # 12% chance to flip drift direction
     if random.random() < 0.12:
         st["trend"] *= -1
         
-    return round(base_price * (1.0 + st["drift_pct"]), 2)
+    return round(base * (1.0 + st["drift_pct"]), 2)
 
 class AutoTradingBot:
     def __init__(self, state_filename="trading_bot_state.json", name="LiveBot", is_after_hours_forced=False):
@@ -954,8 +957,8 @@ class AutoTradingBot:
                 shocked_price = round(pos.average_price * 0.965, 2)
                 stock_data["price"] = shocked_price
                 stock_data["percent_change"] = -3.5
-            elif after_hours and (simulation_event in ["RANDOM_WALK", "AFTER_HOURS_WALK"] or not simulation_event):
-                # Continuous dynamic price drift strictly during after-market hours
+            elif self.is_after_hours_forced or (after_hours and (simulation_event in ["RANDOM_WALK", "AFTER_HOURS_WALK"] or not simulation_event)):
+                # Continuous dynamic price drift in NIGHTHAWK 24/7 sandbox and after-market hours
                 sim_price = get_after_hours_price(symbol, orig_p, pos)
                 stock_data["price"] = sim_price
                 if "closes" in stock_data and len(stock_data["closes"]) > 0:

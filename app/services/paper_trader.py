@@ -508,10 +508,12 @@ class AfterHoursPaperTradingEngine:
         total_market_value = 0.0
         total_margin_used = 0.0
         total_unrealized_pnl = 0.0
+        from app.services.bot import get_after_hours_price
 
         for pos in positions:
             quote = MarketDataService.get_quote(pos.symbol)
-            current_price = quote.get("price", pos.average_price) if "error" not in quote else pos.average_price
+            base_price = getattr(pos, 'average_price', None) or (quote.get("price", 100.0) if "error" not in quote else 100.0)
+            current_price = get_after_hours_price(pos.symbol, base_price, pos)
 
             side = getattr(pos, 'side', 'LONG') or 'LONG'
             cost_basis = pos.quantity * pos.average_price
