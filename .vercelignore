@@ -1,0 +1,18 @@
+# Local virtual environments & caches
+venv/
+__pycache__/
+*.pyc
+
+# Local data & reports
+*.pdf
+*.xlsx
+*.json
+report_assets/
+scratch/
+instance/
+trading.db
+
+# Documentation & git
+.git/
+.github/
+README.md
