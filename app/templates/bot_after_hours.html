@@ -425,6 +425,9 @@
                             <button id="btn-export-holdings-csv" class="btn-sm btn-outline" onclick="exportHoldingsCSV()" style="display: none;">
                                 <i class="fa-solid fa-file-csv" style="color: var(--blue);"></i> Export Holdings CSV
                             </button>
+                            <button id="btn-export-zerodha-basket" class="btn-sm btn-outline" onclick="exportZerodhaBasketJSON()" style="display: none; border-color: rgba(255, 87, 34, 0.5); color: #ff5722; font-weight: 700; background: rgba(255, 87, 34, 0.08);" title="Download 1-Click Importable Basket file for Zerodha Kite">
+                                <i class="fa-solid fa-basket-shopping" style="color: #ff5722;"></i> Zerodha Basket (.json)
+                            </button>
                             <button id="btn-export-csv" class="btn-sm btn-outline" onclick="exportClosedTradesCSV()" style="display: none;">
                                 <i class="fa-solid fa-file-csv" style="color: #ffd166;"></i> Export All Closed
                             </button>
@@ -806,12 +809,19 @@
                 <div style="position: relative;">
                     <textarea id="ticket-copy-text" readonly rows="2" style="width: 100%; background: rgba(0,0,0,0.5); border: 1px solid rgba(255,255,255,0.12); border-radius: 6px; padding: 8px 10px; font-family: var(--font-code); font-size: 0.75rem; color: #38bdf8; resize: none; outline: none;"></textarea>
                 </div>
+                <div style="margin-top: 0.5rem; font-size: 0.72rem; color: var(--text-muted); display: flex; align-items: center; gap: 0.4rem;">
+                    <i class="fa-solid fa-circle-info" style="color: #ff5722;"></i>
+                    <span><strong>Zerodha 1-Click:</strong> Click <em>"ZERODHA BASKET (.JSON)"</em> below ➔ in Kite open <strong>Orders ➔ Baskets ➔ New Basket ➔ Import</strong>!</span>
+                </div>
             </div>
         </div>
 
-        <div class="broker-modal-footer">
-            <button id="btn-ticket-copy" class="btn-bot-start" onclick="copyTicketToClipboard()" style="padding: 8px 16px; font-size: 0.8rem;">
-                <i class="fa-solid fa-copy"></i> COPY ORDER DETAILS
+        <div class="broker-modal-footer" style="display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center;">
+            <button id="btn-ticket-copy" class="btn-bot-start" onclick="copyTicketToClipboard()" style="padding: 8px 14px; font-size: 0.8rem;">
+                <i class="fa-solid fa-copy"></i> COPY DETAILS
+            </button>
+            <button id="btn-ticket-zerodha" class="btn-sm btn-outline" onclick="downloadSingleZerodhaBasket()" style="padding: 8px 14px; font-size: 0.8rem; border-color: rgba(255, 87, 34, 0.6); color: #ff5722; font-weight: 700; background: rgba(255, 87, 34, 0.1);" title="Download 1-Click Importable Basket file for Zerodha Kite">
+                <i class="fa-solid fa-basket-shopping"></i> ZERODHA BASKET (.JSON)
             </button>
             <a id="ticket-tv-link" href="#" target="_blank" class="btn-sm btn-outline" style="text-decoration: none; display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px; font-size: 0.8rem; border-color: rgba(56, 189, 248, 0.4); color: #38bdf8;">
                 <i class="fa-solid fa-arrow-up-right-from-square"></i> TRADINGVIEW CHART
@@ -2298,6 +2308,66 @@
         }).catch(err => {
             showToast('Clipboard permission denied', 'error');
         });
+    }
+
+    function generateZerodhaBasketItem(symbol, side, qty, price) {
+        const cleanSym = (symbol || '').replace('.NS', '').replace('.BO', '').trim().toUpperCase();
+        const isShort = (side === 'SHORT' || side === 'SELL');
+        return {
+            variety: "regular",
+            tradingsymbol: cleanSym,
+            exchange: "NSE",
+            transaction_type: isShort ? "SELL" : "BUY",
+            order_type: "MARKET",
+            product: "MIS",
+            quantity: Math.max(1, parseInt(qty) || 1),
+            price: 0,
+            trigger_price: 0,
+            validity: "DAY",
+            disclosed_quantity: 0,
+            squareoff: 0,
+            stoploss: 0,
+            trailing_stoploss: 0
+        };
+    }
+
+    function downloadSingleZerodhaBasket() {
+        if (!currentTicketData) return;
+        const item = generateZerodhaBasketItem(currentTicketData.symbol, currentTicketData.side, currentTicketData.qty, currentTicketData.price);
+        const jsonStr = JSON.stringify([item], null, 2);
+        const blob = new Blob([jsonStr], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        const cleanSym = (currentTicketData.symbol || 'ORDER').replace('.NS', '');
+        a.download = `zerodha_basket_${cleanSym}.json`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        showToast(`Downloaded Zerodha Basket JSON for ${cleanSym}! In Kite: Orders ➔ Baskets ➔ New Basket ➔ Import`, 'success');
+    }
+
+    function exportZerodhaBasketJSON() {
+        const active = getStoredActivePositions() || [];
+        if (!active || active.length === 0) {
+            showToast('No active holdings to export to Zerodha Basket', 'warning');
+            return;
+        }
+
+        const basketItems = active.map(p => generateZerodhaBasketItem(p.symbol, p.side, p.quantity, p.average_price));
+        const jsonStr = JSON.stringify(basketItems, null, 2);
+        const blob = new Blob([jsonStr], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        const nowStr = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+        a.download = `zerodha_basket_holdings_${nowStr}.json`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        showToast(`Exported ${basketItems.length} orders into Zerodha Basket JSON! Ready to import into Kite.`, 'success');
     }
 
     // ==========================================
@@ -4298,6 +4368,7 @@
         const viewClosed = document.getElementById('view-closed-trades');
         const btnSessionCsv = document.getElementById('btn-export-session-csv');
         const btnHoldingsCsv = document.getElementById('btn-export-holdings-csv');
+        const btnZerodhaBasket = document.getElementById('btn-export-zerodha-basket');
         const btnCsv = document.getElementById('btn-export-csv');
 
         // Reset tab buttons
@@ -4312,6 +4383,7 @@
 
         if (btnSessionCsv) btnSessionCsv.style.display = 'none';
         if (btnHoldingsCsv) btnHoldingsCsv.style.display = 'none';
+        if (btnZerodhaBasket) btnZerodhaBasket.style.display = 'none';
         if (btnCsv) btnCsv.style.display = 'none';
 
         if (tab === 'session') {
@@ -4323,6 +4395,7 @@
             if (btnActive) btnActive.classList.add('active');
             if (viewActive) viewActive.style.display = 'block';
             if (btnHoldingsCsv) btnHoldingsCsv.style.display = 'inline-flex';
+            if (btnZerodhaBasket) btnZerodhaBasket.style.display = 'inline-flex';
             loadBotHoldings();
         } else if (tab === 'closed') {
             if (btnClosed) btnClosed.classList.add('active');
