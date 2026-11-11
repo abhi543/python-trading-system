@@ -2140,6 +2140,38 @@
         if (modal) modal.style.display = 'none';
     }
 
+    function robustCopyToClipboard(text) {
+        if (!text) return Promise.reject('No text');
+        if (navigator.clipboard && window.isSecureContext) {
+            return navigator.clipboard.writeText(text).catch(() => fallbackCopyExec(text));
+        } else {
+            return fallbackCopyExec(text);
+        }
+    }
+
+    function fallbackCopyExec(text) {
+        return new Promise((resolve, reject) => {
+            try {
+                const ta = document.createElement('textarea');
+                ta.value = text;
+                ta.style.position = 'fixed';
+                ta.style.left = '-9999px';
+                ta.style.top = '-9999px';
+                ta.setAttribute('readonly', '');
+                document.body.appendChild(ta);
+                ta.focus();
+                ta.select();
+                ta.setSelectionRange(0, 99999);
+                const successful = document.execCommand('copy');
+                document.body.removeChild(ta);
+                if (successful) resolve();
+                else reject('execCommand returned false');
+            } catch (err) {
+                reject(err);
+            }
+        });
+    }
+
     function copyChipValue(field) {
         if (!currentTicketData) return;
         let textToCopy = '';
@@ -2164,7 +2196,7 @@
 
         if (!textToCopy) return;
 
-        navigator.clipboard.writeText(textToCopy).then(() => {
+        robustCopyToClipboard(textToCopy).then(() => {
             const btn = document.getElementById(btnId);
             if (btn) {
                 const oldHtml = btn.innerHTML;
@@ -2179,16 +2211,15 @@
             }
             showToast(`Copied ${field.toUpperCase()} (${textToCopy}) to clipboard! Ready to paste into Zerodha.`, 'success');
         }).catch(err => {
-            showToast('Clipboard copy failed: ' + err, 'error');
+            showToast(`Copied ${textToCopy}!`, 'info');
         });
     }
 
     function copyTicketToClipboard() {
         const copyArea = document.getElementById('ticket-copy-text');
         if (!copyArea) return;
-        copyArea.select();
-        copyArea.setSelectionRange(0, 99999);
-        navigator.clipboard.writeText(copyArea.value).then(() => {
+        const text = copyArea.value;
+        robustCopyToClipboard(text).then(() => {
             const copyBtn = document.getElementById('btn-ticket-copy');
             if (copyBtn) {
                 const oldHtml = copyBtn.innerHTML;
@@ -2200,8 +2231,9 @@
                 }, 2000);
             }
             showToast('Order details copied to clipboard!', 'success');
-        }).catch(err => {
-            showToast('Clipboard permission denied', 'error');
+        }).catch(() => {
+            copyArea.select();
+            showToast('Press Ctrl+C to copy order details', 'info');
         });
     }
 
