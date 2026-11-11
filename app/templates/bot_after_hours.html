@@ -2497,14 +2497,15 @@
         });
     }
 
-    function generateZerodhaBasketItem(symbol, side, qty, price) {
+    function generateZerodhaBasketItem(symbol, side, qty, price, orderType = 'LIMIT', triggerPrice = 0) {
         const cleanSym = (symbol || '').replace('.NS', '').replace('.BO', '').trim().toUpperCase();
         const isShort = (side === 'SHORT' || side === 'SELL');
         const numQty = Math.max(1, parseInt(qty) || 1);
         const numPrice = parseFloat(price || 0);
+        const numTrig = parseFloat(triggerPrice || 0);
 
         return {
-            id: Date.now() + Math.floor(Math.random() * 10000),
+            id: Date.now() + Math.floor(Math.random() * 100000),
             instrument: {
                 tradingsymbol: cleanSym,
                 symbol: cleanSym,
@@ -2522,10 +2523,10 @@
                 variety: "regular",
                 transactionType: isShort ? "SELL" : "BUY",
                 product: "MIS",
-                orderType: "MARKET",
+                orderType: orderType,
                 quantity: numQty,
-                price: 0,
-                triggerPrice: 0,
+                price: orderType === 'MARKET' ? 0 : numPrice,
+                triggerPrice: numTrig,
                 disclosedQuantity: 0,
                 validity: "DAY",
                 validityTTL: 1,
@@ -2537,19 +2538,42 @@
 
     function downloadSingleZerodhaBasket() {
         if (!currentTicketData) return;
-        const item = generateZerodhaBasketItem(currentTicketData.symbol, currentTicketData.side, currentTicketData.qty, currentTicketData.price);
-        const jsonStr = JSON.stringify([item], null, 2);
+        const sym = currentTicketData.symbol;
+        const side = currentTicketData.side;
+        const qty = currentTicketData.qty;
+        const price = currentTicketData.price;
+        const sl = currentTicketData.sl;
+        const tp = currentTicketData.tp;
+        const isShort = (side === 'SHORT' || side === 'SELL');
+        const cleanSym = (sym || 'ORDER').replace('.NS', '');
+
+        const items = [];
+        // Leg 1: Entry Order (BUY / SELL at Limit Price)
+        items.push(generateZerodhaBasketItem(sym, side, qty, price, 'LIMIT'));
+
+        // Leg 2: Strict Stop-Loss Protection (SL order at Trigger Price)
+        if (sl && sl > 0) {
+            const exitSide = isShort ? 'BUY' : 'SELL';
+            items.push(generateZerodhaBasketItem(sym, exitSide, qty, sl, 'SL', sl));
+        }
+
+        // Leg 3: Profit Target (LIMIT order at Target Price)
+        if (tp && tp > 0) {
+            const exitSide = isShort ? 'BUY' : 'SELL';
+            items.push(generateZerodhaBasketItem(sym, exitSide, qty, tp, 'LIMIT'));
+        }
+
+        const jsonStr = JSON.stringify(items, null, 2);
         const blob = new Blob([jsonStr], { type: 'application/json' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        const cleanSym = (currentTicketData.symbol || 'ORDER').replace('.NS', '');
-        a.download = `zerodha_basket_${cleanSym}.json`;
+        a.download = `zerodha_basket_${cleanSym}_3legs.json`;
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
-        showToast(`Downloaded Zerodha Basket JSON for ${cleanSym}! In Kite: Orders ➔ Baskets ➔ New Basket ➔ Import`, 'success');
+        showToast(`Downloaded Complete 3-Leg Zerodha Basket (Entry + SL + Target) for ${cleanSym}! In Kite: Orders ➔ Baskets ➔ New Basket ➔ Import`, 'success');
     }
 
     function exportZerodhaBasketJSON() {
