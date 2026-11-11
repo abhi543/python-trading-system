@@ -852,14 +852,16 @@
     .broker-modal-backdrop {
         position: fixed;
         inset: 0;
-        background: rgba(0, 0, 0, 0.78);
+        background: rgba(0, 0, 0, 0.82);
         backdrop-filter: blur(8px);
         -webkit-backdrop-filter: blur(8px);
         z-index: 99999;
         display: flex;
-        align-items: center;
+        align-items: flex-start;
         justify-content: center;
-        padding: 1rem;
+        padding: 1.25rem 1rem;
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
         animation: fadeInModal 0.2s ease-out;
     }
     @keyframes fadeInModal {
@@ -868,23 +870,41 @@
     }
     .broker-modal-content {
         background: #0f172a;
-        border: 1px solid rgba(255, 255, 255, 0.12);
+        border: 1px solid rgba(255, 255, 255, 0.15);
         border-radius: 12px;
         width: 100%;
-        max-width: 580px;
+        max-width: 600px;
+        margin: auto 0;
         box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.8), 0 0 30px rgba(56, 189, 248, 0.1);
-        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+        max-height: calc(100vh - 2.5rem);
     }
     .broker-modal-header {
         display: flex;
         justify-content: space-between;
         align-items: center;
-        padding: 1rem 1.25rem;
+        padding: 0.9rem 1.25rem;
         border-bottom: 1px solid rgba(255, 255, 255, 0.08);
         background: rgba(255, 255, 255, 0.02);
+        flex-shrink: 0;
     }
     .broker-modal-body {
-        padding: 1.25rem;
+        padding: 1.15rem 1.25rem;
+        overflow-y: auto;
+        overscroll-behavior: contain;
+        -webkit-overflow-scrolling: touch;
+        flex: 1 1 auto;
+    }
+    .broker-modal-body::-webkit-scrollbar {
+        width: 6px;
+    }
+    .broker-modal-body::-webkit-scrollbar-track {
+        background: rgba(255, 255, 255, 0.03);
+    }
+    .broker-modal-body::-webkit-scrollbar-thumb {
+        background: rgba(255, 255, 255, 0.2);
+        border-radius: 3px;
     }
     .broker-modal-footer {
         display: flex;
@@ -893,8 +913,11 @@
         gap: 0.6rem;
         padding: 0.85rem 1.25rem;
         border-top: 1px solid rgba(255, 255, 255, 0.08);
-        background: rgba(255, 255, 255, 0.02);
+        background: #0b1120;
         flex-wrap: wrap;
+        flex-shrink: 0;
+        border-bottom-left-radius: 12px;
+        border-bottom-right-radius: 12px;
     }
     .broker-modal-close-btn {
         background: none;
@@ -2172,11 +2195,15 @@
         if (modal) modal.style.display = 'none';
     }
 
+    function universalCopyText(text) {
+        return robustCopyToClipboard(text);
+    }
+
     function openKiteWithSymbol(e) {
-        if (e) e.preventDefault();
+        if (e && e.preventDefault) e.preventDefault();
         const sym = (currentTicketData && currentTicketData.symbol) ? currentTicketData.symbol.replace('.NS', '') : '';
         if (sym) {
-            universalCopyText(sym);
+            robustCopyToClipboard(sym).catch(() => {});
             showToast(`📋 Copied "${sym}" to clipboard! Opening Zerodha Kite... Press Ctrl+V in Kite search bar.`, 'success');
         } else {
             showToast('Opening Zerodha Kite...', 'info');
