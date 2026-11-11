@@ -1087,10 +1087,13 @@ class AutoTradingBot:
                         if exec_res.get("success"):
                             trades_executed += 1
                             eval_res["action_executed"] = f"COVERED {pos.quantity} SHARES"
-                            pnl = exec_res.get("realized_pnl", round((pos.average_price - price) * pos.quantity, 2))
+                            pnl = float(exec_res.get("realized_pnl", round((pos.average_price - price) * pos.quantity, 2)))
                             roi = round((pos.average_price - price) / pos.average_price * 100, 2) if pos.average_price > 0 else 0.0
-                            chg_amt = exec_res.get("charges", {}).get("total_charges", 0.0) if isinstance(exec_res.get("charges"), dict) else 0.0
-                            self.record_session_trade({
+                            chg_dict = exec_res.get("charges") if isinstance(exec_res.get("charges"), dict) else {}
+                            chg_amt = float(chg_dict.get("total_charges", 0.0) if isinstance(chg_dict, dict) else 0.0)
+                            cost_basis = round(pos.quantity * (pos.average_price if pos.average_price > 0 else 1.0), 2)
+                            closed_trade_dict = {
+                                "id": exec_res.get("trade_id") or int(datetime.now().timestamp() * 1000),
                                 "symbol": symbol,
                                 "displayName": display_name,
                                 "side": "COVER",
@@ -1100,13 +1103,23 @@ class AutoTradingBot:
                                 "price": price,
                                 "total_value": round(pos.quantity * price, 2),
                                 "charges": chg_amt,
+                                "brokerage": round(float(chg_dict.get("brokerage", 0.0)), 2),
+                                "stt": round(float(chg_dict.get("stt", 0.0)), 2),
+                                "exchange_charges": round(float(chg_dict.get("exchange_charges", 0.0)), 2),
+                                "sebi_charges": round(float(chg_dict.get("sebi_charges", 0.0)), 2),
+                                "gst": round(float(chg_dict.get("gst", 0.0)), 2),
+                                "stamp_duty": round(float(chg_dict.get("stamp_duty", 0.0)), 2),
+                                "net_proceeds": round((pos.quantity * price) - chg_amt, 2),
                                 "realized_pnl": pnl,
                                 "roi_pct": roi,
+                                "is_win": pnl >= 0,
                                 "action": "COVER",
                                 "signal": "STRATEGY_EXIT",
                                 "reason": eval_res.get("reason", "Bullish Reversal Cover Signal"),
                                 "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                            })
+                            }
+                            self.record_session_trade(closed_trade_dict)
+                            eval_res["closed_trade"] = closed_trade_dict
                             chg_str = f" (Charges: ₹{chg_amt:.2f})" if chg_amt > 0 else ""
                             self.add_log(f"⚡ AUTO-COVERED {pos.quantity} shares of {display_name} @ ₹{price:.2f} [Short Exit]{chg_str} | P&L: ₹{pnl:+,.2f}", "SUCCESS" if pnl >= 0 else "WARNING")
                             del held_map[symbol]
@@ -1201,10 +1214,13 @@ class AutoTradingBot:
                         if exec_res.get("success"):
                             trades_executed += 1
                             eval_res["action_executed"] = f"SOLD {pos.quantity} SHARES"
-                            pnl = exec_res.get("realized_pnl", round((price - pos.average_price) * pos.quantity, 2))
+                            pnl = float(exec_res.get("realized_pnl", round((price - pos.average_price) * pos.quantity, 2)))
                             roi = round((price - pos.average_price) / pos.average_price * 100, 2) if pos.average_price > 0 else 0.0
-                            chg_amt = exec_res.get("charges", {}).get("total_charges", 0.0) if isinstance(exec_res.get("charges"), dict) else 0.0
-                            self.record_session_trade({
+                            chg_dict = exec_res.get("charges") if isinstance(exec_res.get("charges"), dict) else {}
+                            chg_amt = float(chg_dict.get("total_charges", 0.0) if isinstance(chg_dict, dict) else 0.0)
+                            cost_basis = round(pos.quantity * (pos.average_price if pos.average_price > 0 else 1.0), 2)
+                            closed_trade_dict = {
+                                "id": exec_res.get("trade_id") or int(datetime.now().timestamp() * 1000),
                                 "symbol": symbol,
                                 "displayName": display_name,
                                 "side": "SELL",
@@ -1214,13 +1230,23 @@ class AutoTradingBot:
                                 "price": price,
                                 "total_value": round(pos.quantity * price, 2),
                                 "charges": chg_amt,
+                                "brokerage": round(float(chg_dict.get("brokerage", 0.0)), 2),
+                                "stt": round(float(chg_dict.get("stt", 0.0)), 2),
+                                "exchange_charges": round(float(chg_dict.get("exchange_charges", 0.0)), 2),
+                                "sebi_charges": round(float(chg_dict.get("sebi_charges", 0.0)), 2),
+                                "gst": round(float(chg_dict.get("gst", 0.0)), 2),
+                                "stamp_duty": round(float(chg_dict.get("stamp_duty", 0.0)), 2),
+                                "net_proceeds": round((pos.quantity * price) - chg_amt, 2),
                                 "realized_pnl": pnl,
                                 "roi_pct": roi,
+                                "is_win": pnl >= 0,
                                 "action": "SELL",
                                 "signal": "STRATEGY_EXIT",
                                 "reason": eval_res.get("reason", "Strategy Bearish Exit Signal"),
                                 "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                            })
+                            }
+                            self.record_session_trade(closed_trade_dict)
+                            eval_res["closed_trade"] = closed_trade_dict
 
                             chg_str = f" (Charges: ₹{chg_amt:.2f})" if chg_amt > 0 else ""
                             self.add_log(f"⚡ AUTO-SOLD {pos.quantity} shares of {display_name} @ ₹{price:.2f} [Long Exit]{chg_str} | P&L: ₹{pnl:+,.2f}", "SUCCESS" if pnl >= 0 else "WARNING")

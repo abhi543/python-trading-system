@@ -3145,11 +3145,21 @@
 
     async function fetchBotOverview(silent = false) {
         try {
-            const res = await fetch('/api/after-hours/overview');
+            const storedPos = (typeof getStoredActivePositions === 'function') ? getStoredActivePositions() : [];
+            const storedClosed = (typeof getStoredClosedTrades === 'function') ? getStoredClosedTrades() : [];
+            const res = await fetch('/api/after-hours/overview', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    client_positions: storedPos,
+                    client_closed_trades: storedClosed,
+                    is_running: isBotActive
+                })
+            });
             if (!res.ok) return;
             const data = await res.json();
             if (data.status) updateBotUI(data.status);
-            if (data.portfolio) renderPortfolioUI(data.portfolio);
+            if (data.portfolio) renderPortfolioUI(data.portfolio, storedPos);
             if (data.closed_trades) renderClosedTradesUI(data.closed_trades);
         } catch (err) {
             if (!silent) console.warn('Overview sync error:', err);
@@ -3991,8 +4001,18 @@
         const tbody = document.getElementById('bot-holdings-tbody');
         if (!tbody) return;
 
-        let positions = data.positions || [];
-        saveStoredActivePositions(positions);
+        let serverPositions = (data && Array.isArray(data.positions)) ? data.positions : [];
+        let storedPositions = (typeof getStoredActivePositions === 'function') ? getStoredActivePositions() : [];
+
+        // Protection against cold-start serverless instance returning empty positions:
+        // If server returns [] but client has stored active positions (and user did NOT square off),
+        // keep stored positions and sync them to server!
+        let positions = serverPositions;
+        if (serverPositions.length === 0 && storedPositions.length > 0 && !window.explicitSquareOffDone) {
+            positions = storedPositions;
+        } else {
+            saveStoredActivePositions(positions);
+        }
 
         window.cachedActivePositions = positions;
         if (allScannerData && allScannerData.length > 0) {
@@ -4929,6 +4949,7 @@
             });
             const data = await res.json();
             if (data.success) {
+                window.explicitSquareOffDone = true;
                 try { localStorage.removeItem(POS_ENTRY_LOCK_KEY); } catch(e){}
                 saveStoredActivePositions([]);
                 window.cachedActivePositions = [];
@@ -4971,6 +4992,7 @@
             const res = await fetch('/api/after-hours/reset-and-restart', { method: 'POST' });
             const data = await res.json();
             if (data.success) {
+                window.explicitSquareOffDone = true;
                 try { localStorage.removeItem(POS_ENTRY_LOCK_KEY); } catch(e){}
                 saveStoredActivePositions([]);
                 window.cachedActivePositions = [];
@@ -4995,6 +5017,7 @@
             const res = await fetch('/api/after-hours/reset-account', { method: 'POST' });
             const data = await res.json();
             if (data.success) {
+                window.explicitSquareOffDone = true;
                 try { localStorage.removeItem(POS_ENTRY_LOCK_KEY); } catch(e){}
                 saveStoredActivePositions([]);
                 window.cachedActivePositions = [];

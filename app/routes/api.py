@@ -24,7 +24,7 @@ def get_candles(symbol):
     candles = MarketDataService.get_historical_candles(symbol, period, interval)
     return jsonify({"symbol": symbol.upper(), "candles": candles})
 
-def sync_positions_from_client(client_positions):
+def sync_positions_from_client(client_positions, explicit_clear=False):
     if client_positions is None or not isinstance(client_positions, list):
         return
     try:
@@ -33,9 +33,10 @@ def sync_positions_from_client(client_positions):
         from app.services.paper_trader import PaperTradingEngine
 
         if len(client_positions) == 0:
-            Position.query.delete()
-            db.session.commit()
-            PaperTradingEngine.reconcile_account_balance()
+            if explicit_clear:
+                Position.query.delete()
+                db.session.commit()
+                PaperTradingEngine.reconcile_account_balance()
             return
 
         existing = {p.symbol: p for p in Position.query.all()}
@@ -74,7 +75,7 @@ def sync_positions_from_client(client_positions):
     except Exception:
         pass
 
-def sync_after_hours_positions_from_client(client_positions):
+def sync_after_hours_positions_from_client(client_positions, explicit_clear=False):
     if client_positions is None or not isinstance(client_positions, list):
         return
     try:
@@ -82,11 +83,11 @@ def sync_after_hours_positions_from_client(client_positions):
         from app import db
         from app.services.paper_trader import AfterHoursPaperTradingEngine
 
-        # If client explicitly provides 0 positions, wipe all AfterHoursPosition to guarantee 0 P&L
         if len(client_positions) == 0:
-            AfterHoursPosition.query.delete()
-            db.session.commit()
-            AfterHoursPaperTradingEngine.reconcile_account_balance()
+            if explicit_clear:
+                AfterHoursPosition.query.delete()
+                db.session.commit()
+                AfterHoursPaperTradingEngine.reconcile_account_balance()
             return
 
         existing = {p.symbol: p for p in AfterHoursPosition.query.all()}
@@ -121,6 +122,66 @@ def sync_after_hours_positions_from_client(client_positions):
 
         db.session.commit()
         AfterHoursPaperTradingEngine.reconcile_account_balance()
+    except Exception:
+        pass
+
+def sync_closed_trades_from_client(client_closed_trades):
+    if not client_closed_trades or not isinstance(client_closed_trades, list):
+        return
+    try:
+        from app.models.trading import TradeHistory
+        from app import db
+        from datetime import datetime
+        existing_count = TradeHistory.query.count()
+        if existing_count == 0 and len(client_closed_trades) > 0:
+            for ct in client_closed_trades[:100]:
+                ts_str = ct.get("timestamp")
+                try:
+                    ts = datetime.strptime(ts_str, "%Y-%m-%d %H:%M:%S") if ts_str else datetime.now()
+                except Exception:
+                    ts = datetime.now()
+                trade = TradeHistory(
+                    symbol=ct.get("symbol", "NIFTY"),
+                    side=ct.get("side", "SELL"),
+                    quantity=float(ct.get("quantity", 0)),
+                    price=float(ct.get("price") or ct.get("exit_price") or 0.0),
+                    total_value=float(ct.get("total_value", 0.0)),
+                    realized_pnl=float(ct.get("realized_pnl", 0.0)),
+                    charges=float(ct.get("charges", 0.0)),
+                    timestamp=ts
+                )
+                db.session.add(trade)
+            db.session.commit()
+    except Exception:
+        pass
+
+def sync_after_hours_closed_trades_from_client(client_closed_trades):
+    if not client_closed_trades or not isinstance(client_closed_trades, list):
+        return
+    try:
+        from app.models.trading import AfterHoursTradeHistory
+        from app import db
+        from datetime import datetime
+        existing_count = AfterHoursTradeHistory.query.count()
+        if existing_count == 0 and len(client_closed_trades) > 0:
+            for ct in client_closed_trades[:100]:
+                ts_str = ct.get("timestamp")
+                try:
+                    ts = datetime.strptime(ts_str, "%Y-%m-%d %H:%M:%S") if ts_str else datetime.now()
+                except Exception:
+                    ts = datetime.now()
+                trade = AfterHoursTradeHistory(
+                    symbol=ct.get("symbol", "NIFTY"),
+                    side=ct.get("side", "SELL"),
+                    quantity=float(ct.get("quantity", 0)),
+                    price=float(ct.get("price") or ct.get("exit_price") or 0.0),
+                    total_value=float(ct.get("total_value", 0.0)),
+                    realized_pnl=float(ct.get("realized_pnl", 0.0)),
+                    charges=float(ct.get("charges", 0.0)),
+                    timestamp=ts
+                )
+                db.session.add(trade)
+            db.session.commit()
     except Exception:
         pass
 
@@ -541,7 +602,13 @@ def get_bot_overview():
     if request.method == 'POST':
         body = request.get_json(silent=True) or {}
         client_positions = body.get('client_positions')
-        sync_positions_from_client(client_positions)
+        explicit_clear = bool(body.get('explicit_clear', False))
+        sync_positions_from_client(client_positions, explicit_clear=explicit_clear)
+        client_closed_trades = body.get('client_closed_trades')
+        sync_closed_trades_from_client(client_closed_trades)
+        client_running = body.get('is_running')
+        if client_running is not None:
+            bot_instance.is_running = bool(client_running)
 
     status_data = bot_instance.get_status()
     portfolio_data = PaperTradingEngine.get_portfolio_summary()
@@ -728,7 +795,13 @@ def get_after_hours_overview():
     if request.method == 'POST':
         body = request.get_json(silent=True) or {}
         client_positions = body.get('client_positions')
-        sync_after_hours_positions_from_client(client_positions)
+        explicit_clear = bool(body.get('explicit_clear', False))
+        sync_after_hours_positions_from_client(client_positions, explicit_clear=explicit_clear)
+        client_closed_trades = body.get('client_closed_trades')
+        sync_after_hours_closed_trades_from_client(client_closed_trades)
+        client_running = body.get('is_running')
+        if client_running is not None:
+            after_hours_bot_instance.is_running = bool(client_running)
 
     status_data = after_hours_bot_instance.get_status()
     portfolio_data = AfterHoursPaperTradingEngine.get_portfolio_summary()
