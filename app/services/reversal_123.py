@@ -228,11 +228,18 @@ class Reversal123Engine:
 
         # -------------------------------------------------
         # 4. TARGET & STOP LOSS ENGINE (v2.1 Pine Script)
+        # Strict 1.0% Stop-Loss Ceiling Rule
         # -------------------------------------------------
         entry_price = curr_close
 
-        # Stop Loss: Point 3 Buffer (P3 +/- 0.15 * ATR)
-        stop_loss_price = round((p3 - atr * invalid_buffer_atr) if direction == 1 else (p3 + atr * invalid_buffer_atr), 2)
+        # Stop Loss: Point 3 Buffer strictly clamped at Max 1.0% downside/upside risk
+        raw_sl = round((p3 - atr * invalid_buffer_atr) if direction == 1 else (p3 + atr * invalid_buffer_atr), 2)
+        if direction == 1:
+            strict_1pct_sl = round(entry_price * 0.99, 2)
+            stop_loss_price = max(raw_sl, strict_1pct_sl)
+        else:
+            strict_1pct_sl = round(entry_price * 1.01, 2)
+            stop_loss_price = min(raw_sl, strict_1pct_sl)
 
         # Target: Measured Move (projects P1-P2 height from breakout)
         target_price = round((entry_price + leg) if direction == 1 else (entry_price - leg), 2)
@@ -240,6 +247,7 @@ class Reversal123Engine:
         risk_distance = max(abs(entry_price - stop_loss_price), 0.05)
         reward_distance = abs(target_price - entry_price)
         rr_multiple = round(reward_distance / risk_distance, 1)
+        max_loss_pct = round((risk_distance / entry_price) * 100, 2) if entry_price > 0 else 1.0
 
         # Retest Pocket (Neckline +/- 0.30 ATR)
         pocket_top = round(neckline + atr * 0.30, 2)
@@ -255,7 +263,7 @@ class Reversal123Engine:
 
         dir_tag = "Bullish" if direction == 1 else "Bearish"
         action_name = f"1-2-3 {dir_tag} Breakout" if neckline_break else f"1-2-3 {dir_tag} Armed"
-        reason = f"{action_name} [Score: {final_score:.0f} {grade}] | Neckline: ₹{neckline:.2f} | Target: ₹{target_price:.2f} ({rr_multiple}R) | Stop: ₹{stop_loss_price:.2f}"
+        reason = f"{action_name} [Score: {final_score:.0f} {grade}] | Neckline: ₹{neckline:.2f} | Target: ₹{target_price:.2f} ({rr_multiple}R) | Strict 1% SL: ₹{stop_loss_price:.2f} (-{max_loss_pct:.2f}%)"
 
         return {
             "has_pattern": True,
@@ -274,6 +282,8 @@ class Reversal123Engine:
             "entry_price": entry_price,
             "target_price": target_price,
             "stop_loss_price": stop_loss_price,
+            "max_loss_pct": max_loss_pct,
+            "risk_per_share": round(risk_distance, 2),
             "risk_reward": rr_multiple,
             "retest_pocket": {"top": pocket_top, "bottom": pocket_bottom},
             "in_retest_pocket": in_retest_pocket,

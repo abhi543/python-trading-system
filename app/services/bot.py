@@ -120,7 +120,7 @@ class AutoTradingBot:
         self.rsi_period = 14
         self.rsi_oversold = 35
         self.rsi_overbought = 65
-        self.stop_loss_pct = float(persisted.get("stop_loss_pct", 1.0))
+        self.stop_loss_pct = min(float(persisted.get("stop_loss_pct", 1.0)), 1.0)
         self.take_profit_pct = float(persisted.get("take_profit_pct", 1.0))
         
         # Option A: Macro Trend & Volume Confirmation
@@ -389,7 +389,7 @@ class AutoTradingBot:
         if "rsi_period" in config:
             self.rsi_period = int(config["rsi_period"])
         if "stop_loss_pct" in config:
-            self.stop_loss_pct = float(config["stop_loss_pct"])
+            self.stop_loss_pct = min(float(config["stop_loss_pct"]), 1.0) # Strict 1.0% max ceiling rule
         if "take_profit_pct" in config:
             self.take_profit_pct = float(config["take_profit_pct"])
         if "interval_seconds" in config:
@@ -623,11 +623,12 @@ class AutoTradingBot:
                     "closed_trade": closed_trade_dict
                 }
 
-            # Check if Fixed % Stop-Loss Ceiling triggered (Protects ALL strategies including 1-2-3 Reversal)
-            if pnl_pct <= -abs(self.stop_loss_pct):
+            # Check if Strict 1.0% Stop-Loss Ceiling triggered (Protects ALL strategies including 1-2-3 Reversal)
+            effective_sl_pct = min(abs(self.stop_loss_pct or 1.0), 1.0)
+            if pnl_pct <= -effective_sl_pct:
                 closed_trade_dict = None
                 if allow_order_execution:
-                    self.add_log(f"🛑 [SL CEILING HIT] {display_name} ({pos_side}): Max risk limit reached at -{abs(pnl_pct):.2f}% (Ceiling: -{abs(self.stop_loss_pct):.1f}%). Liquidating {pos.quantity} shares @ ₹{current_price:.2f} to protect capital!", "ERROR")
+                    self.add_log(f"🛑 [STRICT 1% SL HIT] {display_name} ({pos_side}): Max risk limit reached at -{abs(pnl_pct):.2f}% (Strict 1.0% SL Ceiling). Liquidating {pos.quantity} shares @ ₹{current_price:.2f} to protect capital!", "ERROR")
                     exec_res = self.engine.execute_order(symbol, exit_order_side, pos.quantity, execution_price=current_price)
                     if exec_res.get("success"):
                         held_positions_map.pop(symbol, None)
@@ -768,18 +769,16 @@ class AutoTradingBot:
             suggested_sl = pat_res.get("stop_loss_price")
             suggested_tp = pat_res.get("target_price")
 
-            # Hard SL Ceiling: clamp suggested_sl so downside risk never exceeds self.stop_loss_pct (e.g. 1.0% - 1.2%)
-            if suggested_sl and self.stop_loss_pct and self.stop_loss_pct > 0:
-                if signal == "BUY":
-                    max_allowed_sl = round(current_price * (1.0 - abs(self.stop_loss_pct) / 100.0), 2)
-                    if suggested_sl < max_allowed_sl:
-                        suggested_sl = max_allowed_sl
-                        reason += f" | SL Clamped at Max -{abs(self.stop_loss_pct):.1f}%"
-                elif signal in ["SELL", "SHORT"]:
-                    min_allowed_sl = round(current_price * (1.0 + abs(self.stop_loss_pct) / 100.0), 2)
-                    if suggested_sl > min_allowed_sl:
-                        suggested_sl = min_allowed_sl
-                        reason += f" | SL Clamped at Max -{abs(self.stop_loss_pct):.1f}%"
+            # Strict 1.0% Stop-Loss Ceiling Rule for 1-2-3 Reversal (Both ALPHA and NIGHTHAWK)
+            strict_sl_pct = min(abs(self.stop_loss_pct or 1.0), 1.0)
+            if signal == "BUY":
+                strict_sl = round(current_price * (1.0 - strict_sl_pct / 100.0), 2)
+                suggested_sl = max(suggested_sl, strict_sl) if suggested_sl else strict_sl
+                reason += f" | Strict 1.0% SL: ₹{suggested_sl:.2f}"
+            elif signal in ["SELL", "SHORT"]:
+                strict_sl = round(current_price * (1.0 + strict_sl_pct / 100.0), 2)
+                suggested_sl = min(suggested_sl, strict_sl) if suggested_sl else strict_sl
+                reason += f" | Strict 1.0% SL: ₹{suggested_sl:.2f}"
 
         elif self.strategy == "SMA_CROSSOVER":
             sma_fast = s_closes.rolling(window=self.fast_period).mean()
@@ -857,6 +856,10 @@ class AutoTradingBot:
             "reversal_grade": reversal_grade,
             "suggested_sl": suggested_sl,
             "suggested_tp": suggested_tp,
+            "stop_loss": suggested_sl,
+            "take_profit": suggested_tp,
+            "risk_per_share": round(abs(current_price - (suggested_sl or (current_price * 0.99 if signal == "BUY" else current_price * 1.01))), 2),
+            "max_loss_pct": 1.0,
             "ema_200": ema_200,
             "trend_200": trend_200,
             "vol_ratio": vol_ratio,
@@ -1132,8 +1135,8 @@ class AutoTradingBot:
                                     atr_val = eval_res.get("atr_14") or (price * 0.025)
                                     if self.strategy == "123_REVERSAL":
                                         raw_sl = eval_res.get("suggested_sl")
-                                        max_sl_dist = round(price * (1.0 - abs(self.stop_loss_pct) / 100.0), 2) if self.stop_loss_pct > 0 else round(price * 0.98, 2)
-                                        pos_rec.stop_loss = max(raw_sl, max_sl_dist) if raw_sl else max_sl_dist
+                                        strict_1pct_sl = round(price * 0.99, 2)
+                                        pos_rec.stop_loss = max(raw_sl, strict_1pct_sl) if raw_sl else strict_1pct_sl
                                         pos_rec.take_profit = eval_res.get("suggested_tp") or round(price * 1.04, 2)
                                     elif eval_res.get("suggested_sl") and eval_res.get("suggested_tp"):
                                         pos_rec.stop_loss = eval_res["suggested_sl"]
@@ -1247,8 +1250,8 @@ class AutoTradingBot:
                                     atr_val = eval_res.get("atr_14") or (price * 0.025)
                                     if self.strategy == "123_REVERSAL":
                                         raw_sl = eval_res.get("suggested_sl")
-                                        min_sl_dist = round(price * (1.0 + abs(self.stop_loss_pct) / 100.0), 2) if self.stop_loss_pct > 0 else round(price * 1.02, 2)
-                                        pos_rec.stop_loss = min(raw_sl, min_sl_dist) if raw_sl else min_sl_dist
+                                        strict_1pct_sl = round(price * 1.01, 2)
+                                        pos_rec.stop_loss = min(raw_sl, strict_1pct_sl) if raw_sl else strict_1pct_sl
                                         pos_rec.take_profit = eval_res.get("suggested_tp") or round(price * 0.96, 2)
                                     elif eval_res.get("suggested_sl") and eval_res.get("suggested_tp"):
                                         pos_rec.stop_loss = eval_res["suggested_sl"]

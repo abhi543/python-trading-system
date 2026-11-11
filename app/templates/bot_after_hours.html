@@ -165,9 +165,9 @@
                 </div>
 
                 <div class="config-item" id="cfg-item-stop-loss">
-                    <label><i class="fa-solid fa-arrow-down" style="color: var(--red);"></i> STOP-LOSS (%) [MAX CEILING]</label>
-                    <input type="number" id="bot-stop-loss" class="config-input" value="1.0" step="0.1" min="0.1" onchange="onStrategyChange()">
-                    <span id="badge-strat-sl" class="badge" style="font-size: 0.68rem; background: rgba(255, 51, 102, 0.15); color: var(--red); border: 1px solid rgba(255, 51, 102, 0.3); margin-top: 4px; display: inline-block;">🛡️ Point 3 Stop (Max Clamped Ceiling)</span>
+                    <label><i class="fa-solid fa-arrow-down" style="color: var(--red);"></i> STRICT STOP-LOSS (MAX 1.0%)</label>
+                    <input type="number" id="bot-stop-loss" class="config-input" value="1.0" step="0.1" min="0.1" max="1.0" onchange="onStrategyChange()">
+                    <span id="badge-strat-sl" class="badge" style="font-size: 0.68rem; background: rgba(255, 51, 102, 0.15); color: var(--red); border: 1px solid rgba(255, 51, 102, 0.3); margin-top: 4px; display: inline-block;">🛡️ Strict 1.0% Max Loss Limit</span>
                 </div>
 
                 <div class="config-item" id="cfg-item-take-profit">
@@ -592,13 +592,14 @@
                                         <th>P&L (₹)</th>
                                         <th>P&L (%)</th>
                                         <th>STOP-LOSS</th>
+                                        <th style="color: #ff6b6b;"><i class="fa-solid fa-shield-halved"></i> MAX LOSS (₹)</th>
                                         <th>TARGET</th>
                                         <th>MANUAL EXIT</th>
                                     </tr>
                                 </thead>
                                 <tbody id="bot-holdings-tbody">
                                     <tr>
-                                        <td colspan="10" class="text-center" style="padding: 1.5rem; color: var(--text-muted);">No open positions held.</td>
+                                        <td colspan="11" class="text-center" style="padding: 1.5rem; color: var(--text-muted);">No open positions held.</td>
                                     </tr>
                                 </tbody>
                             </table>
@@ -784,8 +785,12 @@
                     <strong class="ticket-val" id="ticket-margin" style="color: #00f090;">₹13,727.50</strong>
                 </div>
                 <div class="ticket-field" style="border-left: 2px solid #ef4444;">
-                    <span class="ticket-label">CLAMPED STOP-LOSS</span>
-                    <strong class="ticket-val" id="ticket-sl" style="color: #f87171;">₹2,690.00 (-2.02%)</strong>
+                    <span class="ticket-label">STRICT 1% STOP-LOSS</span>
+                    <strong class="ticket-val" id="ticket-sl" style="color: #f87171;">₹2,718.00 (-1.00%)</strong>
+                </div>
+                <div class="ticket-field" style="border-left: 2px solid #ef4444; background: rgba(239, 68, 68, 0.08);">
+                    <span class="ticket-label" style="color: #ff8585;"><i class="fa-solid fa-triangle-exclamation"></i> MAX TRADE LOSS (RISK)</span>
+                    <strong class="ticket-val" id="ticket-max-loss" style="color: #ff4d4d; font-size: 1.05rem;">-₹274.55 (1.00%)</strong>
                 </div>
                 <div class="ticket-field" style="border-left: 2px solid #00f090;">
                     <span class="ticket-label">PROFIT TARGET</span>
@@ -818,6 +823,9 @@
                     </button>
                     <button type="button" class="btn-sm btn-outline" onclick="copyChipValue('sl')" id="chip-btn-sl" style="font-size: 0.75rem; padding: 5px 10px; border-color: rgba(239, 68, 68, 0.4); color: #f87171;" title="Click to copy stop loss trigger price">
                         <i class="fa-solid fa-copy"></i> SL: <strong id="chip-val-sl">₹2,690.00</strong>
+                    </button>
+                    <button type="button" class="btn-sm btn-outline" onclick="copyChipValue('maxloss')" id="chip-btn-maxloss" style="font-size: 0.75rem; padding: 5px 10px; border-color: rgba(239, 68, 68, 0.4); color: #ff6b6b; background: rgba(239, 68, 68, 0.1);" title="Click to copy max trade loss in rupees">
+                        <i class="fa-solid fa-copy"></i> Max Loss: <strong id="chip-val-maxloss">₹274.55</strong>
                     </button>
                     <button type="button" class="btn-sm btn-outline" onclick="copyChipValue('tp')" id="chip-btn-tp" style="font-size: 0.75rem; padding: 5px 10px; border-color: rgba(0, 240, 144, 0.4); color: #00f090;" title="Click to copy target price">
                         <i class="fa-solid fa-copy"></i> Target: <strong id="chip-val-tp">₹2,855.00</strong>
@@ -2232,8 +2240,17 @@
         const cleanSym = (symbol || '').replace('.NS', '');
         const numPrice = parseFloat(price || 0);
         const isShort = (side === 'SHORT' || side === 'SELL');
-        const numSl = parseFloat(sl || (isShort ? numPrice * 1.02 : numPrice * 0.98));
-        const numTp = parseFloat(tp || (isShort ? numPrice * 0.96 : numPrice * 1.04));
+        
+        // Strict 1.0% Stop-Loss Enforcement
+        const defaultSl = isShort ? roundNum(numPrice * 1.01) : roundNum(numPrice * 0.99);
+        let numSl = parseFloat(sl || defaultSl);
+        if (isShort) {
+            numSl = Math.min(numSl, roundNum(numPrice * 1.01));
+        } else {
+            numSl = Math.max(numSl, roundNum(numPrice * 0.99));
+        }
+
+        const numTp = parseFloat(tp || (isShort ? roundNum(numPrice * 0.97) : roundNum(numPrice * 1.03)));
         const numQty = parseInt(qty || 1, 10);
         const leverage = 5;
 
@@ -2241,7 +2258,8 @@
         const margin = notional / leverage;
 
         const slDiff = Math.abs(numPrice - numSl);
-        const slPct = numPrice > 0 ? ((slDiff / numPrice) * 100) : 0;
+        const slPct = numPrice > 0 ? ((slDiff / numPrice) * 100) : 1.0;
+        const maxLoss = slDiff * numQty;
         const tpDiff = Math.abs(numTp - numPrice);
         const tpPct = numPrice > 0 ? ((tpDiff / numPrice) * 100) : 0;
         const rr = slDiff > 0 ? (tpDiff / slDiff) : 0;
@@ -2257,6 +2275,7 @@
             margin: margin,
             notional: notional,
             slPct: slPct,
+            maxLoss: maxLoss,
             tpPct: tpPct,
             rr: rr
         };
@@ -2278,6 +2297,9 @@
 
         const slEl = document.getElementById('ticket-sl');
         if (slEl) slEl.innerText = `₹${numSl.toFixed(2)} (${isShort ? '+' : '-'}${slPct.toFixed(2)}%)`;
+
+        const maxLossEl = document.getElementById('ticket-max-loss');
+        if (maxLossEl) maxLossEl.innerText = `-₹${maxLoss.toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2})} (${slPct.toFixed(2)}%)`;
 
         const tpEl = document.getElementById('ticket-tp');
         if (tpEl) tpEl.innerText = `₹${numTp.toFixed(2)} (${isShort ? '-' : '+'}${tpPct.toFixed(2)}%)`;
@@ -2303,7 +2325,7 @@
             }
         }
 
-        const orderString = `${isShort ? 'SELL' : 'BUY'} ${cleanSym} | QTY: ${numQty} | MIS 5X | ENTRY: ₹${numPrice.toFixed(2)} | SL: ₹${numSl.toFixed(2)} (${isShort ? '+' : '-'}${slPct.toFixed(2)}%) | TARGET: ₹${numTp.toFixed(2)} (${isShort ? '-' : '+'}${tpPct.toFixed(2)}%) | MARGIN: ₹${margin.toFixed(0)}`;
+        const orderString = `${isShort ? 'SELL' : 'BUY'} ${cleanSym} | QTY: ${numQty} | MIS 5X | ENTRY: ₹${numPrice.toFixed(2)} | STRICT 1% SL: ₹${numSl.toFixed(2)} (${isShort ? '+' : '-'}${slPct.toFixed(2)}%) | MAX LOSS: ₹${maxLoss.toFixed(2)} | TARGET: ₹${numTp.toFixed(2)} (${isShort ? '-' : '+'}${tpPct.toFixed(2)}%) | MARGIN: ₹${margin.toFixed(0)}`;
         const copyArea = document.getElementById('ticket-copy-text');
         if (copyArea) copyArea.value = orderString;
 
@@ -2322,6 +2344,8 @@
         if (cPrice) cPrice.innerText = `₹${numPrice.toFixed(2)}`;
         const cSl = document.getElementById('chip-val-sl');
         if (cSl) cSl.innerText = `₹${numSl.toFixed(2)}`;
+        const cMaxLoss = document.getElementById('chip-val-maxloss');
+        if (cMaxLoss) cMaxLoss.innerText = `₹${maxLoss.toFixed(2)}`;
         const cTp = document.getElementById('chip-val-tp');
         if (cTp) cTp.innerText = `₹${numTp.toFixed(2)}`;
 
@@ -2395,6 +2419,9 @@
         } else if (field === 'sl') {
             textToCopy = currentTicketData.sl.toFixed(2);
             btnId = 'chip-btn-sl';
+        } else if (field === 'maxloss') {
+            textToCopy = (currentTicketData.maxLoss || 0).toFixed(2);
+            btnId = 'chip-btn-maxloss';
         } else if (field === 'tp') {
             textToCopy = currentTicketData.tp.toFixed(2);
             btnId = 'chip-btn-tp';
@@ -2754,8 +2781,9 @@
                 pnlColor = '#f87171';
             }
 
-            const sl = p.stop_loss || (isShort ? p.average_price * 1.02 : p.average_price * 0.98);
-            const tp = p.take_profit || (isShort ? p.average_price * 0.96 : p.average_price * 1.04);
+            const sl = p.stop_loss || (isShort ? p.average_price * 1.01 : p.average_price * 0.99);
+            const tp = p.take_profit || (isShort ? p.average_price * 0.97 : p.average_price * 1.03);
+            const maxLoss = Math.abs(p.average_price - sl) * p.quantity;
             const notional = (p.quantity || 0) * (p.current_price || p.average_price || 0);
 
             const card = document.createElement('div');
@@ -2785,8 +2813,10 @@
                         <div>Value: <strong style="color: #cbd5e1;">₹${notional.toFixed(0)}</strong></div>
                         <div>Avg: <strong style="color: #e2e8f0;">₹${(p.average_price||0).toFixed(1)}</strong></div>
                         <div>LTP: <strong style="color: #38bdf8;">₹${(p.current_price||0).toFixed(1)}</strong></div>
-                        <div>SL: <strong style="color: #f87171;">₹${sl.toFixed(1)}</strong></div>
-                        <div>TP: <strong style="color: #00f090;">₹${tp.toFixed(1)}</strong></div>
+                        <div>Strict SL: <strong style="color: #f87171;">₹${sl.toFixed(1)}</strong></div>
+                        <div>Max Loss: <strong style="color: #ff6b6b;">-₹${maxLoss.toFixed(1)}</strong></div>
+                        <div>Target: <strong style="color: #00f090;">₹${tp.toFixed(1)}</strong></div>
+                    </div>
                     </div>
                 </div>
 
@@ -3525,7 +3555,7 @@
                         <button class="btn-sm btn-outline" style="padding: 4px 6px; font-size: 0.72rem; display: inline-flex; align-items: center; gap: 3px; border-color: rgba(168, 85, 247, 0.4); color: #c084fc;" onclick="openChartVisualizer('${s.symbol}', ${s.price}, ${s.stop_loss || 0}, ${s.take_profit || 0}, '${s.signal}', ${s.reversal_score || 0}, '${s.reversal_grade || ''}', '${(s.reason || '').replace(/'/g, "\\'")}')" title="1-2-3 Chart Visualizer">
                             <i class="fa-solid fa-bezier-curve"></i> Chart
                         </button>
-                        <button class="btn-sm btn-outline" style="padding: 4px 6px; font-size: 0.72rem; display: inline-flex; align-items: center; gap: 3px; border-color: rgba(56, 189, 248, 0.4); color: #38bdf8;" onclick="openBrokerTicket('${s.symbol}', '${s.signal === 'SELL' ? 'SHORT' : 'BUY'}', ${s.price}, ${s.stop_loss || (s.signal === 'SELL' ? s.price * 1.02 : s.price * 0.98)}, ${s.take_profit || (s.signal === 'SELL' ? s.price * 0.96 : s.price * 1.04)}, 1, ${s.reversal_score || 0}, '${s.reversal_grade || ''}')" title="1-Click Broker Order Ticket">
+                        <button class="btn-sm btn-outline" style="padding: 4px 6px; font-size: 0.72rem; display: inline-flex; align-items: center; gap: 3px; border-color: rgba(56, 189, 248, 0.4); color: #38bdf8;" onclick="openBrokerTicket('${s.symbol}', '${s.signal === 'SELL' ? 'SHORT' : 'BUY'}', ${s.price}, ${s.stop_loss || (s.signal === 'SELL' ? s.price * 1.01 : s.price * 0.99)}, ${s.take_profit || (s.signal === 'SELL' ? s.price * 0.97 : s.price * 1.03)}, 1, ${s.reversal_score || 0}, '${s.reversal_grade || ''}')" title="1-Click Broker Order Ticket">
                             <i class="fa-solid fa-ticket"></i> Ticket
                         </button>
                         <a href="/?symbol=${s.symbol}" class="btn-sm btn-outline" style="text-decoration: none; display: inline-flex; align-items: center; gap: 4px; padding: 4px 6px; font-size: 0.72rem;">
@@ -4092,13 +4122,13 @@
         }
 
         if (totalCount === 0) {
-            tbody.innerHTML = '<tr><td colspan="10" class="text-center" style="padding: 1.5rem; color: var(--text-muted);">No open positions held. Bot will execute buys when signals trigger.</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="11" class="text-center" style="padding: 1.5rem; color: var(--text-muted);">No open positions held. Bot will execute buys when signals trigger.</td></tr>';
             renderHoldingsHeatmap();
             return;
         }
 
         if (filtered.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="10" class="text-center" style="padding: 1.5rem; color: var(--text-muted);"><i class="fa-solid fa-filter" style="margin-right: 6px;"></i> No holdings match filter "${window.activeHoldingsFilter}"${query ? ` and query "${query}"` : ''}. <button class="btn-sm btn-outline" onclick="resetHoldingsFilter()" style="margin-left: 8px; font-size: 0.72rem;">Clear Filter</button></td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="11" class="text-center" style="padding: 1.5rem; color: var(--text-muted);"><i class="fa-solid fa-filter" style="margin-right: 6px;"></i> No holdings match filter "${window.activeHoldingsFilter}"${query ? ` and query "${query}"` : ''}. <button class="btn-sm btn-outline" onclick="resetHoldingsFilter()" style="margin-left: 8px; font-size: 0.72rem;">Clear Filter</button></td></tr>`;
             renderHoldingsHeatmap();
             return;
         }
@@ -4113,11 +4143,15 @@
                 ? '<span class="side-badge side-short" style="background: rgba(255, 51, 102, 0.15); color: var(--red); border: 1px solid rgba(255, 51, 102, 0.3); padding: 3px 8px; border-radius: 4px; font-weight: 700; font-size: 0.72rem;"><i class="fa-solid fa-arrow-trend-down"></i> SHORT</span>'
                 : '<span class="side-badge side-long" style="background: rgba(0, 240, 144, 0.15); color: var(--green); border: 1px solid rgba(0, 240, 144, 0.3); padding: 3px 8px; border-radius: 4px; font-weight: 700; font-size: 0.72rem;"><i class="fa-solid fa-arrow-trend-up"></i> LONG</span>';
             
-            let slDisplay = `₹${(p.stop_loss || (isShort ? p.average_price * 1.025 : p.average_price * 0.975)).toFixed(2)}`;
+            const slPrice = p.stop_loss || (isShort ? p.average_price * 1.01 : p.average_price * 0.99);
+            let slDisplay = `₹${slPrice.toFixed(2)}`;
             if (p.trailing_active) {
                 slDisplay += ` <span style="font-size: 0.68rem; color: var(--green); font-weight: 700;">🛡️ Breakeven</span>`;
             }
-            let tpDisplay = `₹${(p.take_profit || (isShort ? p.average_price * 0.95 : p.average_price * 1.05)).toFixed(2)}`;
+            const maxLoss = Math.abs(p.average_price - slPrice) * p.quantity;
+            const maxLossPct = p.average_price > 0 ? ((Math.abs(p.average_price - slPrice) / p.average_price) * 100) : 1.0;
+
+            let tpDisplay = `₹${(p.take_profit || (isShort ? p.average_price * 0.97 : p.average_price * 1.03)).toFixed(2)}`;
             if (p.take_profit) {
                 tpDisplay += ` <span style="font-size: 0.68rem; color: #a78bfa;">🎯 Target</span>`;
             }
@@ -4136,6 +4170,7 @@
                 <td class="${pnlClass}" style="font-weight: 700;">${pnlSign}₹${(p.unrealized_pnl || 0).toFixed(2)}</td>
                 <td class="${pnlClass}" style="font-weight: 700;">${pnlSign}${(p.unrealized_pnl_pct || 0).toFixed(2)}%</td>
                 <td style="color: var(--red); font-weight: 700;">${slDisplay}</td>
+                <td style="color: #ff6b6b; font-weight: 700;">-₹${maxLoss.toFixed(2)} <span style="font-size:0.68rem; color:var(--text-muted); display:block;">(${maxLossPct.toFixed(2)}% SL)</span></td>
                 <td style="color: var(--green); font-weight: 700;">${tpDisplay}</td>
                 <td>
                     <div style="display: flex; gap: 4px; align-items: center;">
