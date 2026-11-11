@@ -240,7 +240,7 @@ class AutoTradingBot:
             self.last_scan_summary["trades_executed"] = len(self.session_trades)
             self.persist_state()
 
-    def get_intraday_traded_symbols(self) -> set:
+    def get_intraday_traded_symbols(self, client_traded_symbols: list = None) -> set:
         """Returns set of symbols that have already had an entry trade today during the current IST session"""
         # In NIGHTHAWK (24/7 Sandbox Lab), stocks can be traded multiple times once closed
         if self.name == "NIGHTHAWK":
@@ -249,6 +249,12 @@ class AutoTradingBot:
         from datetime import datetime, timezone, timedelta
         
         traded = set()
+        # 0. Client-provided traded symbols (persisted in browser across Vercel serverless cold starts)
+        if client_traded_symbols and isinstance(client_traded_symbols, list):
+            for s in client_traded_symbols:
+                if s and isinstance(s, str):
+                    traded.add(s.strip().upper())
+
         # 1. Any currently held open position
         try:
             open_positions = self.pos_model.query.filter(self.pos_model.quantity > 0).all()
@@ -814,7 +820,7 @@ class AutoTradingBot:
             "action_executed": None
         }
 
-    def evaluate_signals(self, simulation_event: str = None, target_symbol: str = None) -> dict:
+    def evaluate_signals(self, simulation_event: str = None, target_symbol: str = None, client_traded_symbols: list = None) -> dict:
         """Runs the scanner across all Nifty 50 constituents (or single stock) and auto-trades"""
         import random
         self.last_run_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -922,7 +928,7 @@ class AutoTradingBot:
         held_map = {p.symbol: p for p in held_positions}
         account = self.engine.reconcile_account_balance()
         available_cash = account.cash_balance if account else 0.0
-        already_traded_today = self.get_intraday_traded_symbols()
+        already_traded_today = self.get_intraday_traded_symbols(client_traded_symbols=client_traded_symbols)
 
         if self.scan_mode == "ALL_NIFTY_200":
             target_stocks = NIFTY_200_DEFAULT
@@ -1061,7 +1067,7 @@ class AutoTradingBot:
                     elif symbol not in held_map and has_position_slot:
                         if self.name != "NIGHTHAWK" and symbol in already_traded_today:
                             eval_res["action_executed"] = "SKIPPED (Already Traded Today)"
-                            self.add_log(f"⏸️ {display_name} BUY skipped: Intraday 1-trade limit reached today", "INFO")
+                            self.add_log(f"⏸️ {display_name} BUY skipped: Strict 1-trade per stock intraday limit reached", "INFO")
                         else:
                             buying_power = self.allocation_per_trade * self.leverage
                             trade_qty = max(1, int(buying_power / price))
@@ -1176,7 +1182,7 @@ class AutoTradingBot:
                     elif symbol not in held_map and has_position_slot:
                         if self.name != "NIGHTHAWK" and symbol in already_traded_today:
                             eval_res["action_executed"] = "SKIPPED (Already Traded Today)"
-                            self.add_log(f"⏸️ {display_name} SHORT skipped: Intraday 1-trade limit reached today", "INFO")
+                            self.add_log(f"⏸️ {display_name} SHORT skipped: Strict 1-trade per stock intraday limit reached", "INFO")
                         else:
                             buying_power = self.allocation_per_trade * self.leverage
                             trade_qty = max(1, int(buying_power / price))

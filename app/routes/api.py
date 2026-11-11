@@ -590,9 +590,15 @@ def tick_bot():
     client_positions = body.get('client_positions')
     sync_positions_from_client(client_positions)
 
+    client_traded_symbols = body.get('client_traded_symbols')
+
     event = body.get('event')
     symbol = body.get('symbol')
-    res = bot_instance.evaluate_signals(simulation_event=event, target_symbol=symbol)
+    res = bot_instance.evaluate_signals(
+        simulation_event=event, 
+        target_symbol=symbol, 
+        client_traded_symbols=client_traded_symbols
+    )
     return jsonify({
         "status": "evaluated",
         "result": res,

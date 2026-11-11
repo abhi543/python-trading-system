@@ -3253,6 +3253,43 @@
         }
     }
 
+    function getTodayTradedSymbols() {
+        const symbols = new Set();
+        // 1. Any currently held open positions
+        try {
+            const active = getStoredActivePositions() || [];
+            active.forEach(p => { if (p && p.symbol) symbols.add(p.symbol); });
+        } catch (e) {}
+
+        // 2. Any trades executed in the current active bot session
+        try {
+            if (botSession && Array.isArray(botSession.trades)) {
+                botSession.trades.forEach(t => { if (t && t.symbol) symbols.add(t.symbol); });
+            }
+        } catch (e) {}
+
+        // 3. Any closed trades recorded today (IST date match)
+        try {
+            const closed = getStoredClosedTrades() || [];
+            const d = new Date();
+            const year = d.getFullYear();
+            const month = String(d.getMonth() + 1).padStart(2, '0');
+            const day = String(d.getDate()).padStart(2, '0');
+            const todayStr = `${year}-${month}-${day}`;
+
+            closed.forEach(t => {
+                if (t && t.symbol) {
+                    const ts = String(t.timestamp || '');
+                    if (!ts || ts.startsWith(todayStr)) {
+                        symbols.add(t.symbol);
+                    }
+                }
+            });
+        } catch (e) {}
+
+        return Array.from(symbols);
+    }
+
     async function tickBotNow() {
         if (isScanning) return;
         isScanning = true;
@@ -3276,7 +3313,8 @@
                     event: tickEvent, 
                     config: cfg, 
                     is_running: isBotActive,
-                    client_positions: getStoredActivePositions() 
+                    client_positions: getStoredActivePositions(),
+                    client_traded_symbols: getTodayTradedSymbols()
                 })
             });
             if (!res.ok) {
