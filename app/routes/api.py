@@ -162,28 +162,69 @@ def place_order():
     if not result.get("success"):
         return jsonify(result), 400
         
-    # Record manual exit or entry into bot session report if active
-    try:
-        from app.services.bot import bot_instance
+    # Build complete closed trade details if this was a position liquidation/cover
+    closed_trade = None
+    if side in ("SELL", "COVER") and result.get("success"):
         from datetime import datetime
-        pnl = result.get("realized_pnl", 0.0)
-        bot_instance.record_session_trade({
+        entry_p = float(result.get("entry_price") or avg_price or result.get("price", 0.0))
+        exit_p = float(result.get("price", 0.0))
+        pnl = float(result.get("realized_pnl", 0.0))
+        cost_basis = round(quantity * (entry_p if entry_p > 0 else 1.0), 2)
+        roi_pct = round((pnl / cost_basis) * 100, 2) if cost_basis > 0 else 0.0
+        chg_dict = result.get("charges") if isinstance(result.get("charges"), dict) else {}
+        chg_val = float(chg_dict.get("total_charges", 0.0) if isinstance(chg_dict, dict) else 0.0)
+        closed_trade = {
+            "id": result.get("trade_id") or int(datetime.now().timestamp() * 1000),
             "symbol": symbol,
             "displayName": symbol.replace('.NS', ''),
             "side": side,
             "quantity": quantity,
-            "entry_price": result.get("entry_price", result.get("price", 0.0)),
-            "exit_price": result.get("price", 0.0) if side == "SELL" else None,
-            "price": result.get("price", 0.0),
-            "total_value": round(quantity * (result.get("price") or 0.0), 2),
-            "charges": result.get("charges", {}).get("total_charges", 0.0) if isinstance(result.get("charges"), dict) else 0.0,
+            "entry_price": entry_p,
+            "exit_price": exit_p,
+            "price": exit_p,
+            "total_value": round(quantity * exit_p, 2),
+            "charges": chg_val,
+            "brokerage": round(float(chg_dict.get("brokerage", 0.0)), 2),
+            "stt": round(float(chg_dict.get("stt", 0.0)), 2),
+            "exchange_charges": round(float(chg_dict.get("exchange_charges", 0.0)), 2),
+            "sebi_charges": round(float(chg_dict.get("sebi_charges", 0.0)), 2),
+            "gst": round(float(chg_dict.get("gst", 0.0)), 2),
+            "stamp_duty": round(float(chg_dict.get("stamp_duty", 0.0)), 2),
+            "net_proceeds": round((quantity * exit_p) - chg_val, 2),
             "realized_pnl": pnl,
-            "roi_pct": round((pnl / (quantity * (result.get("price") or 1.0))) * 100, 2) if (side == "SELL" and quantity > 0) else 0.0,
+            "roi_pct": roi_pct,
+            "is_win": pnl >= 0,
             "action": side,
-            "signal": "MANUAL_EXIT" if side == "SELL" else "MANUAL_ORDER",
-            "reason": f"Manual {side} order executed by operator",
+            "signal": "MANUAL_EXIT",
+            "reason": f"Manual {side} exit by operator",
             "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        })
+        }
+        result["closed_trade"] = closed_trade
+
+    # Record manual exit or entry into bot session report if active
+    try:
+        from app.services.bot import bot_instance
+        from datetime import datetime
+        if closed_trade:
+            bot_instance.record_session_trade(closed_trade)
+        else:
+            bot_instance.record_session_trade({
+                "symbol": symbol,
+                "displayName": symbol.replace('.NS', ''),
+                "side": side,
+                "quantity": quantity,
+                "entry_price": result.get("entry_price", result.get("price", 0.0)),
+                "exit_price": result.get("price", 0.0) if side == "SELL" else None,
+                "price": result.get("price", 0.0),
+                "total_value": round(quantity * (result.get("price") or 0.0), 2),
+                "charges": result.get("charges", {}).get("total_charges", 0.0) if isinstance(result.get("charges"), dict) else 0.0,
+                "realized_pnl": result.get("realized_pnl", 0.0),
+                "roi_pct": 0.0,
+                "action": side,
+                "signal": "MANUAL_ORDER",
+                "reason": f"Manual {side} order executed by operator",
+                "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            })
     except Exception:
         pass
 
@@ -383,9 +424,10 @@ def exit_all_positions():
 
     positions = Position.query.filter(Position.quantity > 0).all()
     if not positions:
-        return jsonify({"success": True, "message": "No open positions to exit.", "exited_count": 0, "results": []})
+        return jsonify({"success": True, "message": "No open positions to exit.", "exited_count": 0, "results": [], "closed_trades": []})
 
     results = []
+    closed_trades = []
     for pos in positions:
         sym = pos.symbol
         qty = pos.quantity
@@ -394,26 +436,43 @@ def exit_all_positions():
         
         res = PaperTradingEngine.execute_order(sym, exit_side, qty)
         if res.get("success"):
-            pnl = res.get("realized_pnl", 0.0)
-            chg = res.get("charges", {}).get("total_charges", 0.0) if isinstance(res.get("charges"), dict) else 0.0
-            bot_instance.record_session_trade({
+            pnl = float(res.get("realized_pnl", 0.0))
+            chg_dict = res.get("charges") if isinstance(res.get("charges"), dict) else {}
+            chg = float(chg_dict.get("total_charges", 0.0) if isinstance(chg_dict, dict) else 0.0)
+            entry_p = float(res.get("entry_price") or pos.average_price or res.get("price", 0.0))
+            exit_p = float(res.get("price", 0.0))
+            cost_basis = round(qty * (entry_p if entry_p > 0 else 1.0), 2)
+            roi_pct = round((pnl / cost_basis) * 100, 2) if cost_basis > 0 else 0.0
+            
+            trade_record = {
+                "id": res.get("trade_id") or (int(datetime.now().timestamp() * 1000) + len(closed_trades)),
                 "symbol": sym,
                 "displayName": sym.replace('.NS', ''),
                 "side": exit_side,
                 "quantity": qty,
-                "entry_price": res.get("entry_price", pos.average_price),
-                "exit_price": res.get("price", 0.0),
-                "price": res.get("price", 0.0),
-                "total_value": round(qty * (res.get("price") or 0.0), 2),
+                "entry_price": entry_p,
+                "exit_price": exit_p,
+                "price": exit_p,
+                "total_value": round(qty * exit_p, 2),
                 "charges": chg,
+                "brokerage": round(float(chg_dict.get("brokerage", 0.0)), 2),
+                "stt": round(float(chg_dict.get("stt", 0.0)), 2),
+                "exchange_charges": round(float(chg_dict.get("exchange_charges", 0.0)), 2),
+                "sebi_charges": round(float(chg_dict.get("sebi_charges", 0.0)), 2),
+                "gst": round(float(chg_dict.get("gst", 0.0)), 2),
+                "stamp_duty": round(float(chg_dict.get("stamp_duty", 0.0)), 2),
+                "net_proceeds": round((qty * exit_p) - chg, 2),
                 "realized_pnl": pnl,
-                "roi_pct": round((pnl / (qty * (pos.average_price or 1.0))) * 100, 2),
+                "roi_pct": roi_pct,
+                "is_win": pnl >= 0,
                 "action": exit_side,
                 "signal": "MANUAL_SQUARE_OFF",
                 "reason": f"Manual Square-Off by Operator ({exit_side})",
                 "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            })
-            bot_instance.add_log(f"🛑 [MANUAL SQUARE OFF] Exited {qty} shares of {sym.replace('.NS', '')} @ ₹{res.get('price'):.2f} | P&L: ₹{pnl:+,.2f}", "SUCCESS" if pnl >= 0 else "WARNING")
+            }
+            closed_trades.append(trade_record)
+            bot_instance.record_session_trade(trade_record)
+            bot_instance.add_log(f"🛑 [MANUAL SQUARE OFF] Exited {qty} shares of {sym.replace('.NS', '')} @ ₹{exit_p:.2f} | P&L: ₹{pnl:+,.2f}", "SUCCESS" if pnl >= 0 else "WARNING")
             results.append({"symbol": sym, "success": True, "pnl": pnl})
         else:
             results.append({"symbol": sym, "success": False, "message": res.get("message")})
@@ -422,7 +481,8 @@ def exit_all_positions():
         "success": True,
         "message": f"Successfully squared off {len([r for r in results if r['success']])} open positions.",
         "exited_count": len([r for r in results if r['success']]),
-        "results": results
+        "results": results,
+        "closed_trades": closed_trades
     })
 
 @api_bp.route('/bot/reset-and-restart', methods=['POST'])
@@ -769,6 +829,45 @@ def place_after_hours_order():
     result = AfterHoursPaperTradingEngine.execute_order(
         symbol=symbol, side=side, quantity=quantity, execution_price=exec_price, force_bypass_day_limit=True
     )
+    
+    # Build complete closed trade details if exiting
+    if side in ("SELL", "COVER") and result.get("success"):
+        from datetime import datetime
+        entry_p = float(result.get("entry_price", 0.0) or execution_price or result.get("price", 0.0))
+        exit_p = float(result.get("price", 0.0))
+        pnl = float(result.get("realized_pnl", 0.0))
+        cost_basis = round(quantity * (entry_p if entry_p > 0 else 1.0), 2)
+        roi_pct = round((pnl / cost_basis) * 100, 2) if cost_basis > 0 else 0.0
+        chg_dict = result.get("charges") if isinstance(result.get("charges"), dict) else {}
+        chg_val = float(chg_dict.get("total_charges", 0.0) if isinstance(chg_dict, dict) else 0.0)
+        closed_trade = {
+            "id": result.get("trade_id") or int(datetime.now().timestamp() * 1000),
+            "symbol": symbol,
+            "displayName": symbol.replace('.NS', ''),
+            "side": side,
+            "quantity": quantity,
+            "entry_price": entry_p,
+            "exit_price": exit_p,
+            "price": exit_p,
+            "total_value": round(quantity * exit_p, 2),
+            "charges": chg_val,
+            "brokerage": round(float(chg_dict.get("brokerage", 0.0)), 2),
+            "stt": round(float(chg_dict.get("stt", 0.0)), 2),
+            "exchange_charges": round(float(chg_dict.get("exchange_charges", 0.0)), 2),
+            "sebi_charges": round(float(chg_dict.get("sebi_charges", 0.0)), 2),
+            "gst": round(float(chg_dict.get("gst", 0.0)), 2),
+            "stamp_duty": round(float(chg_dict.get("stamp_duty", 0.0)), 2),
+            "net_proceeds": round((quantity * exit_p) - chg_val, 2),
+            "realized_pnl": pnl,
+            "roi_pct": roi_pct,
+            "is_win": pnl >= 0,
+            "action": side,
+            "signal": "MANUAL_EXIT",
+            "reason": f"Manual {side} exit by operator",
+            "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        }
+        result["closed_trade"] = closed_trade
+
     status_code = 200 if result.get("success") else 400
     return jsonify(result), status_code
 
@@ -790,11 +889,13 @@ def exit_all_after_hours_positions():
             "message": "No open NIGHTHAWK positions to square off.",
             "exited_count": 0,
             "total_pnl": 0.0,
-            "portfolio": AfterHoursPaperTradingEngine.get_portfolio_summary()
+            "portfolio": AfterHoursPaperTradingEngine.get_portfolio_summary(),
+            "closed_trades": []
         })
 
     exited_count = 0
     total_realized_pnl = 0.0
+    closed_trades = []
 
     for pos in positions:
         sym = pos.symbol
@@ -809,24 +910,40 @@ def exit_all_after_hours_positions():
             exited_count += 1
             pnl = float(res.get("realized_pnl") or 0.0)
             total_realized_pnl += pnl
-            chg = float(res.get("charges", {}).get("total_charges", 0.0)) if isinstance(res.get("charges"), dict) else 0.0
-            after_hours_bot_instance.record_session_trade({
+            chg_dict = res.get("charges") if isinstance(res.get("charges"), dict) else {}
+            chg = float(chg_dict.get("total_charges", 0.0) if isinstance(chg_dict, dict) else 0.0)
+            entry_p = float(pos.average_price or p)
+            cost_basis = round(qty * (entry_p if entry_p > 0 else 1.0), 2)
+            roi_pct = round((pnl / cost_basis) * 100, 2) if cost_basis > 0 else 0.0
+
+            trade_record = {
+                "id": res.get("trade_id") or (int(datetime.now().timestamp() * 1000) + len(closed_trades)),
                 "symbol": sym,
                 "displayName": sym.replace(".NS", ""),
                 "side": exit_side,
                 "quantity": qty,
-                "entry_price": pos.average_price,
+                "entry_price": entry_p,
                 "exit_price": p,
                 "price": p,
                 "total_value": round(qty * p, 2),
                 "charges": chg,
+                "brokerage": round(float(chg_dict.get("brokerage", 0.0)), 2),
+                "stt": round(float(chg_dict.get("stt", 0.0)), 2),
+                "exchange_charges": round(float(chg_dict.get("exchange_charges", 0.0)), 2),
+                "sebi_charges": round(float(chg_dict.get("sebi_charges", 0.0)), 2),
+                "gst": round(float(chg_dict.get("gst", 0.0)), 2),
+                "stamp_duty": round(float(chg_dict.get("stamp_duty", 0.0)), 2),
+                "net_proceeds": round((qty * p) - chg, 2),
                 "realized_pnl": pnl,
-                "roi_pct": res.get("roi_pct", 0.0),
+                "roi_pct": roi_pct,
+                "is_win": pnl >= 0,
                 "action": exit_side,
                 "signal": "MANUAL_EXIT_ALL",
                 "reason": f"Manual Operator Square-Off All Positions @ ₹{p:.2f}",
                 "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            })
+            }
+            closed_trades.append(trade_record)
+            after_hours_bot_instance.record_session_trade(trade_record)
 
     after_hours_bot_instance.add_log(f"⚡ [MANUAL SQUARE OFF] Liquidated {exited_count} NIGHTHAWK positions | Net P&L: ₹{total_realized_pnl:+,.2f}", "WARNING")
 
@@ -835,7 +952,8 @@ def exit_all_after_hours_positions():
         "message": f"Successfully squared off {exited_count} NIGHTHAWK positions.",
         "exited_count": exited_count,
         "total_pnl": round(total_realized_pnl, 2),
-        "portfolio": AfterHoursPaperTradingEngine.get_portfolio_summary()
+        "portfolio": AfterHoursPaperTradingEngine.get_portfolio_summary(),
+        "closed_trades": closed_trades
     })
 
 @api_bp.route('/after-hours/reset-account', methods=['POST'])

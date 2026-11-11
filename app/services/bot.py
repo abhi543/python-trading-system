@@ -579,13 +579,18 @@ class AutoTradingBot:
 
             if is_sl_hit:
                 lock_pnl = pnl_pct
+                closed_trade_dict = None
                 if allow_order_execution:
                     self.add_log(f"🛑 [STOP HIT] {display_name} ({pos_side}): Liquidated @ ₹{current_price:.2f} (Stop was ₹{sl_level:.2f}, Result: {lock_pnl:+.2f}%)", "ERROR" if lock_pnl < 0 else "SUCCESS")
                     exec_res = self.engine.execute_order(symbol, exit_order_side, pos.quantity, execution_price=current_price)
                     if exec_res.get("success"):
-                        pnl = exec_res.get("realized_pnl", round(((current_price - avg_price) if not is_short else (avg_price - current_price)) * pos.quantity, 2))
-                        chg = exec_res.get("charges", {}).get("total_charges", 0.0) if isinstance(exec_res.get("charges"), dict) else 0.0
-                        self.record_session_trade({
+                        held_positions_map.pop(symbol, None)
+                        pnl = float(exec_res.get("realized_pnl", round(((current_price - avg_price) if not is_short else (avg_price - current_price)) * pos.quantity, 2)))
+                        chg_dict = exec_res.get("charges") if isinstance(exec_res.get("charges"), dict) else {}
+                        chg = float(chg_dict.get("total_charges", 0.0) if isinstance(chg_dict, dict) else 0.0)
+                        cost_basis = round(pos.quantity * (avg_price if avg_price > 0 else 1.0), 2)
+                        closed_trade_dict = {
+                            "id": exec_res.get("trade_id") or int(datetime.now().timestamp() * 1000),
                             "symbol": symbol,
                             "displayName": display_name,
                             "side": exit_order_side,
@@ -595,28 +600,43 @@ class AutoTradingBot:
                             "price": current_price,
                             "total_value": round(pos.quantity * current_price, 2),
                             "charges": chg,
+                            "brokerage": round(float(chg_dict.get("brokerage", 0.0)), 2),
+                            "stt": round(float(chg_dict.get("stt", 0.0)), 2),
+                            "exchange_charges": round(float(chg_dict.get("exchange_charges", 0.0)), 2),
+                            "sebi_charges": round(float(chg_dict.get("sebi_charges", 0.0)), 2),
+                            "gst": round(float(chg_dict.get("gst", 0.0)), 2),
+                            "stamp_duty": round(float(chg_dict.get("stamp_duty", 0.0)), 2),
+                            "net_proceeds": round((pos.quantity * current_price) - chg, 2),
                             "realized_pnl": pnl,
-                            "roi_pct": round(lock_pnl, 2),
+                            "roi_pct": round((pnl / cost_basis) * 100, 2) if cost_basis > 0 else 0.0,
+                            "is_win": pnl >= 0,
                             "action": exit_action_label,
                             "signal": "STOP_LOSS",
                             "reason": f"Stop-Loss hit @ ₹{current_price:.2f} (SL: ₹{sl_level:.2f})",
                             "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                        })
+                        }
+                        self.record_session_trade(closed_trade_dict)
                 return {
                     "symbol": symbol, "displayName": display_name, "price": current_price,
                     "change_pct": change_pct, "signal": "STOP_LOSS", "reason": f"Indicator Stop-Loss hit @ ₹{current_price:.2f} (SL: ₹{sl_level:.2f}, {lock_pnl:+.2f}%)",
-                    "action_executed": "STOP_EXIT" if allow_order_execution else "OFFLINE (No orders placed)", "ema_200": ema_200, "trend_200": trend_200, "vol_ratio": vol_ratio, "atr_14": atr_14
+                    "action_executed": "STOP_EXIT" if allow_order_execution else "OFFLINE (No orders placed)", "ema_200": ema_200, "trend_200": trend_200, "vol_ratio": vol_ratio, "atr_14": atr_14,
+                    "closed_trade": closed_trade_dict
                 }
 
             # Check if Fixed % Stop-Loss Ceiling triggered (Protects ALL strategies including 1-2-3 Reversal)
             if pnl_pct <= -abs(self.stop_loss_pct):
+                closed_trade_dict = None
                 if allow_order_execution:
                     self.add_log(f"🛑 [SL CEILING HIT] {display_name} ({pos_side}): Max risk limit reached at -{abs(pnl_pct):.2f}% (Ceiling: -{abs(self.stop_loss_pct):.1f}%). Liquidating {pos.quantity} shares @ ₹{current_price:.2f} to protect capital!", "ERROR")
                     exec_res = self.engine.execute_order(symbol, exit_order_side, pos.quantity, execution_price=current_price)
                     if exec_res.get("success"):
-                        pnl = exec_res.get("realized_pnl", round(((current_price - avg_price) if not is_short else (avg_price - current_price)) * pos.quantity, 2))
-                        chg = exec_res.get("charges", {}).get("total_charges", 0.0) if isinstance(exec_res.get("charges"), dict) else 0.0
-                        self.record_session_trade({
+                        held_positions_map.pop(symbol, None)
+                        pnl = float(exec_res.get("realized_pnl", round(((current_price - avg_price) if not is_short else (avg_price - current_price)) * pos.quantity, 2)))
+                        chg_dict = exec_res.get("charges") if isinstance(exec_res.get("charges"), dict) else {}
+                        chg = float(chg_dict.get("total_charges", 0.0) if isinstance(chg_dict, dict) else 0.0)
+                        cost_basis = round(pos.quantity * (avg_price if avg_price > 0 else 1.0), 2)
+                        closed_trade_dict = {
+                            "id": exec_res.get("trade_id") or int(datetime.now().timestamp() * 1000),
                             "symbol": symbol,
                             "displayName": display_name,
                             "side": exit_order_side,
@@ -626,17 +646,27 @@ class AutoTradingBot:
                             "price": current_price,
                             "total_value": round(pos.quantity * current_price, 2),
                             "charges": chg,
+                            "brokerage": round(float(chg_dict.get("brokerage", 0.0)), 2),
+                            "stt": round(float(chg_dict.get("stt", 0.0)), 2),
+                            "exchange_charges": round(float(chg_dict.get("exchange_charges", 0.0)), 2),
+                            "sebi_charges": round(float(chg_dict.get("sebi_charges", 0.0)), 2),
+                            "gst": round(float(chg_dict.get("gst", 0.0)), 2),
+                            "stamp_duty": round(float(chg_dict.get("stamp_duty", 0.0)), 2),
+                            "net_proceeds": round((pos.quantity * current_price) - chg, 2),
                             "realized_pnl": pnl,
-                            "roi_pct": round(pnl_pct, 2),
+                            "roi_pct": round((pnl / cost_basis) * 100, 2) if cost_basis > 0 else 0.0,
+                            "is_win": pnl >= 0,
                             "action": exit_action_label,
                             "signal": "STOP_LOSS",
                             "reason": f"Fixed Stop-Loss hit at {pnl_pct:.2f}%",
                             "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                        })
+                        }
+                        self.record_session_trade(closed_trade_dict)
                 return {
                     "symbol": symbol, "displayName": display_name, "price": current_price,
                     "change_pct": change_pct, "signal": "STOP_LOSS", "reason": f"Stop-Loss triggered at {pnl_pct:.2f}%",
-                    "action_executed": "LIQUIDATED" if allow_order_execution else "OFFLINE (No orders placed)", "ema_200": ema_200, "trend_200": trend_200, "vol_ratio": vol_ratio, "atr_14": atr_14
+                    "action_executed": "LIQUIDATED" if allow_order_execution else "OFFLINE (No orders placed)", "ema_200": ema_200, "trend_200": trend_200, "vol_ratio": vol_ratio, "atr_14": atr_14,
+                    "closed_trade": closed_trade_dict
                 }
 
             # Check Take-Profit (Dual Mode: Indicator Measured Move Target OR Configured % Target):
@@ -651,13 +681,18 @@ class AutoTradingBot:
                 tp_reason = f"Take-Profit target achieved at +{pnl_pct:.2f}% (Target: +{self.take_profit_pct:.1f}%)"
 
             if is_tp_hit:
+                closed_trade_dict = None
                 if allow_order_execution:
                     self.add_log(f"🎯 [TAKE-PROFIT] {display_name} ({pos_side}): Hit +{pnl_pct:.2f}%. Closing {pos.quantity} shares @ ₹{current_price:.2f} to lock gains! ({tp_reason})", "SUCCESS")
                     exec_res = self.engine.execute_order(symbol, exit_order_side, pos.quantity, execution_price=current_price)
                     if exec_res.get("success"):
-                        pnl = exec_res.get("realized_pnl", round(((current_price - avg_price) if not is_short else (avg_price - current_price)) * pos.quantity, 2))
-                        chg = exec_res.get("charges", {}).get("total_charges", 0.0) if isinstance(exec_res.get("charges"), dict) else 0.0
-                        self.record_session_trade({
+                        held_positions_map.pop(symbol, None)
+                        pnl = float(exec_res.get("realized_pnl", round(((current_price - avg_price) if not is_short else (avg_price - current_price)) * pos.quantity, 2)))
+                        chg_dict = exec_res.get("charges") if isinstance(exec_res.get("charges"), dict) else {}
+                        chg = float(chg_dict.get("total_charges", 0.0) if isinstance(chg_dict, dict) else 0.0)
+                        cost_basis = round(pos.quantity * (avg_price if avg_price > 0 else 1.0), 2)
+                        closed_trade_dict = {
+                            "id": exec_res.get("trade_id") or int(datetime.now().timestamp() * 1000),
                             "symbol": symbol,
                             "displayName": display_name,
                             "side": exit_order_side,
@@ -667,17 +702,27 @@ class AutoTradingBot:
                             "price": current_price,
                             "total_value": round(pos.quantity * current_price, 2),
                             "charges": chg,
+                            "brokerage": round(float(chg_dict.get("brokerage", 0.0)), 2),
+                            "stt": round(float(chg_dict.get("stt", 0.0)), 2),
+                            "exchange_charges": round(float(chg_dict.get("exchange_charges", 0.0)), 2),
+                            "sebi_charges": round(float(chg_dict.get("sebi_charges", 0.0)), 2),
+                            "gst": round(float(chg_dict.get("gst", 0.0)), 2),
+                            "stamp_duty": round(float(chg_dict.get("stamp_duty", 0.0)), 2),
+                            "net_proceeds": round((pos.quantity * current_price) - chg, 2),
                             "realized_pnl": pnl,
-                            "roi_pct": round(pnl_pct, 2),
+                            "roi_pct": round((pnl / cost_basis) * 100, 2) if cost_basis > 0 else 0.0,
+                            "is_win": pnl >= 0,
                             "action": exit_action_label,
                             "signal": "TAKE_PROFIT",
                             "reason": tp_reason,
                             "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                        })
+                        }
+                        self.record_session_trade(closed_trade_dict)
                 return {
                     "symbol": symbol, "displayName": display_name, "price": current_price,
                     "change_pct": change_pct, "signal": "TAKE_PROFIT", "reason": tp_reason,
-                    "action_executed": "PROFIT_LOCKED" if allow_order_execution else "OFFLINE (No orders placed)", "ema_200": ema_200, "trend_200": trend_200, "vol_ratio": vol_ratio, "atr_14": atr_14
+                    "action_executed": "PROFIT_LOCKED" if allow_order_execution else "OFFLINE (No orders placed)", "ema_200": ema_200, "trend_200": trend_200, "vol_ratio": vol_ratio, "atr_14": atr_14,
+                    "closed_trade": closed_trade_dict
                 }
 
         # 2. Strategy Indicator Evaluation
@@ -1266,6 +1311,8 @@ class AutoTradingBot:
         # Sort results: BUY signals first, then SELL, then highest volume/changes
         scanner_results.sort(key=lambda x: (0 if x["signal"] == "BUY" else (1 if x["signal"] in ("SELL", "STOP_LOSS", "TAKE_PROFIT") else 2), -abs(x.get("change_pct") or 0)))
 
+        sweep_closed_trades = [r["closed_trade"] for r in scanner_results if r.get("closed_trade")]
+
         self.last_scan_summary = {
             "total_scanned": len(scanner_results),
             "buys_found": buys_found,
@@ -1274,7 +1321,8 @@ class AutoTradingBot:
             "recent_sweep_trades": trades_executed,
             "active_positions_count": len(held_map),
             "max_positions_limit": self.max_positions,
-            "scanner_results": scanner_results
+            "scanner_results": scanner_results,
+            "closed_trades": sweep_closed_trades
         }
 
         sweep_tag = "🌙 AFTER-MARKET SWEEP (Simulated)" if after_hours else "☀️ LIVE NSE MARKET SWEEP (Real Quotes)"

@@ -741,13 +741,21 @@
                     <textarea id="ticket-copy-text" readonly rows="2" style="width: 100%; background: rgba(0,0,0,0.5); border: 1px solid rgba(255,255,255,0.12); border-radius: 6px; padding: 8px 10px; font-family: var(--font-code); font-size: 0.75rem; color: #38bdf8; resize: none; outline: none;"></textarea>
                 </div>
             </div>
+
+            <!-- Kite & TradingView Usage Tip Banner -->
+            <div style="margin-top: 0.85rem; font-size: 0.72rem; color: #ff9800; background: rgba(255, 152, 0, 0.08); border: 1px dashed rgba(255, 152, 0, 0.3); padding: 8px 12px; border-radius: 6px; display: flex; align-items: flex-start; gap: 8px; line-height: 1.4;">
+                <i class="fa-solid fa-lightbulb" style="margin-top: 2px;"></i>
+                <div>
+                    <strong>How to place in Zerodha Kite:</strong> Click <strong>OPEN IN KITE</strong> (symbol is auto-copied to clipboard) ➔ In Kite, press <kbd style="background: rgba(0,0,0,0.6); border: 1px solid rgba(255,255,255,0.2); padding: 1px 4px; border-radius: 3px; font-family: var(--font-code); color: #fff;">Ctrl+V</kbd> in the search bar to immediately open the order form! Or click <strong>TRADINGVIEW</strong> for full live interactive charts.
+                </div>
+            </div>
         </div>
 
         <div class="broker-modal-footer" style="display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center;">
             <button id="btn-ticket-copy" class="btn-bot-start" onclick="copyTicketToClipboard()" style="padding: 8px 14px; font-size: 0.8rem;">
                 <i class="fa-solid fa-copy"></i> COPY ALL DETAILS
             </button>
-            <a id="ticket-kite-link" href="https://kite.zerodha.com" target="_blank" class="btn-sm btn-outline" style="text-decoration: none; display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px; font-size: 0.8rem; border-color: rgba(255, 87, 34, 0.6); color: #ff5722; font-weight: 700; background: rgba(255, 87, 34, 0.1);">
+            <a id="ticket-kite-link" href="https://kite.zerodha.com" target="_blank" onclick="openKiteWithSymbol(event)" class="btn-sm btn-outline" style="text-decoration: none; display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px; font-size: 0.8rem; border-color: rgba(255, 87, 34, 0.6); color: #ff5722; font-weight: 700; background: rgba(255, 87, 34, 0.1);">
                 <i class="fa-solid fa-arrow-up-right-from-square"></i> OPEN IN KITE
             </a>
             <button id="btn-ticket-zerodha" class="btn-sm btn-outline" onclick="downloadSingleZerodhaBasket()" style="padding: 8px 14px; font-size: 0.8rem; border-color: rgba(255, 255, 255, 0.2); color: var(--text-muted);" title="Download 1-Click Importable Basket file for Zerodha Kite Web">
@@ -2117,7 +2125,7 @@
         if (tvLink) tvLink.href = `https://in.tradingview.com/chart/?symbol=NSE:${cleanSym}`;
 
         const kiteLink = document.getElementById('ticket-kite-link');
-        if (kiteLink) kiteLink.href = `https://kite.zerodha.com/chart/ext/tvc/NSE/${cleanSym}`;
+        if (kiteLink) kiteLink.href = 'https://kite.zerodha.com';
 
         // Populate 1-Click Quick-Copy Chips
         const cSym = document.getElementById('chip-val-symbol');
@@ -2138,6 +2146,18 @@
     function closeBrokerTicket() {
         const modal = document.getElementById('broker-ticket-modal');
         if (modal) modal.style.display = 'none';
+    }
+
+    function openKiteWithSymbol(e) {
+        if (e) e.preventDefault();
+        const sym = (currentTicketData && currentTicketData.symbol) ? currentTicketData.symbol.replace('.NS', '') : '';
+        if (sym) {
+            universalCopyText(sym);
+            showToast(`📋 Copied "${sym}" to clipboard! Opening Zerodha Kite... Press Ctrl+V in Kite search bar.`, 'success');
+        } else {
+            showToast('Opening Zerodha Kite...', 'info');
+        }
+        window.open('https://kite.zerodha.com', '_blank', 'noopener,noreferrer');
     }
 
     function robustCopyToClipboard(text) {
@@ -3524,6 +3544,29 @@
             if (data.bot_state) {
                 updateBotUI(data.bot_state);
             }
+
+            // Immediately merge any automated SL/TP closed trades from this scan sweep to prevent vanishing
+            const sweepClosed = (data.result && Array.isArray(data.result.closed_trades)) ? data.result.closed_trades : [];
+            if (sweepClosed.length > 0) {
+                const currentClosed = getStoredClosedTrades();
+                const tradeMap = new Map();
+                const getKey = t => (t.id ? `id_${t.id}` : `${t.symbol}_${t.side}_${t.quantity}_${t.entry_price || 0}_${t.exit_price || t.price || 0}_${(t.timestamp || '').slice(0, 16)}`);
+                currentClosed.forEach(t => tradeMap.set(getKey(t), t));
+                sweepClosed.forEach(t => {
+                    tradeMap.set(getKey(t), t);
+                    if (botSession && Array.isArray(botSession.trades)) {
+                        botSession.trades.push(t);
+                    }
+                });
+                const mergedClosed = Array.from(tradeMap.values()).sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+                saveStoredClosedTrades(mergedClosed);
+                cachedClosedTrades = mergedClosed;
+                recalcSessionMetrics();
+                saveBotSession();
+                renderBotSessionReport();
+                renderClosedTradesUI({ trades: mergedClosed });
+            }
+
             loadAccountMetrics();
             loadBotHoldings();
             
@@ -4305,7 +4348,7 @@
 
         // Merge server and local trades so trades NEVER vanish across Vercel deployments/cold starts
         const tradeMap = new Map();
-        const getKey = t => `${t.timestamp}_${t.symbol}_${t.side}_${t.quantity}_${t.exit_price}`;
+        const getKey = t => (t.id ? `id_${t.id}` : `${t.symbol}_${t.side}_${t.quantity}_${t.entry_price || 0}_${t.exit_price || t.price || 0}_${(t.timestamp || '').slice(0, 16)}`);
         
         localTrades.forEach(t => tradeMap.set(getKey(t), t));
         serverTrades.forEach(t => tradeMap.set(getKey(t), t));
@@ -4488,6 +4531,44 @@
                 saveStoredActivePositions(remaining);
                 window.cachedActivePositions = remaining;
 
+                // PERSIST CLOSED TRADE IMMEDIATELY TO LOCAL STORAGE TO PREVENT IT FROM EVER VANISHING
+                const closedRecord = data.closed_trade || {
+                    id: Date.now(),
+                    symbol: symbol,
+                    displayName: symbol.replace('.NS', ''),
+                    side: exitOrderSide,
+                    quantity: quantity,
+                    entry_price: currentAvg,
+                    exit_price: data.price || currentAvg,
+                    price: data.price || currentAvg,
+                    total_value: roundNum(quantity * (data.price || currentAvg)),
+                    charges: (data.charges && typeof data.charges === 'object') ? (data.charges.total_charges || 0) : 0,
+                    realized_pnl: data.realized_pnl || 0,
+                    roi_pct: currentAvg > 0 ? roundNum(((data.realized_pnl || 0) / (quantity * currentAvg)) * 100) : 0,
+                    is_win: (data.realized_pnl || 0) >= 0,
+                    action: exitOrderSide,
+                    signal: 'MANUAL_EXIT',
+                    reason: `Manual ${exitOrderSide} exit`,
+                    timestamp: new Date().toISOString().replace('T', ' ').slice(0, 19)
+                };
+
+                const currentClosed = getStoredClosedTrades();
+                const tradeMap = new Map();
+                const getKey = t => (t.id ? `id_${t.id}` : `${t.symbol}_${t.side}_${t.quantity}_${t.entry_price || 0}_${t.exit_price || t.price || 0}_${(t.timestamp || '').slice(0, 16)}`);
+                currentClosed.forEach(t => tradeMap.set(getKey(t), t));
+                tradeMap.set(getKey(closedRecord), closedRecord);
+                const mergedClosed = Array.from(tradeMap.values()).sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+                saveStoredClosedTrades(mergedClosed);
+                cachedClosedTrades = mergedClosed;
+
+                // Also update botSession.trades
+                if (botSession && Array.isArray(botSession.trades)) {
+                    botSession.trades.push(closedRecord);
+                    recalcSessionMetrics();
+                    saveBotSession();
+                    renderBotSessionReport();
+                }
+
                 showToast(`${isShort ? 'Covered' : 'Liquidated'} ${quantity} shares of ${symbol}`, 'success');
                 loadBotHoldings();
                 loadAccountMetrics();
@@ -4520,6 +4601,26 @@
                 try { localStorage.removeItem(POS_ENTRY_LOCK_KEY); } catch(e){}
                 saveStoredActivePositions([]);
                 window.cachedActivePositions = [];
+
+                if (Array.isArray(data.closed_trades) && data.closed_trades.length > 0) {
+                    const currentClosed = getStoredClosedTrades();
+                    const tradeMap = new Map();
+                    const getKey = t => (t.id ? `id_${t.id}` : `${t.symbol}_${t.side}_${t.quantity}_${t.entry_price || 0}_${t.exit_price || t.price || 0}_${(t.timestamp || '').slice(0, 16)}`);
+                    currentClosed.forEach(t => tradeMap.set(getKey(t), t));
+                    data.closed_trades.forEach(t => {
+                        tradeMap.set(getKey(t), t);
+                        if (botSession && Array.isArray(botSession.trades)) {
+                            botSession.trades.push(t);
+                        }
+                    });
+                    const mergedClosed = Array.from(tradeMap.values()).sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+                    saveStoredClosedTrades(mergedClosed);
+                    cachedClosedTrades = mergedClosed;
+                    recalcSessionMetrics();
+                    saveBotSession();
+                    renderBotSessionReport();
+                }
+
                 showToast(`Successfully squared off ${data.exited_count} open positions!`, 'success');
                 loadBotHoldings();
                 loadAccountMetrics();
