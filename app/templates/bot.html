@@ -708,30 +708,53 @@
                 </div>
             </div>
 
+            <!-- 1-Click Quick-Copy Chips for Manual Zerodha Entry -->
+            <div style="margin-top: 1rem; padding: 0.75rem 0.85rem; background: rgba(30, 41, 59, 0.5); border: 1px solid rgba(255, 87, 34, 0.25); border-radius: 8px;">
+                <span style="font-size: 0.72rem; color: #ff5722; font-weight: 800; display: block; margin-bottom: 0.5rem; letter-spacing: 0.03em;">
+                    <i class="fa-solid fa-bolt"></i> 1-CLICK QUICK-COPY FOR ZERODHA FIELDS:
+                </span>
+                <div style="display: flex; gap: 0.45rem; flex-wrap: wrap;">
+                    <button type="button" class="btn-sm btn-outline" onclick="copyChipValue('symbol')" id="chip-btn-symbol" style="font-size: 0.75rem; padding: 5px 10px; border-color: rgba(56, 189, 248, 0.4); color: #38bdf8;" title="Click to copy symbol name">
+                        <i class="fa-solid fa-copy"></i> Symbol: <strong id="chip-val-symbol">RELIANCE</strong>
+                    </button>
+                    <button type="button" class="btn-sm btn-outline" onclick="copyChipValue('qty')" id="chip-btn-qty" style="font-size: 0.75rem; padding: 5px 10px; border-color: rgba(0, 240, 144, 0.4); color: #00f090;" title="Click to copy quantity">
+                        <i class="fa-solid fa-copy"></i> Qty: <strong id="chip-val-qty">25</strong>
+                    </button>
+                    <button type="button" class="btn-sm btn-outline" onclick="copyChipValue('price')" id="chip-btn-price" style="font-size: 0.75rem; padding: 5px 10px; border-color: rgba(255, 255, 255, 0.3); color: #fff;" title="Click to copy limit price">
+                        <i class="fa-solid fa-copy"></i> Price: <strong id="chip-val-price">₹2,745.50</strong>
+                    </button>
+                    <button type="button" class="btn-sm btn-outline" onclick="copyChipValue('sl')" id="chip-btn-sl" style="font-size: 0.75rem; padding: 5px 10px; border-color: rgba(239, 68, 68, 0.4); color: #f87171;" title="Click to copy stop loss trigger price">
+                        <i class="fa-solid fa-copy"></i> SL: <strong id="chip-val-sl">₹2,690.00</strong>
+                    </button>
+                    <button type="button" class="btn-sm btn-outline" onclick="copyChipValue('tp')" id="chip-btn-tp" style="font-size: 0.75rem; padding: 5px 10px; border-color: rgba(0, 240, 144, 0.4); color: #00f090;" title="Click to copy target price">
+                        <i class="fa-solid fa-copy"></i> Target: <strong id="chip-val-tp">₹2,855.00</strong>
+                    </button>
+                </div>
+            </div>
+
             <!-- Pre-formatted Order String Box -->
-            <div style="margin-top: 1rem;">
+            <div style="margin-top: 0.85rem;">
                 <label style="font-size: 0.72rem; color: var(--text-muted); font-weight: 700; display: block; margin-bottom: 0.35rem;">
                     ONE-LINE BROKER CLIPBOARD STRING:
                 </label>
                 <div style="position: relative;">
                     <textarea id="ticket-copy-text" readonly rows="2" style="width: 100%; background: rgba(0,0,0,0.5); border: 1px solid rgba(255,255,255,0.12); border-radius: 6px; padding: 8px 10px; font-family: var(--font-code); font-size: 0.75rem; color: #38bdf8; resize: none; outline: none;"></textarea>
                 </div>
-                <div style="margin-top: 0.5rem; font-size: 0.72rem; color: var(--text-muted); display: flex; align-items: center; gap: 0.4rem;">
-                    <i class="fa-solid fa-circle-info" style="color: #ff5722;"></i>
-                    <span><strong>Zerodha 1-Click:</strong> Click <em>"ZERODHA BASKET (.JSON)"</em> below ➔ in Kite open <strong>Orders ➔ Baskets ➔ New Basket ➔ Import</strong>!</span>
-                </div>
             </div>
         </div>
 
         <div class="broker-modal-footer" style="display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center;">
             <button id="btn-ticket-copy" class="btn-bot-start" onclick="copyTicketToClipboard()" style="padding: 8px 14px; font-size: 0.8rem;">
-                <i class="fa-solid fa-copy"></i> COPY DETAILS
+                <i class="fa-solid fa-copy"></i> COPY ALL DETAILS
             </button>
-            <button id="btn-ticket-zerodha" class="btn-sm btn-outline" onclick="downloadSingleZerodhaBasket()" style="padding: 8px 14px; font-size: 0.8rem; border-color: rgba(255, 87, 34, 0.6); color: #ff5722; font-weight: 700; background: rgba(255, 87, 34, 0.1);" title="Download 1-Click Importable Basket file for Zerodha Kite">
-                <i class="fa-solid fa-basket-shopping"></i> ZERODHA BASKET (.JSON)
+            <a id="ticket-kite-link" href="https://kite.zerodha.com" target="_blank" class="btn-sm btn-outline" style="text-decoration: none; display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px; font-size: 0.8rem; border-color: rgba(255, 87, 34, 0.6); color: #ff5722; font-weight: 700; background: rgba(255, 87, 34, 0.1);">
+                <i class="fa-solid fa-arrow-up-right-from-square"></i> OPEN IN KITE
+            </a>
+            <button id="btn-ticket-zerodha" class="btn-sm btn-outline" onclick="downloadSingleZerodhaBasket()" style="padding: 8px 14px; font-size: 0.8rem; border-color: rgba(255, 255, 255, 0.2); color: var(--text-muted);" title="Download 1-Click Importable Basket file for Zerodha Kite Web">
+                <i class="fa-solid fa-basket-shopping"></i> KITE BASKET (.JSON)
             </button>
             <a id="ticket-tv-link" href="#" target="_blank" class="btn-sm btn-outline" style="text-decoration: none; display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px; font-size: 0.8rem; border-color: rgba(56, 189, 248, 0.4); color: #38bdf8;">
-                <i class="fa-solid fa-arrow-up-right-from-square"></i> TRADINGVIEW CHART
+                <i class="fa-solid fa-chart-line"></i> TRADINGVIEW
             </a>
             <button class="btn-sm btn-outline" onclick="closeBrokerTicket()" style="padding: 8px 14px; font-size: 0.8rem;">
                 CLOSE
@@ -2093,6 +2116,21 @@
         const tvLink = document.getElementById('ticket-tv-link');
         if (tvLink) tvLink.href = `https://in.tradingview.com/chart/?symbol=NSE:${cleanSym}`;
 
+        const kiteLink = document.getElementById('ticket-kite-link');
+        if (kiteLink) kiteLink.href = `https://kite.zerodha.com/chart/ext/tvc/NSE/${cleanSym}`;
+
+        // Populate 1-Click Quick-Copy Chips
+        const cSym = document.getElementById('chip-val-symbol');
+        if (cSym) cSym.innerText = cleanSym;
+        const cQty = document.getElementById('chip-val-qty');
+        if (cQty) cQty.innerText = numQty;
+        const cPrice = document.getElementById('chip-val-price');
+        if (cPrice) cPrice.innerText = `₹${numPrice.toFixed(2)}`;
+        const cSl = document.getElementById('chip-val-sl');
+        if (cSl) cSl.innerText = `₹${numSl.toFixed(2)}`;
+        const cTp = document.getElementById('chip-val-tp');
+        if (cTp) cTp.innerText = `₹${numTp.toFixed(2)}`;
+
         const modal = document.getElementById('broker-ticket-modal');
         if (modal) modal.style.display = 'flex';
     }
@@ -2100,6 +2138,49 @@
     function closeBrokerTicket() {
         const modal = document.getElementById('broker-ticket-modal');
         if (modal) modal.style.display = 'none';
+    }
+
+    function copyChipValue(field) {
+        if (!currentTicketData) return;
+        let textToCopy = '';
+        let btnId = '';
+
+        if (field === 'symbol') {
+            textToCopy = currentTicketData.cleanSym;
+            btnId = 'chip-btn-symbol';
+        } else if (field === 'qty') {
+            textToCopy = currentTicketData.qty.toString();
+            btnId = 'chip-btn-qty';
+        } else if (field === 'price') {
+            textToCopy = currentTicketData.price.toFixed(2);
+            btnId = 'chip-btn-price';
+        } else if (field === 'sl') {
+            textToCopy = currentTicketData.sl.toFixed(2);
+            btnId = 'chip-btn-sl';
+        } else if (field === 'tp') {
+            textToCopy = currentTicketData.tp.toFixed(2);
+            btnId = 'chip-btn-tp';
+        }
+
+        if (!textToCopy) return;
+
+        navigator.clipboard.writeText(textToCopy).then(() => {
+            const btn = document.getElementById(btnId);
+            if (btn) {
+                const oldHtml = btn.innerHTML;
+                btn.innerHTML = `<i class="fa-solid fa-check"></i> COPIED ${textToCopy}!`;
+                btn.style.borderColor = '#00f090';
+                btn.style.color = '#00f090';
+                setTimeout(() => {
+                    btn.innerHTML = oldHtml;
+                    btn.style.borderColor = '';
+                    btn.style.color = '';
+                }, 1500);
+            }
+            showToast(`Copied ${field.toUpperCase()} (${textToCopy}) to clipboard! Ready to paste into Zerodha.`, 'success');
+        }).catch(err => {
+            showToast('Clipboard copy failed: ' + err, 'error');
+        });
     }
 
     function copyTicketToClipboard() {
@@ -2111,14 +2192,14 @@
             const copyBtn = document.getElementById('btn-ticket-copy');
             if (copyBtn) {
                 const oldHtml = copyBtn.innerHTML;
-                copyBtn.innerHTML = '<i class="fa-solid fa-check"></i> COPIED TO CLIPBOARD!';
+                copyBtn.innerHTML = '<i class="fa-solid fa-check"></i> COPIED!';
                 copyBtn.style.background = 'linear-gradient(135deg, #10b981 0%, #059669 100%)';
                 setTimeout(() => {
                     copyBtn.innerHTML = oldHtml;
                     copyBtn.style.background = '';
                 }, 2000);
             }
-            showToast('Order ticket copied to clipboard!', 'success');
+            showToast('Order details copied to clipboard!', 'success');
         }).catch(err => {
             showToast('Clipboard permission denied', 'error');
         });
@@ -2127,21 +2208,38 @@
     function generateZerodhaBasketItem(symbol, side, qty, price) {
         const cleanSym = (symbol || '').replace('.NS', '').replace('.BO', '').trim().toUpperCase();
         const isShort = (side === 'SHORT' || side === 'SELL');
+        const numQty = Math.max(1, parseInt(qty) || 1);
+        const numPrice = parseFloat(price || 0);
+
         return {
-            variety: "regular",
-            tradingsymbol: cleanSym,
-            exchange: "NSE",
-            transaction_type: isShort ? "SELL" : "BUY",
-            order_type: "MARKET",
-            product: "MIS",
-            quantity: Math.max(1, parseInt(qty) || 1),
-            price: 0,
-            trigger_price: 0,
-            validity: "DAY",
-            disclosed_quantity: 0,
-            squareoff: 0,
-            stoploss: 0,
-            trailing_stoploss: 0
+            id: Date.now() + Math.floor(Math.random() * 10000),
+            instrument: {
+                tradingsymbol: cleanSym,
+                symbol: cleanSym,
+                exchange: "NSE",
+                segment: "NSE",
+                lotSize: 1,
+                tickSize: 0.05,
+                isEquity: true,
+                isWeekly: false,
+                tradable: true,
+                type: "EQ"
+            },
+            weight: 0,
+            params: {
+                variety: "regular",
+                transactionType: isShort ? "SELL" : "BUY",
+                product: "MIS",
+                orderType: "MARKET",
+                quantity: numQty,
+                price: 0,
+                triggerPrice: 0,
+                disclosedQuantity: 0,
+                validity: "DAY",
+                validityTTL: 1,
+                gtt: null,
+                tags: []
+            }
         };
     }
 
