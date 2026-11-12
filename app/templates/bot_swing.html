@@ -574,8 +574,16 @@ async function fetchSwingOverview() {
             }
         }
         if (data.portfolio) {
+            let serverPositions = (data.portfolio && Array.isArray(data.portfolio.positions)) ? data.portfolio.positions : [];
+            let storedPositions = loadLocalSwingHoldings();
+            let positions = serverPositions;
+            if (serverPositions.length === 0 && storedPositions.length > 0 && !window.explicitSwingExitDone) {
+                positions = storedPositions;
+                data.portfolio.positions = storedPositions;
+            } else {
+                saveLocalSwingHoldings(positions);
+            }
             swingState.portfolio = data.portfolio;
-            saveLocalSwingHoldings(data.portfolio.positions || []);
         }
         if (data.strategy_scorecard) {
             swingState.scorecard = data.strategy_scorecard;
@@ -691,7 +699,7 @@ function renderUI() {
     const deltaEl = document.getElementById('nav-equity-delta');
     if (deltaEl) {
         const startCap = 100000; // 1 Lakh
-        const deltaPct = ((totEq - startCap) / startCap * 100);
+        const deltaPct = ((totalEq - startCap) / startCap * 100);
         const deltaSign = deltaPct >= 0 ? '+' : '';
         deltaEl.innerText = `${deltaSign}${deltaPct.toFixed(2)}% Today`;
         deltaEl.className = `stat-subdelta ${deltaPct >= 0 ? 'text-green' : 'text-red'}`;
@@ -718,7 +726,8 @@ function renderUI() {
 function renderHoldingsTable(positions) {
     const tbody = document.getElementById('holdings-tbody');
     const badge = document.getElementById('holdings-badge');
-    badge.textContent = `${positions.length} POSITIONS`;
+    if (badge) badge.textContent = `${positions.length} POSITIONS`;
+    if (!tbody) return;
 
     if (positions.length === 0) {
         tbody.innerHTML = `
@@ -745,6 +754,11 @@ function renderHoldingsTable(positions) {
             ? `<span style="display: inline-block; background: rgba(0, 240, 144, 0.15); color: #00f090; font-size: 0.68rem; font-weight: 800; padding: 2px 6px; border-radius: 4px; margin-top: 3px;"><i class="fa-solid fa-shield-halved"></i> SHIELD ACTIVE</span>`
             : '';
 
+        const avgPrice = (typeof pos.average_price === 'number') ? pos.average_price : (parseFloat(pos.average_price) || 0);
+        const currPrice = (typeof pos.current_price === 'number') ? pos.current_price : (parseFloat(pos.current_price) || avgPrice);
+        const slPrice = (typeof pos.stop_loss === 'number') ? pos.stop_loss : (parseFloat(pos.stop_loss) || 0);
+        const tpPrice = (typeof pos.take_profit === 'number') ? pos.take_profit : (parseFloat(pos.take_profit) || 0);
+
         return `
             <tr>
                 <td>
@@ -756,8 +770,8 @@ function renderHoldingsTable(positions) {
                     ${pos.confluence_score ? `<div style="font-size: 0.68rem; color: #fbbf24; margin-top: 2px;">Score: ${pos.confluence_score}</div>` : ''}
                 </td>
                 <td style="font-family: var(--font-code); font-weight: 700; color: #38bdf8;">${pos.quantity}</td>
-                <td style="font-family: var(--font-code);">₹${pos.average_price.toFixed(2)}</td>
-                <td style="font-family: var(--font-code); font-weight: 700; color: #fff;">₹${pos.current_price.toFixed(2)}</td>
+                <td style="font-family: var(--font-code);">₹${avgPrice.toFixed(2)}</td>
+                <td style="font-family: var(--font-code); font-weight: 700; color: #fff;">₹${currPrice.toFixed(2)}</td>
                 <td>
                     <div class="${pnlClass}" style="font-weight: 800; font-family: var(--font-code);">${pnl >= 0 ? '+' : ''}₹${pnl.toFixed(2)}</div>
                     <div class="${pnlClass}" style="font-size: 0.72rem;">${pnlPct >= 0 ? '+' : ''}${pnlPct.toFixed(2)}%</div>
@@ -768,11 +782,11 @@ function renderHoldingsTable(positions) {
                     </span>
                 </td>
                 <td>
-                    <div style="color: #f87171; font-family: var(--font-code); font-weight: 700;">₹${pos.stop_loss.toFixed(2)}</div>
+                    <div style="color: #f87171; font-family: var(--font-code); font-weight: 700;">₹${slPrice.toFixed(2)}</div>
                     ${shieldBadge}
                 </td>
                 <td>
-                    <div style="color: #00f090; font-family: var(--font-code); font-weight: 700;">₹${pos.take_profit.toFixed(2)}</div>
+                    <div style="color: #00f090; font-family: var(--font-code); font-weight: 700;">₹${tpPrice.toFixed(2)}</div>
                 </td>
                 <td>
                     <button class="btn-sm btn-outline" onclick="openSwingTicketFromPosition(${JSON.stringify(pos).replace(/"/g, '&quot;')})" style="border-color: rgba(168, 85, 247, 0.4); color: #c084fc; padding: 4px 8px; font-size: 0.72rem;">
