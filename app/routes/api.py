@@ -1188,6 +1188,261 @@ def get_after_hours_session_report():
         }
     })
 
+# ==============================================================================
+# SWING TRADING BOT (TITAN) API ROUTES
+# ==============================================================================
+
+def sync_swing_positions_from_client(client_positions, explicit_clear=False):
+    if client_positions is None or not isinstance(client_positions, list):
+        return
+    try:
+        from app.models.trading import SwingPosition, SwingAccount
+        from app import db
+        if len(client_positions) == 0:
+            if explicit_clear:
+                SwingPosition.query.delete()
+                db.session.commit()
+            return
+
+        db_positions = SwingPosition.query.all()
+        if len(db_positions) == 0 and len(client_positions) > 0:
+            for cp in client_positions:
+                sym = cp.get("symbol")
+                qty = float(cp.get("quantity", 0))
+                if sym and qty > 0:
+                    pos = SwingPosition(
+                        symbol=sym,
+                        side=cp.get("side", "LONG"),
+                        quantity=qty,
+                        average_price=float(cp.get("average_price", 0)),
+                        peak_price=float(cp.get("peak_price", cp.get("average_price", 0))),
+                        stop_loss=float(cp.get("stop_loss", 0)),
+                        take_profit=float(cp.get("take_profit", 0)),
+                        strategy=cp.get("strategy", "VORTEX"),
+                        confluence_score=int(cp.get("confluence_score", 85)),
+                        trailing_active=bool(cp.get("trailing_active", False))
+                    )
+                    db.session.add(pos)
+            db.session.commit()
+    except Exception as e:
+        db.session.rollback()
+
+@api_bp.route('/swing/overview', methods=['GET', 'POST'])
+def get_swing_overview():
+    from app.services.swing_bot import swing_bot_instance, SwingPaperTradingEngine
+    from app.models.trading import SwingTradeHistory
+
+    if request.method == 'POST':
+        client_data = request.get_json(silent=True) or {}
+        client_positions = client_data.get('client_positions')
+        explicit_clear = client_data.get('explicit_clear', False)
+        if client_positions is not None:
+            sync_swing_positions_from_client(client_positions, explicit_clear=explicit_clear)
+
+    portfolio = SwingPaperTradingEngine.get_portfolio_summary()
+    status = swing_bot_instance.get_status()
+    scorecard = swing_bot_instance.get_strategy_scorecard()
+
+    trades = SwingTradeHistory.query.order_by(SwingTradeHistory.timestamp.desc()).limit(50).all()
+    trades_data = []
+    for t in trades:
+        trades_data.append({
+            "id": t.id,
+            "symbol": t.symbol,
+            "displayName": t.symbol.replace('.NS', '').replace('.BO', ''),
+            "side": t.side,
+            "quantity": t.quantity,
+            "price": t.price,
+            "entry_price": t.entry_price,
+            "total": t.total,
+            "realized_pnl": t.realized_pnl,
+            "roi_pct": t.roi_pct,
+            "charges": t.charges,
+            "strategy": t.strategy,
+            "days_held": t.days_held,
+            "exit_reason": t.exit_reason,
+            "timestamp": t.timestamp.strftime("%Y-%m-%d %H:%M") if t.timestamp else ""
+        })
+
+    return jsonify({
+        "status": status,
+        "portfolio": portfolio,
+        "strategy_scorecard": scorecard,
+        "trades": trades_data
+    })
+
+@api_bp.route('/swing/scan', methods=['POST'])
+def run_swing_scan():
+    from app.services.swing_bot import swing_bot_instance
+    scan_summary = swing_bot_instance.scan_and_evaluate()
+    return jsonify({
+        "success": True,
+        "scan_summary": scan_summary
+    })
+
+@api_bp.route('/swing/config', methods=['POST'])
+def update_swing_config():
+    from app.services.swing_bot import swing_bot_instance
+    data = request.get_json() or {}
+    if "selected_strategy" in data:
+        swing_bot_instance.selected_strategy = str(data["selected_strategy"]).upper()
+    if "allocation_per_trade" in data:
+        swing_bot_instance.allocation_per_trade = float(data["allocation_per_trade"])
+    if "max_positions" in data:
+        swing_bot_instance.max_positions = int(data["max_positions"])
+    if "scan_mode" in data:
+        swing_bot_instance.scan_mode = str(data["scan_mode"])
+
+    swing_bot_instance.persist_state()
+    return jsonify({
+        "success": True,
+        "config": {
+            "selected_strategy": swing_bot_instance.selected_strategy,
+            "allocation_per_trade": swing_bot_instance.allocation_per_trade,
+            "max_positions": swing_bot_instance.max_positions,
+            "scan_mode": swing_bot_instance.scan_mode
+        }
+    })
+
+@api_bp.route('/swing/start', methods=['POST'])
+def start_swing_bot():
+    from app.services.swing_bot import swing_bot_instance
+    swing_bot_instance.is_running = True
+    swing_bot_instance.persist_state()
+    swing_bot_instance.add_log("🚀 TITAN Swing Bot Desk ACTIVATED - Multi-Strategy Scanning Online", "SUCCESS")
+    return jsonify({"success": True, "is_running": True})
+
+@api_bp.route('/swing/stop', methods=['POST'])
+def stop_swing_bot():
+    from app.services.swing_bot import swing_bot_instance
+    swing_bot_instance.is_running = False
+    swing_bot_instance.persist_state()
+    swing_bot_instance.add_log("⏸️ TITAN Swing Bot Desk PAUSED - Open positions preserved safely", "WARNING")
+    return jsonify({"success": True, "is_running": False})
+
+@api_bp.route('/swing/order', methods=['POST'])
+def execute_swing_order():
+    from app.services.swing_bot import SwingPaperTradingEngine
+    data = request.get_json() or {}
+    symbol = data.get("symbol")
+    side = data.get("side", "BUY").upper()
+    quantity = float(data.get("quantity", 0))
+    price = float(data.get("price", 0))
+    strategy = data.get("strategy", "VORTEX")
+    sl = float(data.get("stop_loss", 0))
+    tp = float(data.get("take_profit", 0))
+    confluence = int(data.get("confluence_score", 85))
+
+    if not symbol or quantity <= 0 or price <= 0:
+        return jsonify({"success": False, "message": "Invalid order parameters"}), 400
+
+    res = SwingPaperTradingEngine.execute_order(
+        symbol=symbol, side=side, quantity=quantity, execution_price=price,
+        strategy=strategy, sl=sl, tp=tp, confluence=confluence
+    )
+    return jsonify(res)
+
+@api_bp.route('/swing/positions/exit-all', methods=['POST'])
+def exit_all_swing_positions():
+    from app.services.swing_bot import SwingPaperTradingEngine
+    from app.models.trading import SwingPosition
+    from app.services.market_data import MarketDataService
+
+    positions = SwingPosition.query.filter(SwingPosition.quantity > 0).all()
+    results = []
+    for p in positions:
+        quote = MarketDataService.get_quote(p.symbol)
+        curr_price = quote.get("price", p.average_price) if "error" not in quote else p.average_price
+        res = SwingPaperTradingEngine.execute_order(
+            p.symbol, "SELL", p.quantity, curr_price, strategy=p.strategy
+        )
+        results.append({"symbol": p.symbol, "res": res})
+
+    return jsonify({"success": True, "closed_positions": len(results), "details": results})
+
+@api_bp.route('/swing/reset-account', methods=['POST'])
+def reset_swing_account():
+    from app.models.trading import SwingAccount, SwingPosition, SwingTradeHistory
+    from app import db
+    try:
+        SwingPosition.query.delete()
+        SwingTradeHistory.query.delete()
+        acc = SwingAccount.query.first()
+        if acc:
+            acc.cash_balance = 100000.0
+        else:
+            db.session.add(SwingAccount(cash_balance=100000.0))
+        db.session.commit()
+        return jsonify({"success": True, "message": "Swing trading account reset to ₹1,00,000.00 cash balance."})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@api_bp.route('/swing/gtt-basket', methods=['GET', 'POST'])
+def generate_swing_gtt_basket():
+    """Generates a Zerodha Kite 3-Leg GTT (OCO) order payload for swing positions"""
+    data = request.get_json(silent=True) or {}
+    sym = data.get("symbol", "RELIANCE.NS").replace(".NS", "").replace(".BO", "")
+    qty = int(data.get("quantity", 10))
+    entry_price = float(data.get("price", 2500.0))
+    sl_price = float(data.get("stop_loss", entry_price * 0.965))
+    target_price = float(data.get("take_profit", entry_price * 1.12))
+
+    # Format compliant with Zerodha Kite GTT / Basket Import
+    gtt_basket = [
+        {
+            "tradingsymbol": sym,
+            "exchange": "NSE",
+            "transaction_type": "BUY",
+            "order_type": "LIMIT",
+            "quantity": qty,
+            "price": round(entry_price, 2),
+            "product": "CNC",
+            "validity": "DAY",
+            "tag": "TITAN_SWING_ENTRY"
+        },
+        {
+            "type": "two-leg",
+            "condition": {
+                "exchange": "NSE",
+                "tradingsymbol": sym,
+                "trigger_values": [round(sl_price, 2), round(target_price, 2)],
+                "last_price": round(entry_price, 2)
+            },
+            "orders": [
+                {
+                    "transaction_type": "SELL",
+                    "quantity": qty,
+                    "order_type": "LIMIT",
+                    "product": "CNC",
+                    "price": round(sl_price * 0.998, 2) # Limit slightly below trigger for guaranteed execution
+                },
+                {
+                    "transaction_type": "SELL",
+                    "quantity": qty,
+                    "order_type": "LIMIT",
+                    "product": "CNC",
+                    "price": round(target_price, 2)
+                }
+            ],
+            "tag": "TITAN_SWING_OCO"
+        }
+    ]
+
+    return jsonify({
+        "success": True,
+        "symbol": sym,
+        "basket": gtt_basket,
+        "summary": {
+            "entry": round(entry_price, 2),
+            "stop_loss": round(sl_price, 2),
+            "target": round(target_price, 2),
+            "risk_pct": round(((sl_price - entry_price) / entry_price * 100), 2),
+            "reward_pct": round(((target_price - entry_price) / entry_price * 100), 2)
+        }
+    })
+
+
 
 
 

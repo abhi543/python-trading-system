@@ -815,6 +815,10 @@
                     <i class="fa-solid fa-moon" style="color: #ffd166;"></i> NIGHTHAWK (Night Bot)
                     <span class="bot-nav-dot" style="background: #ffd166;"></span>
                 </a>
+                <a href="/bot-swing" class="nav-link {% if request.path == '/bot-swing' or request.path == '/swing' %}active{% endif %}" style="border: 1px solid rgba(168, 85, 247, 0.4); background: rgba(168, 85, 247, 0.1);">
+                    <i class="fa-solid fa-bolt" style="color: #c084fc;"></i> TITAN (Swing Bot)
+                    <span class="bot-nav-dot" style="background: #c084fc;"></span>
+                </a>
                 <button id="global-stop-both-bots-btn" class="nav-killswitch-btn" onclick="globalStopBothBots()" title="Master Kill Switch: Immediately halt both ALPHA and NIGHTHAWK bots">
                     <span class="killswitch-dot" id="global-killswitch-dot"></span>
                     <i class="fa-solid fa-power-off"></i> STOP BOTH BOTS
@@ -822,7 +826,27 @@
             </nav>
         </div>
         <div class="nav-metrics">
-            {% if request.path == '/bot-after-hours' or request.path == '/after-hours' %}
+            {% if request.path == '/bot-swing' or request.path == '/swing' %}
+            <div class="metric-box">
+                <span class="metric-title"><i class="fa-solid fa-bolt" style="color: #c084fc;"></i> TITAN EQUITY</span>
+                <span class="metric-value text-green" id="nav-total-equity">₹1,00,000.00</span>
+            </div>
+            <div class="metric-box">
+                <span class="metric-title">AVAILABLE CASH</span>
+                <span class="metric-value" id="nav-cash-balance">₹1,00,000.00</span>
+            </div>
+            <div class="metric-box">
+                <span class="metric-title">CNC HOLDINGS VALUE</span>
+                <span class="metric-value" id="nav-buying-power" style="color: #c084fc;">₹0.00</span>
+            </div>
+            <div class="metric-box">
+                <span class="metric-title">UNREALIZED P&amp;L</span>
+                <span class="metric-value" id="nav-pnl">₹0.00</span>
+            </div>
+            <button id="reset-account-btn" class="btn-reset" style="background: rgba(168, 85, 247, 0.15); color: #c084fc; border: 1px solid rgba(168, 85, 247, 0.4); font-weight: 700; padding: 0.45rem 0.85rem;" title="Reset TITAN Swing balance back to ₹1,00,000">
+                <i class="fa-solid fa-rotate-left"></i> Reset to ₹1 Lakh
+            </button>
+            {% elif request.path == '/bot-after-hours' or request.path == '/after-hours' %}
             <div class="metric-box">
                 <span class="metric-title"><i class="fa-solid fa-moon" style="color: #ffd166;"></i> NIGHTHAWK EQUITY</span>
                 <span class="metric-value text-green" id="nav-total-equity">₹1,00,00,000.00</span>

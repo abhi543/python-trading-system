@@ -149,13 +149,67 @@ class AfterHoursTradeHistory(db.Model):
     net_total = db.Column(db.Float, default=0.0)
     timestamp = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
-def init_default_data(initial_cash=50000.0, after_hours_initial_cash=10000000.0):
+# ==============================================================================
+# SWING TRADING (TITAN) ISOLATED MODELS: MULTI-DAY DELIVERY (CNC) DESK
+# ==============================================================================
+class SwingAccount(db.Model):
+    __tablename__ = 'swing_accounts'
+    id = db.Column(db.Integer, primary_key=True)
+    cash_balance = db.Column(db.Float, nullable=False, default=100000.0) # ₹1,00,000 Delivery Capital
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+
+class SwingPosition(db.Model):
+    __tablename__ = 'swing_positions'
+    id = db.Column(db.Integer, primary_key=True)
+    symbol = db.Column(db.String(20), unique=True, nullable=False)
+    side = db.Column(db.String(10), nullable=False, default='LONG')
+    quantity = db.Column(db.Float, nullable=False, default=0.0)
+    average_price = db.Column(db.Float, nullable=False, default=0.0)
+    peak_price = db.Column(db.Float, default=0.0)
+    stop_loss = db.Column(db.Float, default=0.0)
+    take_profit = db.Column(db.Float, default=0.0)
+    trailing_active = db.Column(db.Boolean, default=False)
+    strategy = db.Column(db.String(30), default='VORTEX') # VORTEX, ANCHOR, TITAN, SURGE, CONFLUENCE
+    confluence_score = db.Column(db.Integer, default=85)
+    entry_date = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+
+class SwingTradeHistory(db.Model):
+    __tablename__ = 'swing_trade_history'
+    id = db.Column(db.Integer, primary_key=True)
+    symbol = db.Column(db.String(20), nullable=False)
+    side = db.Column(db.String(10), nullable=False)  # BUY or SELL
+    quantity = db.Column(db.Float, nullable=False)
+    price = db.Column(db.Float, nullable=False)
+    entry_price = db.Column(db.Float, default=0.0)
+    total = db.Column(db.Float, nullable=False)
+    realized_pnl = db.Column(db.Float, default=0.0)
+    roi_pct = db.Column(db.Float, default=0.0)
+    charges = db.Column(db.Float, default=0.0)
+    brokerage = db.Column(db.Float, default=0.0)
+    stt = db.Column(db.Float, default=0.0)
+    exchange_charges = db.Column(db.Float, default=0.0)
+    sebi_charges = db.Column(db.Float, default=0.0)
+    gst = db.Column(db.Float, default=0.0)
+    stamp_duty = db.Column(db.Float, default=0.0)
+    strategy = db.Column(db.String(30), default='VORTEX')
+    days_held = db.Column(db.Integer, default=1)
+    exit_reason = db.Column(db.String(100), default='Target Hit')
+    net_total = db.Column(db.Float, default=0.0)
+    timestamp = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+
+def init_default_data(initial_cash=50000.0, after_hours_initial_cash=10000000.0, swing_initial_cash=100000.0):
     if not Account.query.first():
         db.session.add(Account(cash_balance=initial_cash))
         db.session.commit()
 
     if not AfterHoursAccount.query.first():
         db.session.add(AfterHoursAccount(cash_balance=after_hours_initial_cash))
+        db.session.commit()
+
+    if not SwingAccount.query.first():
+        db.session.add(SwingAccount(cash_balance=swing_initial_cash))
         db.session.commit()
 
     existing = WatchlistItem.query.all()

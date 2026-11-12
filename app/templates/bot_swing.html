@@ -1,0 +1,1274 @@
+{% extends "base.html" %}
+
+{% block title %}BOT TITAN — Swing Trading Suite | ALGO-TRADE Pro{% endblock %}
+
+{% block content %}
+<div class="bot-page-container">
+
+    <div id="swing-view-container">
+
+        <!-- DESK SWITCHER TOP BAR -->
+        <div style="display: flex; gap: 0.75rem; margin-bottom: 1.25rem; flex-wrap: wrap; align-items: center; justify-content: space-between;">
+            <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                <a href="/bot" class="desk-tab-link" style="padding: 7px 14px; border-radius: 8px; font-size: 0.8rem; font-weight: 700; text-decoration: none; display: inline-flex; align-items: center; gap: 6px; background: rgba(0, 240, 144, 0.08); border: 1px solid rgba(0, 240, 144, 0.3); color: #00f090;">
+                    <i class="fa-solid fa-sun"></i> BOT ALPHA (INTRADAY MIS)
+                </a>
+                <a href="/bot-after-hours" class="desk-tab-link" style="padding: 7px 14px; border-radius: 8px; font-size: 0.8rem; font-weight: 700; text-decoration: none; display: inline-flex; align-items: center; gap: 6px; background: rgba(255, 209, 102, 0.08); border: 1px solid rgba(255, 209, 102, 0.3); color: #ffd166;">
+                    <i class="fa-solid fa-moon"></i> BOT NIGHTHAWK (24/7 LAB)
+                </a>
+                <span class="desk-tab-link active" style="padding: 7px 14px; border-radius: 8px; font-size: 0.8rem; font-weight: 800; display: inline-flex; align-items: center; gap: 6px; background: linear-gradient(135deg, rgba(168, 85, 247, 0.25), rgba(139, 92, 246, 0.15)); border: 1px solid #c084fc; color: #fff; box-shadow: 0 0 15px rgba(168, 85, 247, 0.3);">
+                    <i class="fa-solid fa-bolt" style="color: #c084fc;"></i> BOT TITAN (SWING MULTI-STRATEGY)
+                </span>
+            </div>
+            <div style="display: flex; gap: 0.5rem; align-items: center; font-size: 0.75rem; color: var(--text-muted);">
+                <i class="fa-solid fa-layer-group" style="color: #c084fc;"></i> CNC DELIVERY • 3 TO 20 DAYS HOLDING • ZERODHA GTT READY
+            </div>
+        </div>
+
+        <!-- HERO / BOT TITAN CONTROL HEADER -->
+        <div class="bot-hero-card" style="border-color: rgba(168, 85, 247, 0.3); background: linear-gradient(135deg, rgba(20, 14, 38, 0.95) 0%, rgba(12, 10, 26, 0.95) 100%);">
+            <div class="bot-hero-info">
+                <div class="bot-status-header">
+                    <span class="bot-status-badge status-stopped" id="bot-status-indicator">
+                        <span class="bot-dot"></span>
+                        <span id="bot-status-text">OFFLINE / STOPPED</span>
+                    </span>
+                    <span class="bot-badge-outline" style="color: #c084fc; border-color: rgba(168, 85, 247, 0.4); font-weight: 800;">
+                        <i class="fa-solid fa-bolt" style="color: #c084fc;"></i> BOT TITAN • 4-IN-1 SWING SUITE
+                    </span>
+                    <span class="bot-badge-outline" style="color: #38bdf8; border-color: rgba(56, 189, 248, 0.4);">
+                        <i class="fa-solid fa-truck-ramp-box"></i> CNC DELIVERY (NO 3:15 CUTOFF)
+                    </span>
+                    <span class="bot-badge-outline" id="bot-session-badge" style="color: #00f090; border-color: rgba(0, 240, 144, 0.4);">
+                        <i class="fa-solid fa-shield-halved"></i> BREAKEVEN SHIELD @ +4%
+                    </span>
+                </div>
+                <h1 class="bot-title" style="color: #fff;">
+                    <i class="fa-solid fa-bolt" style="color: #c084fc;"></i> BOT TITAN — Unified Multi-Strategy Swing Desk
+                </h1>
+                <p class="bot-subtitle" style="color: #cbd5e1;">
+                    Automated multi-day position management with 4 parallel swing engines (VORTEX Breakout, ANCHOR Pullback, TITAN Momentum, SURGE Mean Reversion) and Confluence Scoring. Equipped with Zerodha Kite 3-Leg GTT OCO order generator.
+                </p>
+
+                <!-- STRATEGY SELECTOR & CONFIG CONTROLS -->
+                <div style="margin-top: 1rem; display: flex; gap: 0.85rem; flex-wrap: wrap; align-items: center; background: rgba(0,0,0,0.35); padding: 0.75rem 1rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.08);">
+                    <div style="display: flex; flex-direction: column; gap: 3px;">
+                        <label style="font-size: 0.68rem; font-weight: 800; color: #c084fc; letter-spacing: 0.05em;">ACTIVE STRATEGY SUITE:</label>
+                        <select id="config-strategy-select" onchange="updateSwingConfig()" style="background: rgba(15, 23, 42, 0.9); border: 1px solid rgba(168, 85, 247, 0.4); color: #fff; padding: 6px 10px; border-radius: 6px; font-size: 0.8rem; font-weight: 700; outline: none; cursor: pointer;">
+                            <option value="ALL">⭐ ALL STRATEGIES (Multi-Engine Confluence)</option>
+                            <option value="VORTEX">🌀 VORTEX (Minervini VCP &amp; Stage 2 Breakout)</option>
+                            <option value="ANCHOR">⚓ ANCHOR (20/50 EMA Value Zone Pullback)</option>
+                            <option value="TITAN">⚡ TITAN (Mansfield RS &amp; Sector Momentum)</option>
+                            <option value="SURGE">🌊 SURGE (Oversold Blue-Chip Mean Reversion)</option>
+                        </select>
+                    </div>
+
+                    <div style="display: flex; flex-direction: column; gap: 3px;">
+                        <label style="font-size: 0.68rem; font-weight: 800; color: var(--text-muted); letter-spacing: 0.05em;">CAPITAL / TRADE:</label>
+                        <input type="number" id="config-capital-input" value="20000" step="5000" min="5000" max="100000" onchange="updateSwingConfig()" style="width: 110px; background: rgba(15, 23, 42, 0.9); border: 1px solid rgba(255,255,255,0.15); color: #00f090; font-family: var(--font-code); font-weight: 800; padding: 6px 8px; border-radius: 6px; font-size: 0.8rem; outline: none;">
+                    </div>
+
+                    <div style="display: flex; flex-direction: column; gap: 3px;">
+                        <label style="font-size: 0.68rem; font-weight: 800; color: var(--text-muted); letter-spacing: 0.05em;">MAX POSITIONS:</label>
+                        <input type="number" id="config-max-positions" value="5" min="1" max="10" onchange="updateSwingConfig()" style="width: 70px; background: rgba(15, 23, 42, 0.9); border: 1px solid rgba(255,255,255,0.15); color: #38bdf8; font-family: var(--font-code); font-weight: 800; padding: 6px 8px; border-radius: 6px; font-size: 0.8rem; outline: none;">
+                    </div>
+
+                    <div style="display: flex; flex-direction: column; gap: 3px;">
+                        <label style="font-size: 0.68rem; font-weight: 800; color: var(--text-muted); letter-spacing: 0.05em;">UNIVERSE:</label>
+                        <select id="config-universe-select" onchange="updateSwingConfig()" style="background: rgba(15, 23, 42, 0.9); border: 1px solid rgba(255,255,255,0.15); color: #fff; padding: 6px 8px; border-radius: 6px; font-size: 0.8rem; outline: none; cursor: pointer;">
+                            <option value="ALL_NIFTY_200">NIFTY 200 (Large &amp; Mid Cap)</option>
+                            <option value="NIFTY_50">NIFTY 50 Blue Chips</option>
+                        </select>
+                    </div>
+
+                    <div style="margin-left: auto; display: flex; align-items: center; gap: 8px;">
+                        <span id="config-saved-status" style="font-size: 0.72rem; color: #00f090; opacity: 0; transition: opacity 0.3s ease;">
+                            <i class="fa-solid fa-check"></i> Saved
+                        </span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- BOT ACTIONS -->
+            <div class="bot-hero-actions" style="display: flex; flex-direction: column; gap: 0.6rem; align-items: stretch; min-width: 200px;">
+                <button id="btn-toggle-swing-bot" class="btn-bot-start" onclick="toggleSwingBot()" style="background: linear-gradient(135deg, #a855f7, #7c3aed); box-shadow: 0 4px 15px rgba(168, 85, 247, 0.4); padding: 12px 20px; font-size: 0.88rem;">
+                    <i class="fa-solid fa-play"></i> START SWING BOT
+                </button>
+                <button id="btn-scan-swing-bot" class="btn-bot-scan" onclick="triggerSwingScan()" style="padding: 10px 16px; font-size: 0.82rem; border-color: rgba(168, 85, 247, 0.4); color: #c084fc;">
+                    <i class="fa-solid fa-radar"></i> SCAN UNIVERSE NOW
+                </button>
+                <button class="btn-sm btn-outline" onclick="exitAllSwingPositions()" style="border-color: rgba(239, 68, 68, 0.5); color: #f87171; padding: 8px 12px; font-size: 0.76rem;" title="Close and liquidate all open swing positions">
+                    <i class="fa-solid fa-square-xmark"></i> EXIT ALL POSITIONS
+                </button>
+            </div>
+        </div>
+
+        <!-- STRATEGY SCORECARD LEADERBOARD -->
+        <div style="margin-top: 1.25rem;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.65rem;">
+                <h3 style="margin: 0; font-size: 0.92rem; font-weight: 800; color: #fff; letter-spacing: 0.04em; display: flex; align-items: center; gap: 8px;">
+                    <i class="fa-solid fa-trophy" style="color: #fbbf24;"></i> STRATEGY COMPARISON SCOREBOARD (HEAD-TO-HEAD)
+                </h3>
+                <span style="font-size: 0.72rem; color: var(--text-muted);">Real-time empirical metrics tracked per strategy</span>
+            </div>
+
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 0.75rem;">
+                <!-- VORTEX CARD -->
+                <div class="strategy-card" style="background: rgba(16, 21, 36, 0.7); border: 1px solid rgba(56, 189, 248, 0.25); border-radius: 10px; padding: 0.85rem 1rem;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.4rem;">
+                        <span style="font-size: 0.82rem; font-weight: 800; color: #38bdf8;"><i class="fa-solid fa-tornado"></i> VORTEX</span>
+                        <span style="font-size: 0.68rem; color: var(--text-muted); background: rgba(56, 189, 248, 0.1); padding: 2px 6px; border-radius: 4px;">VCP Breakout</span>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; align-items: baseline;">
+                        <span style="font-size: 0.68rem; color: var(--text-muted);">Win Rate:</span>
+                        <strong id="sc-vortex-wr" style="font-family: var(--font-code); color: #fff; font-size: 0.95rem;">0.0%</strong>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; align-items: baseline; margin-top: 2px;">
+                        <span style="font-size: 0.68rem; color: var(--text-muted);">Total P&amp;L:</span>
+                        <strong id="sc-vortex-pnl" style="font-family: var(--font-code); color: #00f090; font-size: 0.95rem;">₹0.00</strong>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; align-items: baseline; margin-top: 2px; font-size: 0.68rem; color: var(--text-muted);">
+                        <span>Trades: <strong id="sc-vortex-tr" style="color: #fff;">0</strong></span>
+                        <span>Avg Held: <strong id="sc-vortex-days" style="color: #cbd5e1;">0d</strong></span>
+                    </div>
+                </div>
+
+                <!-- ANCHOR CARD -->
+                <div class="strategy-card" style="background: rgba(16, 21, 36, 0.7); border: 1px solid rgba(0, 240, 144, 0.25); border-radius: 10px; padding: 0.85rem 1rem;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.4rem;">
+                        <span style="font-size: 0.82rem; font-weight: 800; color: #00f090;"><i class="fa-solid fa-anchor"></i> ANCHOR</span>
+                        <span style="font-size: 0.68rem; color: var(--text-muted); background: rgba(0, 240, 144, 0.1); padding: 2px 6px; border-radius: 4px;">EMA Pullback</span>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; align-items: baseline;">
+                        <span style="font-size: 0.68rem; color: var(--text-muted);">Win Rate:</span>
+                        <strong id="sc-anchor-wr" style="font-family: var(--font-code); color: #fff; font-size: 0.95rem;">0.0%</strong>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; align-items: baseline; margin-top: 2px;">
+                        <span style="font-size: 0.68rem; color: var(--text-muted);">Total P&amp;L:</span>
+                        <strong id="sc-anchor-pnl" style="font-family: var(--font-code); color: #00f090; font-size: 0.95rem;">₹0.00</strong>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; align-items: baseline; margin-top: 2px; font-size: 0.68rem; color: var(--text-muted);">
+                        <span>Trades: <strong id="sc-anchor-tr" style="color: #fff;">0</strong></span>
+                        <span>Avg Held: <strong id="sc-anchor-days" style="color: #cbd5e1;">0d</strong></span>
+                    </div>
+                </div>
+
+                <!-- TITAN CARD -->
+                <div class="strategy-card" style="background: rgba(16, 21, 36, 0.7); border: 1px solid rgba(168, 85, 247, 0.25); border-radius: 10px; padding: 0.85rem 1rem;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.4rem;">
+                        <span style="font-size: 0.82rem; font-weight: 800; color: #c084fc;"><i class="fa-solid fa-bolt"></i> TITAN</span>
+                        <span style="font-size: 0.68rem; color: var(--text-muted); background: rgba(168, 85, 247, 0.1); padding: 2px 6px; border-radius: 4px;">RS Momentum</span>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; align-items: baseline;">
+                        <span style="font-size: 0.68rem; color: var(--text-muted);">Win Rate:</span>
+                        <strong id="sc-titan-wr" style="font-family: var(--font-code); color: #fff; font-size: 0.95rem;">0.0%</strong>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; align-items: baseline; margin-top: 2px;">
+                        <span style="font-size: 0.68rem; color: var(--text-muted);">Total P&amp;L:</span>
+                        <strong id="sc-titan-pnl" style="font-family: var(--font-code); color: #00f090; font-size: 0.95rem;">₹0.00</strong>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; align-items: baseline; margin-top: 2px; font-size: 0.68rem; color: var(--text-muted);">
+                        <span>Trades: <strong id="sc-titan-tr" style="color: #fff;">0</strong></span>
+                        <span>Avg Held: <strong id="sc-titan-days" style="color: #cbd5e1;">0d</strong></span>
+                    </div>
+                </div>
+
+                <!-- SURGE CARD -->
+                <div class="strategy-card" style="background: rgba(16, 21, 36, 0.7); border: 1px solid rgba(251, 191, 36, 0.25); border-radius: 10px; padding: 0.85rem 1rem;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.4rem;">
+                        <span style="font-size: 0.82rem; font-weight: 800; color: #fbbf24;"><i class="fa-solid fa-water"></i> SURGE</span>
+                        <span style="font-size: 0.68rem; color: var(--text-muted); background: rgba(251, 191, 36, 0.1); padding: 2px 6px; border-radius: 4px;">Mean Reversion</span>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; align-items: baseline;">
+                        <span style="font-size: 0.68rem; color: var(--text-muted);">Win Rate:</span>
+                        <strong id="sc-surge-wr" style="font-family: var(--font-code); color: #fff; font-size: 0.95rem;">0.0%</strong>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; align-items: baseline; margin-top: 2px;">
+                        <span style="font-size: 0.68rem; color: var(--text-muted);">Total P&amp;L:</span>
+                        <strong id="sc-surge-pnl" style="font-family: var(--font-code); color: #00f090; font-size: 0.95rem;">₹0.00</strong>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; align-items: baseline; margin-top: 2px; font-size: 0.68rem; color: var(--text-muted);">
+                        <span>Trades: <strong id="sc-surge-tr" style="color: #fff;">0</strong></span>
+                        <span>Avg Held: <strong id="sc-surge-days" style="color: #cbd5e1;">0d</strong></span>
+                    </div>
+                </div>
+
+                <!-- CONFLUENCE CARD -->
+                <div class="strategy-card" style="background: linear-gradient(135deg, rgba(168, 85, 247, 0.15), rgba(56, 189, 248, 0.15)); border: 1px solid rgba(168, 85, 247, 0.5); border-radius: 10px; padding: 0.85rem 1rem;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.4rem;">
+                        <span style="font-size: 0.82rem; font-weight: 800; color: #e879f9;"><i class="fa-solid fa-star"></i> CONFLUENCE</span>
+                        <span style="font-size: 0.68rem; color: #e879f9; background: rgba(232, 121, 249, 0.2); font-weight: 700; padding: 2px 6px; border-radius: 4px;">2+ Overlap A+</span>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; align-items: baseline;">
+                        <span style="font-size: 0.68rem; color: var(--text-muted);">Win Rate:</span>
+                        <strong id="sc-confluence-wr" style="font-family: var(--font-code); color: #fff; font-size: 0.95rem;">0.0%</strong>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; align-items: baseline; margin-top: 2px;">
+                        <span style="font-size: 0.68rem; color: var(--text-muted);">Total P&amp;L:</span>
+                        <strong id="sc-confluence-pnl" style="font-family: var(--font-code); color: #00f090; font-size: 0.95rem;">₹0.00</strong>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; align-items: baseline; margin-top: 2px; font-size: 0.68rem; color: var(--text-muted);">
+                        <span>Trades: <strong id="sc-confluence-tr" style="color: #fff;">0</strong></span>
+                        <span>Avg Held: <strong id="sc-confluence-days" style="color: #cbd5e1;">0d</strong></span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- KPI RIBBON -->
+        <div class="bot-kpi-grid" style="margin-top: 1.25rem;">
+            <div class="kpi-card">
+                <span class="kpi-label"><i class="fa-solid fa-wallet" style="color: #c084fc;"></i> TOTAL SWING EQUITY</span>
+                <span class="kpi-value text-green" id="kpi-total-equity">₹1,00,000.00</span>
+                <span class="kpi-subtext" id="kpi-equity-sub">Initial Capital: ₹1,00,000.00</span>
+            </div>
+            <div class="kpi-card">
+                <span class="kpi-label"><i class="fa-solid fa-money-bill-wave"></i> AVAILABLE CASH</span>
+                <span class="kpi-value" id="kpi-cash-balance">₹1,00,000.00</span>
+                <span class="kpi-subtext" id="kpi-cash-sub">100% Cash / Ready for Setups</span>
+            </div>
+            <div class="kpi-card">
+                <span class="kpi-label"><i class="fa-solid fa-boxes-stacked" style="color: #38bdf8;"></i> CNC HOLDINGS VALUE</span>
+                <span class="kpi-value" id="kpi-holdings-val" style="color: #38bdf8;">₹0.00</span>
+                <span class="kpi-subtext" id="kpi-holdings-count">0 Open Positions Held</span>
+            </div>
+            <div class="kpi-card">
+                <span class="kpi-label"><i class="fa-solid fa-chart-line"></i> UNREALIZED P&amp;L</span>
+                <span class="kpi-value" id="kpi-unrealized-pnl">₹0.00</span>
+                <span class="kpi-subtext" id="kpi-unrealized-pct">+0.00%</span>
+            </div>
+            <div class="kpi-card">
+                <span class="kpi-label"><i class="fa-solid fa-shield-halved" style="color: #00f090;"></i> BREAKEVEN SHIELD</span>
+                <span class="kpi-value" id="kpi-shielded-count" style="color: #00f090;">0 / 0</span>
+                <span class="kpi-subtext">Positions with Risk Removed</span>
+            </div>
+        </div>
+
+        <!-- ACTIVE SWING HOLDINGS (MULTI-DAY CNC DELIVERY) -->
+        <div class="table-container" style="margin-top: 1.25rem;">
+            <div class="table-header-custom" style="display: flex; justify-content: space-between; align-items: center; padding: 1rem 1.25rem;">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <i class="fa-solid fa-layer-group" style="color: #c084fc; font-size: 1.1rem;"></i>
+                    <h2 style="margin: 0; font-size: 1.05rem; font-weight: 800; color: #fff;">ACTIVE SWING HOLDINGS (MULTI-DAY CNC)</h2>
+                    <span class="badge" id="holdings-badge" style="background: rgba(168, 85, 247, 0.2); color: #c084fc; font-weight: 800; padding: 3px 8px;">0 POSITIONS</span>
+                </div>
+                <div style="font-size: 0.75rem; color: var(--text-muted);">
+                    Positions carry forward overnight • Breakeven locked at +4% gain
+                </div>
+            </div>
+
+            <div style="overflow-x: auto;">
+                <table class="data-table" id="holdings-table">
+                    <thead>
+                        <tr>
+                            <th>STOCK</th>
+                            <th>STRATEGY</th>
+                            <th>QTY (CNC)</th>
+                            <th>AVG PRICE</th>
+                            <th>CURRENT PRICE</th>
+                            <th>HOLDING P&amp;L</th>
+                            <th>DAYS HELD</th>
+                            <th>STOP-LOSS / SHIELD</th>
+                            <th>PROFIT TARGET</th>
+                            <th>ZERODHA GTT</th>
+                            <th>ACTION</th>
+                        </tr>
+                    </thead>
+                    <tbody id="holdings-tbody">
+                        <tr>
+                            <td colspan="11" style="text-align: center; padding: 2.5rem; color: var(--text-muted);">
+                                <i class="fa-solid fa-inbox" style="font-size: 2rem; margin-bottom: 0.5rem; display: block; opacity: 0.4;"></i>
+                                No active swing positions currently held. Start the bot or click <strong>SCAN UNIVERSE NOW</strong> to discover setups.
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- SWING OPPORTUNITY SCANNER RESULTS -->
+        <div class="table-container" style="margin-top: 1.5rem;">
+            <div class="table-header-custom" style="display: flex; justify-content: space-between; align-items: center; padding: 1rem 1.25rem;">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <i class="fa-solid fa-radar" style="color: #00f090; font-size: 1.1rem;"></i>
+                    <h2 style="margin: 0; font-size: 1.05rem; font-weight: 800; color: #fff;">SWING OPPORTUNITY SCANNER</h2>
+                    <span class="badge" id="scanner-count-badge" style="background: rgba(0, 240, 144, 0.15); color: #00f090; font-weight: 800; padding: 3px 8px;">0 SETUPS</span>
+                </div>
+                <div style="font-size: 0.75rem; color: var(--text-muted);" id="scanner-last-updated">
+                    Last Scan: Never
+                </div>
+            </div>
+
+            <div style="overflow-x: auto;">
+                <table class="data-table" id="scanner-table">
+                    <thead>
+                        <tr>
+                            <th>STOCK</th>
+                            <th>STRATEGY &amp; SETUP</th>
+                            <th>CONFLUENCE</th>
+                            <th>ENTRY / CMP</th>
+                            <th>STOP-LOSS</th>
+                            <th>TARGET PRICE</th>
+                            <th>R : R</th>
+                            <th>REASONING / CATALYST</th>
+                            <th>ACTIONS</th>
+                        </tr>
+                    </thead>
+                    <tbody id="scanner-tbody">
+                        <tr>
+                            <td colspan="9" style="text-align: center; padding: 2.5rem; color: var(--text-muted);">
+                                Click <strong>SCAN UNIVERSE NOW</strong> to evaluate the NIFTY universe across all 4 swing trading strategies.
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- CLOSED SWING TRADES & BOT LOGS SPLIT -->
+        <div style="display: grid; grid-template-columns: 1.2fr 0.8fr; gap: 1.25rem; margin-top: 1.5rem;">
+            <!-- CLOSED TRADES -->
+            <div class="table-container">
+                <div class="table-header-custom" style="display: flex; justify-content: space-between; align-items: center; padding: 0.85rem 1.25rem;">
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <i class="fa-solid fa-clock-rotate-left" style="color: #38bdf8;"></i>
+                        <h3 style="margin: 0; font-size: 0.95rem; font-weight: 800; color: #fff;">CLOSED SWING TRADES LEDGER</h3>
+                    </div>
+                    <span style="font-size: 0.72rem; color: var(--text-muted);" id="closed-trades-count">0 Trades</span>
+                </div>
+                <div style="overflow-x: auto; max-height: 380px;">
+                    <table class="data-table" id="closed-trades-table">
+                        <thead>
+                            <tr>
+                                <th>STOCK</th>
+                                <th>STRATEGY</th>
+                                <th>DAYS</th>
+                                <th>ENTRY</th>
+                                <th>EXIT</th>
+                                <th>REALIZED P&amp;L</th>
+                                <th>ROI %</th>
+                                <th>CHARGES</th>
+                                <th>REASON</th>
+                            </tr>
+                        </thead>
+                        <tbody id="closed-trades-tbody">
+                            <tr>
+                                <td colspan="9" style="text-align: center; padding: 2rem; color: var(--text-muted);">
+                                    No closed trades yet in this session.
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- LIVE CONSOLE LOGS -->
+            <div class="table-container">
+                <div class="table-header-custom" style="display: flex; justify-content: space-between; align-items: center; padding: 0.85rem 1.25rem;">
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <i class="fa-solid fa-terminal" style="color: #00f090;"></i>
+                        <h3 style="margin: 0; font-size: 0.95rem; font-weight: 800; color: #fff;">LIVE TITAN CONSOLE</h3>
+                    </div>
+                    <button class="btn-sm btn-outline" onclick="clearLocalLogs()" style="font-size: 0.7rem; padding: 3px 8px;">CLEAR</button>
+                </div>
+                <div id="bot-logs-console" style="height: 340px; overflow-y: auto; background: #080d1a; padding: 12px; font-family: var(--font-code); font-size: 0.75rem; line-height: 1.5; color: #cbd5e1;">
+                    <div style="color: #94a3b8;">[TITAN DESK] System initialized. Ready for multi-strategy swing sweeps.</div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+</div>
+
+<!-- ============================================================================== -->
+<!-- ZERODHA KITE 3-LEG GTT (OCO) BROKER TICKET MODAL -->
+<!-- ============================================================================== -->
+<div id="swing-ticket-modal" class="broker-modal-backdrop" style="display: none;" onclick="handleModalBackdropClick(event, 'swing-ticket-modal')">
+    <div class="broker-modal-content" style="max-width: 650px; max-height: 90vh; overflow-y: auto;">
+        <div class="broker-modal-header" style="position: sticky; top: 0; background: #0f172a; z-index: 10; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 0.75rem;">
+            <div style="display: flex; align-items: center; gap: 0.75rem;">
+                <div class="ticket-icon-circle" style="background: rgba(168, 85, 247, 0.2); color: #c084fc; border-color: rgba(168, 85, 247, 0.4);"><i class="fa-solid fa-ticket"></i></div>
+                <div>
+                    <h3 style="margin: 0; font-size: 1.05rem; font-weight: 800; color: #fff; letter-spacing: 0.5px;">ZERODHA KITE 3-LEG GTT (OCO) TICKET</h3>
+                    <p style="margin: 2px 0 0 0; font-size: 0.72rem; color: var(--text-muted);">Overnight delivery CNC order + 24/7 exchange-active Stop-Loss &amp; Target triggers</p>
+                </div>
+            </div>
+            <button class="broker-modal-close-btn" onclick="closeSwingTicket()">&times;</button>
+        </div>
+
+        <div class="broker-modal-body" style="padding-top: 1rem;">
+            <!-- Order Summary Badges -->
+            <div style="display: flex; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 1rem;">
+                <span id="sticket-side-badge" class="badge" style="background: rgba(0, 240, 144, 0.15); color: #00f090; font-size: 0.8rem; padding: 4px 10px; font-weight: 800;">BUY / LONG</span>
+                <span class="badge" style="background: rgba(56, 189, 248, 0.15); color: #38bdf8; font-size: 0.76rem; padding: 4px 10px; font-weight: 700;">CNC DELIVERY</span>
+                <span id="sticket-strategy-badge" class="badge" style="background: rgba(168, 85, 247, 0.2); color: #c084fc; font-size: 0.76rem; padding: 4px 10px; font-weight: 700;">VORTEX BREAKOUT</span>
+                <span id="sticket-confluence-badge" class="badge" style="background: rgba(251, 191, 36, 0.15); color: #fbbf24; font-size: 0.76rem; padding: 4px 10px; font-weight: 800;">A+ 95 SCORE</span>
+            </div>
+
+            <!-- Parameters Grid -->
+            <div class="ticket-grid">
+                <div class="ticket-field">
+                    <span class="ticket-label">SYMBOL / INSTRUMENT</span>
+                    <strong class="ticket-val" id="sticket-symbol" style="color: #fff; font-size: 1.1rem; font-family: var(--font-code);">--</strong>
+                </div>
+                <div class="ticket-field">
+                    <span class="ticket-label">DELIVERY QUANTITY</span>
+                    <strong class="ticket-val" id="sticket-qty" style="color: #38bdf8; font-size: 1.1rem;">-- Shares</strong>
+                </div>
+                <div class="ticket-field">
+                    <span class="ticket-label">LEG 1: BUY LIMIT PRICE</span>
+                    <strong class="ticket-val" id="sticket-price" style="color: #e2e8f0;">₹0.00</strong>
+                </div>
+                <div class="ticket-field">
+                    <span class="ticket-label">CNC CAPITAL REQUIRED</span>
+                    <strong class="ticket-val" id="sticket-capital" style="color: #00f090;">₹0.00</strong>
+                </div>
+                <div class="ticket-field" style="border-left: 2px solid #ef4444; background: rgba(239, 68, 68, 0.05);">
+                    <span class="ticket-label" style="color: #f87171;">LEG 2: GTT STOP-LOSS TRIGGER</span>
+                    <strong class="ticket-val" id="sticket-sl" style="color: #f87171;">₹0.00 (-3.50%)</strong>
+                </div>
+                <div class="ticket-field" style="border-left: 2px solid #00f090; background: rgba(0, 240, 144, 0.05);">
+                    <span class="ticket-label" style="color: #00f090;">LEG 3: GTT PROFIT TARGET</span>
+                    <strong class="ticket-val" id="sticket-tp" style="color: #00f090;">₹0.00 (+12.0%)</strong>
+                </div>
+                <div class="ticket-field">
+                    <span class="ticket-label">RISK : REWARD RATIO</span>
+                    <strong class="ticket-val" id="sticket-rr" style="color: #fbbf24;">1 : 3.43</strong>
+                </div>
+                <div class="ticket-field">
+                    <span class="ticket-label">HOLDING HORIZON</span>
+                    <strong class="ticket-val" id="sticket-horizon" style="color: #c084fc;">7–18 Days</strong>
+                </div>
+            </div>
+
+            <!-- 1-Click Quick-Copy Chips -->
+            <div style="margin-top: 1rem; padding: 0.75rem 0.85rem; background: rgba(30, 41, 59, 0.5); border: 1px solid rgba(168, 85, 247, 0.3); border-radius: 8px;">
+                <span style="font-size: 0.72rem; color: #c084fc; font-weight: 800; display: block; margin-bottom: 0.5rem; letter-spacing: 0.03em;">
+                    <i class="fa-solid fa-bolt"></i> 1-CLICK QUICK-COPY FOR ZERODHA FIELDS:
+                </span>
+                <div style="display: flex; gap: 0.45rem; flex-wrap: wrap;">
+                    <button type="button" class="btn-sm btn-outline" onclick="copySwingChip('symbol')" id="schip-btn-symbol" style="font-size: 0.75rem; padding: 5px 10px; border-color: rgba(56, 189, 248, 0.4); color: #38bdf8;">
+                        <i class="fa-solid fa-copy"></i> Symbol: <strong id="schip-val-symbol">--</strong>
+                    </button>
+                    <button type="button" class="btn-sm btn-outline" onclick="copySwingChip('qty')" id="schip-btn-qty" style="font-size: 0.75rem; padding: 5px 10px; border-color: rgba(0, 240, 144, 0.4); color: #00f090;">
+                        <i class="fa-solid fa-copy"></i> Qty: <strong id="schip-val-qty">--</strong>
+                    </button>
+                    <button type="button" class="btn-sm btn-outline" onclick="copySwingChip('price')" id="schip-btn-price" style="font-size: 0.75rem; padding: 5px 10px; border-color: rgba(255, 255, 255, 0.3); color: #fff;">
+                        <i class="fa-solid fa-copy"></i> Buy Price: <strong id="schip-val-price">--</strong>
+                    </button>
+                    <button type="button" class="btn-sm btn-outline" onclick="copySwingChip('sl')" id="schip-btn-sl" style="font-size: 0.75rem; padding: 5px 10px; border-color: rgba(239, 68, 68, 0.4); color: #f87171;">
+                        <i class="fa-solid fa-copy"></i> SL Trigger: <strong id="schip-val-sl">--</strong>
+                    </button>
+                    <button type="button" class="btn-sm btn-outline" onclick="copySwingChip('tp')" id="schip-btn-tp" style="font-size: 0.75rem; padding: 5px 10px; border-color: rgba(0, 240, 144, 0.4); color: #00f090;">
+                        <i class="fa-solid fa-copy"></i> Target Trigger: <strong id="schip-val-tp">--</strong>
+                    </button>
+                </div>
+            </div>
+
+            <!-- One-Line Broker String -->
+            <div style="margin-top: 0.85rem;">
+                <label style="font-size: 0.72rem; color: var(--text-muted); font-weight: 700; display: block; margin-bottom: 0.35rem;">
+                    ONE-LINE BROKER CLIPBOARD STRING:
+                </label>
+                <div style="position: relative;">
+                    <textarea id="sticket-copy-text" readonly rows="2" style="width: 100%; background: rgba(0,0,0,0.5); border: 1px solid rgba(255,255,255,0.12); border-radius: 6px; padding: 8px 10px; font-family: var(--font-code); font-size: 0.75rem; color: #38bdf8; resize: none; outline: none;"></textarea>
+                </div>
+            </div>
+
+            <!-- GTT Usage Instruction Banner -->
+            <div style="margin-top: 0.85rem; font-size: 0.72rem; color: #c084fc; background: rgba(168, 85, 247, 0.08); border: 1px dashed rgba(168, 85, 247, 0.35); padding: 8px 12px; border-radius: 6px; display: flex; align-items: flex-start; gap: 8px; line-height: 1.4;">
+                <i class="fa-solid fa-lightbulb" style="margin-top: 2px;"></i>
+                <div>
+                    <strong>How to place GTT in Zerodha Kite:</strong> In Zerodha, open the stock &rarr; click <strong>Create GTT</strong> &rarr; Select <strong>Two-leg (OCO)</strong>. Enter Stop-loss trigger and Target trigger. The order stays live on the exchange until hit (up to 1 year)! Or click <strong>DOWNLOAD KITE GTT BASKET (.JSON)</strong> to import directly.
+                </div>
+            </div>
+        </div>
+
+        <div class="broker-modal-footer" style="position: sticky; bottom: 0; background: #0f172a; z-index: 10; border-top: 1px solid rgba(255,255,255,0.1); padding: 0.75rem 1rem; display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center;">
+            <button id="btn-sticket-copy" class="btn-bot-start" onclick="copySwingTicketAll()" style="padding: 8px 14px; font-size: 0.8rem; background: linear-gradient(135deg, #a855f7, #7c3aed);">
+                <i class="fa-solid fa-copy"></i> COPY ALL DETAILS
+            </button>
+            <a id="sticket-kite-link" href="https://kite.zerodha.com" target="_blank" onclick="openKiteWithSwingSymbol(event)" class="btn-sm btn-outline" style="text-decoration: none; display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px; font-size: 0.8rem; border-color: rgba(255, 87, 34, 0.6); color: #ff5722; font-weight: 700; background: rgba(255, 87, 34, 0.1);">
+                <i class="fa-solid fa-arrow-up-right-from-square"></i> OPEN IN KITE
+            </a>
+            <button id="btn-sticket-json" class="btn-sm btn-outline" onclick="downloadSwingGttJson()" style="padding: 8px 14px; font-size: 0.8rem; border-color: rgba(255, 255, 255, 0.2); color: #cbd5e1;" title="Download Zerodha GTT Basket .JSON file">
+                <i class="fa-solid fa-basket-shopping"></i> KITE GTT (.JSON)
+            </button>
+            <a id="sticket-tv-link" href="#" target="_blank" class="btn-sm btn-outline" style="text-decoration: none; display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px; font-size: 0.8rem; border-color: rgba(56, 189, 248, 0.4); color: #38bdf8;">
+                <i class="fa-solid fa-chart-line"></i> TRADINGVIEW
+            </a>
+            <button class="btn-sm btn-outline" onclick="closeSwingTicket()" style="padding: 8px 14px; font-size: 0.8rem;">
+                CLOSE
+            </button>
+        </div>
+    </div>
+</div>
+
+<style>
+/* Swing Desk Specific Styles */
+.strategy-card {
+    transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+}
+.strategy-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
+}
+.badge-vortex {
+    background: rgba(56, 189, 248, 0.15);
+    color: #38bdf8;
+    border: 1px solid rgba(56, 189, 248, 0.3);
+}
+.badge-anchor {
+    background: rgba(0, 240, 144, 0.15);
+    color: #00f090;
+    border: 1px solid rgba(0, 240, 144, 0.3);
+}
+.badge-titan {
+    background: rgba(168, 85, 247, 0.15);
+    color: #c084fc;
+    border: 1px solid rgba(168, 85, 247, 0.3);
+}
+.badge-surge {
+    background: rgba(251, 191, 36, 0.15);
+    color: #fbbf24;
+    border: 1px solid rgba(251, 191, 36, 0.3);
+}
+.badge-confluence {
+    background: linear-gradient(135deg, rgba(168, 85, 247, 0.25), rgba(232, 121, 249, 0.25));
+    color: #e879f9;
+    border: 1px solid #e879f9;
+    font-weight: 800;
+}
+</style>
+
+<script>
+// ==============================================================================
+// SWING TRADING BOT (TITAN) JAVASCRIPT CONTROLLER
+// ==============================================================================
+
+let swingState = {
+    isRunning: false,
+    selectedStrategy: 'ALL',
+    capitalPerTrade: 20000.0,
+    maxPositions: 5,
+    universe: 'ALL_NIFTY_200',
+    portfolio: {
+        cash_balance: 100000.0,
+        market_value: 0.0,
+        total_equity: 100000.0,
+        unrealized_pnl: 0.0,
+        positions: []
+    },
+    scannerResults: [],
+    scorecard: {},
+    closedTrades: [],
+    logs: []
+};
+
+let currentSwingTicketData = null;
+let pollTimer = null;
+
+// Initialize on page load
+document.addEventListener('DOMContentLoaded', () => {
+    fetchSwingOverview();
+    pollTimer = setInterval(fetchSwingOverview, 15000); // 15-second refresh cycle
+});
+
+async function fetchSwingOverview() {
+    try {
+        const localHoldings = loadLocalSwingHoldings();
+        const payload = localHoldings && localHoldings.length > 0 ? { client_positions: localHoldings } : {};
+
+        const res = await fetch('/api/swing/overview', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (data.status) {
+            swingState.isRunning = data.status.is_running;
+            swingState.selectedStrategy = data.status.selected_strategy || 'ALL';
+            swingState.capitalPerTrade = data.status.allocation_per_trade || 20000.0;
+            swingState.maxPositions = data.status.max_positions || 5;
+            swingState.universe = data.status.scan_mode || 'ALL_NIFTY_200';
+            swingState.logs = data.status.logs || [];
+            if (data.status.last_scan_summary && data.status.last_scan_summary.scanner_results) {
+                swingState.scannerResults = data.status.last_scan_summary.scanner_results;
+            }
+        }
+        if (data.portfolio) {
+            swingState.portfolio = data.portfolio;
+            saveLocalSwingHoldings(data.portfolio.positions || []);
+        }
+        if (data.strategy_scorecard) {
+            swingState.scorecard = data.strategy_scorecard;
+        }
+        if (data.trades) {
+            swingState.closedTrades = data.trades;
+        }
+
+        renderUI();
+    } catch (err) {
+        console.error('Error fetching swing overview:', err);
+    }
+}
+
+function renderUI() {
+    // 1. Status Indicator & Button
+    const statusDot = document.getElementById('bot-status-indicator');
+    const statusText = document.getElementById('bot-status-text');
+    const toggleBtn = document.getElementById('btn-toggle-swing-bot');
+
+    if (swingState.isRunning) {
+        statusDot.className = 'bot-status-badge status-running';
+        statusText.textContent = 'SWING DESK ONLINE / ACTIVE';
+        toggleBtn.innerHTML = '<i class="fa-solid fa-pause"></i> PAUSE SWING BOT';
+        toggleBtn.style.background = 'linear-gradient(135deg, #ef4444, #dc2626)';
+        toggleBtn.style.boxShadow = '0 4px 15px rgba(239, 68, 68, 0.4)';
+    } else {
+        statusDot.className = 'bot-status-badge status-stopped';
+        statusText.textContent = 'OFFLINE / STOPPED';
+        toggleBtn.innerHTML = '<i class="fa-solid fa-play"></i> START SWING BOT';
+        toggleBtn.style.background = 'linear-gradient(135deg, #a855f7, #7c3aed)';
+        toggleBtn.style.boxShadow = '0 4px 15px rgba(168, 85, 247, 0.4)';
+    }
+
+    // Controls sync
+    document.getElementById('config-strategy-select').value = swingState.selectedStrategy;
+    document.getElementById('config-capital-input').value = swingState.capitalPerTrade;
+    document.getElementById('config-max-positions').value = swingState.maxPositions;
+    document.getElementById('config-universe-select').value = swingState.universe;
+
+    // 2. Scorecard Leaderboard
+    const sc = swingState.scorecard || {};
+    ['VORTEX', 'ANCHOR', 'TITAN', 'SURGE', 'CONFLUENCE'].forEach(key => {
+        const item = sc[key] || { win_rate: 0, total_pnl: 0, trades: 0, avg_days: 0 };
+        const kLower = key.toLowerCase();
+        const wrEl = document.getElementById(`sc-${kLower}-wr`);
+        const pnlEl = document.getElementById(`sc-${kLower}-pnl`);
+        const trEl = document.getElementById(`sc-${kLower}-tr`);
+        const daysEl = document.getElementById(`sc-${kLower}-days`);
+
+        if (wrEl) wrEl.textContent = `${item.win_rate}%`;
+        if (pnlEl) {
+            pnlEl.textContent = formatCurrency(item.total_pnl);
+            pnlEl.className = item.total_pnl >= 0 ? 'text-green' : 'text-red';
+        }
+        if (trEl) trEl.textContent = item.trades;
+        if (daysEl) daysEl.textContent = `${item.avg_days}d`;
+    });
+
+    // 3. KPI Ribbon & Navbar
+    const p = swingState.portfolio;
+    const totalEq = p.total_equity || 100000.0;
+    const cash = p.cash_balance || 100000.0;
+    const mVal = p.market_value || 0.0;
+    const unPnl = p.unrealized_pnl || 0.0;
+    const unPnlPct = totalEq > 0 ? (unPnl / (totalEq - unPnl) * 100) : 0.0;
+    const positions = p.positions || [];
+
+    document.getElementById('kpi-total-equity').textContent = formatCurrency(totalEq);
+    document.getElementById('kpi-cash-balance').textContent = formatCurrency(cash);
+    document.getElementById('kpi-holdings-val').textContent = formatCurrency(mVal);
+    document.getElementById('kpi-holdings-count').textContent = `${positions.length} of ${swingState.maxPositions} Slots Occupied`;
+
+    const unPnlEl = document.getElementById('kpi-unrealized-pnl');
+    unPnlEl.textContent = formatCurrency(unPnl);
+    unPnlEl.className = unPnl >= 0 ? 'kpi-value text-green' : 'kpi-value text-red';
+
+    const unPnlPctEl = document.getElementById('kpi-unrealized-pct');
+    unPnlPctEl.textContent = `${unPnl >= 0 ? '+' : ''}${unPnlPct.toFixed(2)}%`;
+    unPnlPctEl.className = unPnl >= 0 ? 'kpi-subtext text-green' : 'kpi-subtext text-red';
+
+    // Navbar mirror
+    const navEq = document.getElementById('nav-total-equity');
+    if (navEq) navEq.textContent = formatCurrency(totalEq);
+    const navCash = document.getElementById('nav-cash-balance');
+    if (navCash) navCash.textContent = formatCurrency(cash);
+    const navBp = document.getElementById('nav-buying-power');
+    if (navBp) navBp.textContent = formatCurrency(mVal);
+    const navPnl = document.getElementById('nav-pnl');
+    if (navPnl) {
+        navPnl.textContent = formatCurrency(unPnl);
+        navPnl.className = unPnl >= 0 ? 'metric-value text-green' : 'metric-value text-red';
+    }
+
+    // Breakeven shield count
+    const shielded = positions.filter(pos => pos.trailing_active).length;
+    document.getElementById('kpi-shielded-count').textContent = `${shielded} / ${positions.length}`;
+
+    // 4. Holdings Table
+    renderHoldingsTable(positions);
+
+    // 5. Scanner Table
+    renderScannerTable(swingState.scannerResults || []);
+
+    // 6. Closed Trades
+    renderClosedTrades(swingState.closedTrades || []);
+
+    // 7. Console Logs
+    renderLogs(swingState.logs || []);
+}
+
+function renderHoldingsTable(positions) {
+    const tbody = document.getElementById('holdings-tbody');
+    const badge = document.getElementById('holdings-badge');
+    badge.textContent = `${positions.length} POSITIONS`;
+
+    if (positions.length === 0) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="11" style="text-align: center; padding: 2.5rem; color: var(--text-muted);">
+                    <i class="fa-solid fa-inbox" style="font-size: 2rem; margin-bottom: 0.5rem; display: block; opacity: 0.4;"></i>
+                    No active swing positions held. Click <strong>SCAN UNIVERSE NOW</strong> to discover setups.
+                </td>
+            </tr>
+        `;
+        return;
+    }
+
+    tbody.innerHTML = positions.map(pos => {
+        const cleanSym = (pos.symbol || '').replace('.NS', '').replace('.BO', '');
+        const pnl = pos.unrealized_pnl || 0.0;
+        const pnlPct = pos.unrealized_pnl_pct || 0.0;
+        const pnlClass = pnl >= 0 ? 'text-green' : 'text-red';
+        const stratKey = pos.strategy || 'VORTEX';
+        const stratClass = getStrategyBadgeClass(stratKey);
+
+        const isShielded = pos.trailing_active;
+        const shieldBadge = isShielded 
+            ? `<span style="display: inline-block; background: rgba(0, 240, 144, 0.15); color: #00f090; font-size: 0.68rem; font-weight: 800; padding: 2px 6px; border-radius: 4px; margin-top: 3px;"><i class="fa-solid fa-shield-halved"></i> SHIELD ACTIVE</span>`
+            : '';
+
+        return `
+            <tr>
+                <td>
+                    <strong style="color: #fff; font-size: 0.95rem; font-family: var(--font-code);">${cleanSym}</strong>
+                    <div style="font-size: 0.7rem; color: var(--text-muted);">${pos.symbol}</div>
+                </td>
+                <td>
+                    <span class="badge ${stratClass}" style="font-size: 0.72rem; padding: 3px 8px; font-weight: 700;">${stratKey}</span>
+                    ${pos.confluence_score ? `<div style="font-size: 0.68rem; color: #fbbf24; margin-top: 2px;">Score: ${pos.confluence_score}</div>` : ''}
+                </td>
+                <td style="font-family: var(--font-code); font-weight: 700; color: #38bdf8;">${pos.quantity}</td>
+                <td style="font-family: var(--font-code);">₹${pos.average_price.toFixed(2)}</td>
+                <td style="font-family: var(--font-code); font-weight: 700; color: #fff;">₹${pos.current_price.toFixed(2)}</td>
+                <td>
+                    <div class="${pnlClass}" style="font-weight: 800; font-family: var(--font-code);">${pnl >= 0 ? '+' : ''}₹${pnl.toFixed(2)}</div>
+                    <div class="${pnlClass}" style="font-size: 0.72rem;">${pnlPct >= 0 ? '+' : ''}${pnlPct.toFixed(2)}%</div>
+                </td>
+                <td>
+                    <span style="background: rgba(168, 85, 247, 0.15); color: #c084fc; font-weight: 800; padding: 2px 8px; border-radius: 4px; font-size: 0.75rem;">
+                        <i class="fa-solid fa-calendar-day"></i> ${pos.days_held || 1}d
+                    </span>
+                </td>
+                <td>
+                    <div style="color: #f87171; font-family: var(--font-code); font-weight: 700;">₹${pos.stop_loss.toFixed(2)}</div>
+                    ${shieldBadge}
+                </td>
+                <td>
+                    <div style="color: #00f090; font-family: var(--font-code); font-weight: 700;">₹${pos.take_profit.toFixed(2)}</div>
+                </td>
+                <td>
+                    <button class="btn-sm btn-outline" onclick="openSwingTicketFromPosition(${JSON.stringify(pos).replace(/"/g, '&quot;')})" style="border-color: rgba(168, 85, 247, 0.4); color: #c084fc; padding: 4px 8px; font-size: 0.72rem;">
+                        <i class="fa-solid fa-ticket"></i> GTT TICKET
+                    </button>
+                </td>
+                <td>
+                    <button class="btn-sm btn-outline" onclick="manualExitPosition('${pos.symbol}', ${pos.quantity})" style="border-color: rgba(239, 68, 68, 0.4); color: #f87171; padding: 4px 8px; font-size: 0.72rem;">
+                        EXIT
+                    </button>
+                </td>
+            </tr>
+        `;
+    }).join('');
+}
+
+function renderScannerTable(results) {
+    const tbody = document.getElementById('scanner-tbody');
+    const badge = document.getElementById('scanner-count-badge');
+    const buySetups = results.filter(r => r.signal === 'BUY');
+    badge.textContent = `${buySetups.length} SETUPS`;
+
+    if (results.length === 0) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="9" style="text-align: center; padding: 2.5rem; color: var(--text-muted);">
+                    Click <strong>SCAN UNIVERSE NOW</strong> to evaluate the NIFTY universe across all 4 swing trading strategies.
+                </td>
+            </tr>
+        `;
+        return;
+    }
+
+    tbody.innerHTML = results.slice(0, 30).map(r => {
+        const cleanSym = (r.symbol || '').replace('.NS', '').replace('.BO', '');
+        const isBuy = r.signal === 'BUY';
+        const stratClass = getStrategyBadgeClass(r.strategy_key || 'VORTEX');
+        const score = r.confluence_score || 0;
+        const scoreColor = score >= 90 ? '#e879f9' : (score >= 85 ? '#00f090' : '#38bdf8');
+        const grade = score >= 90 ? 'A+' : (score >= 85 ? 'A' : 'B');
+
+        const p = r.price || 0.0;
+        const sl = r.stop_loss || 0.0;
+        const tp = r.target_price || 0.0;
+        const rr = r.risk_reward_ratio || 0.0;
+
+        return `
+            <tr style="${isBuy ? 'background: rgba(0, 240, 144, 0.03);' : ''}">
+                <td>
+                    <strong style="color: #fff; font-size: 0.95rem; font-family: var(--font-code);">${cleanSym}</strong>
+                    <div style="font-size: 0.7rem; color: var(--text-muted);">${r.symbol}</div>
+                </td>
+                <td>
+                    <span class="badge ${stratClass}" style="font-size: 0.72rem; padding: 3px 8px; font-weight: 700;">${r.strategy || 'VORTEX'}</span>
+                </td>
+                <td>
+                    <span style="background: rgba(255,255,255,0.06); color: ${scoreColor}; font-weight: 800; padding: 2px 7px; border-radius: 4px; font-size: 0.75rem;">
+                        ${score} (${grade})
+                    </span>
+                </td>
+                <td style="font-family: var(--font-code); font-weight: 700; color: #fff;">₹${p.toFixed(2)}</td>
+                <td style="color: #f87171; font-family: var(--font-code);">₹${sl.toFixed(2)} (-${r.sl_pct || 3.5}%)</td>
+                <td style="color: #00f090; font-family: var(--font-code); font-weight: 700;">₹${tp.toFixed(2)} (+${r.target_pct || 12.0}%)</td>
+                <td style="color: #fbbf24; font-family: var(--font-code); font-weight: 700;">1 : ${rr.toFixed(2)}</td>
+                <td style="font-size: 0.72rem; color: #cbd5e1; max-width: 250px;">${r.reason || '--'}</td>
+                <td>
+                    ${isBuy ? `
+                        <div style="display: flex; gap: 4px;">
+                            <button class="btn-sm btn-outline" onclick="openSwingTicketFromScan(${JSON.stringify(r).replace(/"/g, '&quot;')})" style="border-color: rgba(168, 85, 247, 0.4); color: #c084fc; padding: 4px 8px; font-size: 0.72rem;">
+                                <i class="fa-solid fa-ticket"></i> GTT
+                            </button>
+                            <button class="btn-sm" onclick="manualBuySwing('${r.symbol}', ${p}, '${r.strategy_key}', ${sl}, ${tp}, ${score})" style="background: rgba(0, 240, 144, 0.15); border: 1px solid rgba(0, 240, 144, 0.4); color: #00f090; padding: 4px 8px; font-size: 0.72rem; font-weight: 700;">
+                                BUY CNC
+                            </button>
+                        </div>
+                    ` : `<span style="color: var(--text-muted); font-size: 0.72rem;">WAIT</span>`}
+                </td>
+            </tr>
+        `;
+    }).join('');
+}
+
+function renderClosedTrades(trades) {
+    const tbody = document.getElementById('closed-trades-tbody');
+    document.getElementById('closed-trades-count').textContent = `${trades.length} Trades`;
+
+    if (trades.length === 0) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="9" style="text-align: center; padding: 2rem; color: var(--text-muted);">
+                    No closed trades yet in this session.
+                </td>
+            </tr>
+        `;
+        return;
+    }
+
+    tbody.innerHTML = trades.map(t => {
+        const cleanSym = (t.symbol || '').replace('.NS', '').replace('.BO', '');
+        const pnl = t.realized_pnl || 0.0;
+        const pnlClass = pnl >= 0 ? 'text-green' : 'text-red';
+        return `
+            <tr>
+                <td style="font-weight: 700; color: #fff; font-family: var(--font-code);">${cleanSym}</td>
+                <td><span class="badge ${getStrategyBadgeClass(t.strategy)}">${t.strategy || 'VORTEX'}</span></td>
+                <td>${t.days_held || 1}d</td>
+                <td style="font-family: var(--font-code);">₹${(t.entry_price || 0).toFixed(2)}</td>
+                <td style="font-family: var(--font-code);">₹${(t.price || 0).toFixed(2)}</td>
+                <td class="${pnlClass}" style="font-family: var(--font-code); font-weight: 800;">${pnl >= 0 ? '+' : ''}₹${pnl.toFixed(2)}</td>
+                <td class="${pnlClass}">${(t.roi_pct || 0).toFixed(2)}%</td>
+                <td style="color: var(--text-muted); font-size: 0.72rem;">₹${(t.charges || 0).toFixed(2)}</td>
+                <td style="font-size: 0.72rem; color: #cbd5e1;">${t.exit_reason || 'Target Hit'}</td>
+            </tr>
+        `;
+    }).join('');
+}
+
+function renderLogs(logs) {
+    const consoleEl = document.getElementById('bot-logs-console');
+    if (!logs || logs.length === 0) return;
+
+    consoleEl.innerHTML = logs.map(l => {
+        const color = l.level === 'SUCCESS' ? '#00f090' : (l.level === 'ERROR' ? '#f87171' : (l.level === 'WARNING' ? '#fbbf24' : '#94a3b8'));
+        return `<div><span style="color: #64748b;">[${l.timestamp}]</span> <span style="color: ${color};">${l.message}</span></div>`;
+    }).join('');
+}
+
+function getStrategyBadgeClass(strat) {
+    if (!strat) return 'badge-vortex';
+    const s = strat.toUpperCase();
+    if (s.includes('CONFLUENCE')) return 'badge-confluence';
+    if (s.includes('VORTEX')) return 'badge-vortex';
+    if (s.includes('ANCHOR')) return 'badge-anchor';
+    if (s.includes('TITAN')) return 'badge-titan';
+    if (s.includes('SURGE')) return 'badge-surge';
+    return 'badge-vortex';
+}
+
+function formatCurrency(val) {
+    return '₹' + Number(val || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+// ==============================================================================
+// BOT ACTIONS & CONFIGURATION
+// ==============================================================================
+
+async function toggleSwingBot() {
+    const url = swingState.isRunning ? '/api/swing/stop' : '/api/swing/start';
+    try {
+        const res = await fetch(url, { method: 'POST' });
+        const data = await res.json();
+        if (data.success) {
+            swingState.isRunning = data.is_running;
+            fetchSwingOverview();
+        }
+    } catch (err) {
+        console.error('Error toggling swing bot:', err);
+    }
+}
+
+async function triggerSwingScan() {
+    const btn = document.getElementById('btn-scan-swing-bot');
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> SCANNING UNIVERSE...';
+
+    try {
+        const res = await fetch('/api/swing/scan', { method: 'POST' });
+        const data = await res.json();
+        if (data.success && data.scan_summary) {
+            swingState.scannerResults = data.scan_summary.scanner_results || [];
+            document.getElementById('scanner-last-updated').textContent = `Last Scan: ${data.scan_summary.last_scan_time || 'Just now'}`;
+        }
+        fetchSwingOverview();
+    } catch (err) {
+        console.error('Error scanning swing universe:', err);
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fa-solid fa-radar"></i> SCAN UNIVERSE NOW';
+    }
+}
+
+async function updateSwingConfig() {
+    const strat = document.getElementById('config-strategy-select').value;
+    const capital = parseFloat(document.getElementById('config-capital-input').value) || 20000;
+    const maxPos = parseInt(document.getElementById('config-max-positions').value) || 5;
+    const universe = document.getElementById('config-universe-select').value;
+
+    try {
+        const res = await fetch('/api/swing/config', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                selected_strategy: strat,
+                allocation_per_trade: capital,
+                max_positions: maxPos,
+                scan_mode: universe
+            })
+        });
+        const data = await res.json();
+        if (data.success) {
+            const statusBadge = document.getElementById('config-saved-status');
+            statusBadge.style.opacity = '1';
+            setTimeout(() => { statusBadge.style.opacity = '0'; }, 2000);
+        }
+    } catch (err) {
+        console.error('Error saving swing config:', err);
+    }
+}
+
+async function manualBuySwing(symbol, price, strategy, sl, tp, score) {
+    const capital = swingState.capitalPerTrade || 20000.0;
+    const qty = Math.max(1, Math.floor(capital / price));
+
+    if (!confirm(`Buy ${qty} shares of ${symbol.replace('.NS','')} (CNC Delivery) @ ₹${price.toFixed(2)}?\nTarget: ₹${tp.toFixed(2)} | SL: ₹${sl.toFixed(2)}`)) {
+        return;
+    }
+
+    try {
+        const res = await fetch('/api/swing/order', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                symbol: symbol,
+                side: 'BUY',
+                quantity: qty,
+                price: price,
+                strategy: strategy,
+                stop_loss: sl,
+                take_profit: tp,
+                confluence_score: score
+            })
+        });
+        const data = await res.json();
+        if (data.success) {
+            fetchSwingOverview();
+        } else {
+            alert(data.message || 'Error executing swing order');
+        }
+    } catch (err) {
+        console.error('Error executing swing order:', err);
+    }
+}
+
+async function manualExitPosition(symbol, quantity) {
+    if (!confirm(`Sell & liquidate full position in ${symbol.replace('.NS','')}?`)) return;
+
+    try {
+        const qRes = await fetch(`/api/quote/${symbol}`);
+        const qData = await qRes.json();
+        const price = qData.price || 0.0;
+
+        const res = await fetch('/api/swing/order', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                symbol: symbol,
+                side: 'SELL',
+                quantity: quantity,
+                price: price
+            })
+        });
+        const data = await res.json();
+        if (data.success) {
+            fetchSwingOverview();
+        } else {
+            alert(data.message || 'Error liquidating position');
+        }
+    } catch (err) {
+        console.error('Error exiting swing position:', err);
+    }
+}
+
+async function exitAllSwingPositions() {
+    if (!confirm('Are you sure you want to LIQUIDATE ALL open swing delivery positions?')) return;
+    try {
+        const res = await fetch('/api/swing/positions/exit-all', { method: 'POST' });
+        const data = await res.json();
+        if (data.success) {
+            fetchSwingOverview();
+        }
+    } catch (err) {
+        console.error('Error exiting all swing positions:', err);
+    }
+}
+
+function clearLocalLogs() {
+    document.getElementById('bot-logs-console').innerHTML = '<div style="color: #64748b;">Console cleared.</div>';
+}
+
+// LocalStorage Hydration Cache
+function saveLocalSwingHoldings(positions) {
+    try {
+        localStorage.setItem('titan_swing_positions_cache', JSON.stringify(positions));
+    } catch (e) {}
+}
+
+function loadLocalSwingHoldings() {
+    try {
+        const raw = localStorage.getItem('titan_swing_positions_cache');
+        return raw ? JSON.parse(raw) : [];
+    } catch (e) {
+        return [];
+    }
+}
+
+// ==============================================================================
+// ZERODHA KITE 3-LEG GTT (OCO) BROKER TICKET MODAL
+// ==============================================================================
+
+function openSwingTicketFromPosition(pos) {
+    const cleanSym = (pos.symbol || '').replace('.NS', '').replace('.BO', '');
+    currentSwingTicketData = {
+        symbol: cleanSym,
+        fullSymbol: pos.symbol,
+        side: 'BUY',
+        qty: pos.quantity,
+        price: pos.average_price,
+        sl: pos.stop_loss,
+        tp: pos.take_profit,
+        strategy: pos.strategy || 'VORTEX',
+        confluence: pos.confluence_score || 88,
+        horizon: getHorizonForStrategy(pos.strategy)
+    };
+    populateSwingTicketModal();
+}
+
+function openSwingTicketFromScan(scan) {
+    const cleanSym = (scan.symbol || '').replace('.NS', '').replace('.BO', '');
+    const capital = swingState.capitalPerTrade || 20000.0;
+    const p = scan.price || 100.0;
+    const qty = Math.max(1, Math.floor(capital / p));
+
+    currentSwingTicketData = {
+        symbol: cleanSym,
+        fullSymbol: scan.symbol,
+        side: 'BUY',
+        qty: qty,
+        price: p,
+        sl: scan.stop_loss,
+        tp: scan.target_price,
+        strategy: scan.strategy || 'VORTEX BREAKOUT',
+        confluence: scan.confluence_score || 90,
+        horizon: getHorizonForStrategy(scan.strategy_key)
+    };
+    populateSwingTicketModal();
+}
+
+function getHorizonForStrategy(strat) {
+    if (!strat) return '7–18 Days';
+    const s = strat.toUpperCase();
+    if (s.includes('VORTEX')) return '7–18 Days';
+    if (s.includes('ANCHOR')) return '4–10 Days';
+    if (s.includes('TITAN')) return '10–25 Days';
+    if (s.includes('SURGE')) return '3–7 Days';
+    return '5–15 Days';
+}
+
+function populateSwingTicketModal() {
+    if (!currentSwingTicketData) return;
+    const d = currentSwingTicketData;
+
+    document.getElementById('sticket-symbol').textContent = d.symbol;
+    document.getElementById('sticket-qty').textContent = `${d.qty} Shares`;
+    document.getElementById('sticket-price').textContent = `₹${d.price.toFixed(2)}`;
+    document.getElementById('sticket-capital').textContent = formatCurrency(d.qty * d.price);
+
+    const slDiff = d.price > 0 ? ((d.sl - d.price) / d.price * 100).toFixed(2) : '-3.50';
+    const tpDiff = d.price > 0 ? ((d.tp - d.price) / d.price * 100).toFixed(2) : '+12.00';
+
+    document.getElementById('sticket-sl').textContent = `₹${d.sl.toFixed(2)} (${slDiff}%)`;
+    document.getElementById('sticket-tp').textContent = `₹${d.tp.toFixed(2)} (+${tpDiff}%)`;
+
+    const risk = Math.abs(d.price - d.sl);
+    const reward = Math.abs(d.tp - d.price);
+    const rr = risk > 0 ? (reward / risk).toFixed(2) : '3.00';
+    document.getElementById('sticket-rr').textContent = `1 : ${rr}`;
+    document.getElementById('sticket-horizon').textContent = d.horizon;
+
+    // Badges
+    document.getElementById('sticket-strategy-badge').textContent = d.strategy;
+    document.getElementById('sticket-confluence-badge').textContent = `A+ ${d.confluence} SCORE`;
+
+    // Copy chips
+    document.getElementById('schip-val-symbol').textContent = d.symbol;
+    document.getElementById('schip-val-qty').textContent = d.qty;
+    document.getElementById('schip-val-price').textContent = `₹${d.price.toFixed(2)}`;
+    document.getElementById('schip-val-sl').textContent = `₹${d.sl.toFixed(2)}`;
+    document.getElementById('schip-val-tp').textContent = `₹${d.tp.toFixed(2)}`;
+
+    // Pre-formatted one-line string
+    const copyLine = `SWING BUY (CNC) | ${d.symbol} | QTY: ${d.qty} | ENTRY: ₹${d.price.toFixed(2)} | SL TRIGGER: ₹${d.sl.toFixed(2)} (${slDiff}%) | TARGET TRIGGER: ₹${d.tp.toFixed(2)} (+${tpDiff}%) | HORIZON: ${d.horizon}`;
+    document.getElementById('sticket-copy-text').value = copyLine;
+
+    // Links
+    document.getElementById('sticket-tv-link').href = `https://in.tradingview.com/chart/?symbol=NSE:${d.symbol}`;
+
+    // Show modal
+    document.getElementById('swing-ticket-modal').style.display = 'flex';
+}
+
+function closeSwingTicket() {
+    document.getElementById('swing-ticket-modal').style.display = 'none';
+}
+
+function handleModalBackdropClick(e, modalId) {
+    if (e.target.id === modalId) {
+        document.getElementById(modalId).style.display = 'none';
+    }
+}
+
+function copySwingChip(field) {
+    if (!currentSwingTicketData) return;
+    const d = currentSwingTicketData;
+    let val = '';
+    let btnId = '';
+
+    if (field === 'symbol') { val = d.symbol; btnId = 'schip-btn-symbol'; }
+    else if (field === 'qty') { val = String(d.qty); btnId = 'schip-btn-qty'; }
+    else if (field === 'price') { val = d.price.toFixed(2); btnId = 'schip-btn-price'; }
+    else if (field === 'sl') { val = d.sl.toFixed(2); btnId = 'schip-btn-sl'; }
+    else if (field === 'tp') { val = d.tp.toFixed(2); btnId = 'schip-btn-tp'; }
+
+    navigator.clipboard.writeText(val).then(() => {
+        const btn = document.getElementById(btnId);
+        if (btn) {
+            const originalHtml = btn.innerHTML;
+            btn.innerHTML = `<i class="fa-solid fa-check"></i> COPIED!`;
+            setTimeout(() => { btn.innerHTML = originalHtml; }, 1500);
+        }
+    });
+}
+
+function copySwingTicketAll() {
+    const text = document.getElementById('sticket-copy-text').value;
+    navigator.clipboard.writeText(text).then(() => {
+        const btn = document.getElementById('btn-sticket-copy');
+        const orig = btn.innerHTML;
+        btn.innerHTML = '<i class="fa-solid fa-check"></i> COPIED ALL!';
+        setTimeout(() => { btn.innerHTML = orig; }, 1800);
+    });
+}
+
+function openKiteWithSwingSymbol(e) {
+    if (currentSwingTicketData) {
+        navigator.clipboard.writeText(currentSwingTicketData.symbol);
+    }
+}
+
+function downloadSwingGttJson() {
+    if (!currentSwingTicketData) return;
+    const d = currentSwingTicketData;
+
+    const basketPayload = [
+        {
+            "tradingsymbol": d.symbol,
+            "exchange": "NSE",
+            "transaction_type": "BUY",
+            "order_type": "LIMIT",
+            "quantity": d.qty,
+            "price": Number(d.price.toFixed(2)),
+            "product": "CNC",
+            "validity": "DAY",
+            "tag": "TITAN_SWING_ENTRY"
+        },
+        {
+            "type": "two-leg",
+            "condition": {
+                "exchange": "NSE",
+                "tradingsymbol": d.symbol,
+                "trigger_values": [Number(d.sl.toFixed(2)), Number(d.tp.toFixed(2))],
+                "last_price": Number(d.price.toFixed(2))
+            },
+            "orders": [
+                {
+                    "transaction_type": "SELL",
+                    "quantity": d.qty,
+                    "order_type": "LIMIT",
+                    "product": "CNC",
+                    "price": Number((d.sl * 0.998).toFixed(2))
+                },
+                {
+                    "transaction_type": "SELL",
+                    "quantity": d.qty,
+                    "order_type": "LIMIT",
+                    "product": "CNC",
+                    "price": Number(d.tp.toFixed(2))
+                }
+            ],
+            "tag": "TITAN_SWING_OCO"
+        }
+    ];
+
+    const blob = new Blob([JSON.stringify(basketPayload, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `ZERODHA_GTT_${d.symbol}_${new Date().toISOString().slice(0,10)}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+}
+</script>
+{% endblock %}

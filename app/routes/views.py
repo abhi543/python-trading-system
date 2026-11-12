@@ -17,6 +17,11 @@ def bot_page():
 def bot_after_hours_page():
     return render_template('bot_after_hours.html')
 
+@views_bp.route('/bot-swing')
+@views_bp.route('/swing')
+def bot_swing_page():
+    return render_template('bot_swing.html')
+
 @views_bp.route('/debug-env')
 def debug_env():
     from flask import request
