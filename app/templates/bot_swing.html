@@ -976,11 +976,23 @@ async function toggleSwingBot() {
 
 async function triggerSwingScan() {
     const btn = document.getElementById('btn-scan-swing-bot');
-    btn.disabled = true;
-    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> SCANNING UNIVERSE...';
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> SCANNING UNIVERSE...';
+    }
 
     try {
-        const res = await fetch('/api/swing/scan', { method: 'POST' });
+        const localHoldings = loadLocalSwingHoldings();
+        const payload = {
+            is_running: isSwingBotActive,
+            client_positions: localHoldings && localHoldings.length > 0 ? localHoldings : []
+        };
+
+        const res = await fetch('/api/swing/scan', { 
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
         const data = await res.json();
         if (data.success && data.scan_summary) {
             swingState.scannerResults = data.scan_summary.scanner_results || [];
@@ -990,8 +1002,10 @@ async function triggerSwingScan() {
     } catch (err) {
         console.error('Error scanning swing universe:', err);
     } finally {
-        btn.disabled = false;
-        btn.innerHTML = '<i class="fa-solid fa-radar"></i> SCAN UNIVERSE NOW';
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fa-solid fa-radar"></i> SCAN UNIVERSE NOW';
+        }
     }
 }
 

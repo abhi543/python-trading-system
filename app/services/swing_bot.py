@@ -367,8 +367,6 @@ class SwingTradingBot:
         # 3. Evaluate Stocks with Unified Multi-Strategy Scanner
         scanner_results = []
         buys_found = 0
-        acc = SwingPaperTradingEngine.get_or_create_account()
-        avail_cash = acc.cash_balance
 
         for sym in target_stocks:
             data = stock_data_map.get(sym)
@@ -376,33 +374,48 @@ class SwingTradingBot:
                 continue
 
             scan_res = UnifiedSwingScanner.scan_stock(sym, data, selected_strategy=self.selected_strategy)
-            sig = scan_res.get("signal")
-            p = scan_res.get("price", 0.0)
-
-            if sig == "BUY":
+            if scan_res.get("signal") == "BUY":
                 buys_found += 1
-                # Auto-Enter if bot is running and capacity available
-                if self.is_running and (len(held_symbols) < self.max_positions) and (sym not in held_symbols):
-                    qty = max(1, int(self.allocation_per_trade / p))
-                    needed = qty * p
-                    if avail_cash >= needed:
-                        exec_res = SwingPaperTradingEngine.execute_order(
-                            sym, "BUY", qty, p,
-                            strategy=scan_res.get("strategy_key", "VORTEX"),
-                            sl=scan_res.get("stop_loss", 0.0),
-                            tp=scan_res.get("target_price", 0.0),
-                            confluence=scan_res.get("confluence_score", 85)
-                        )
-                        if exec_res.get("success"):
-                            held_symbols.add(sym)
-                            avail_cash -= needed
-                            scan_res["action_executed"] = f"BOUGHT {qty} SHARES (CNC)"
-                            self.add_log(f"⚡ [SWING ENTRY] {sym.replace('.NS','')}: {scan_res.get('strategy')} | Bought {qty} shares @ ₹{p:.2f} | Target: ₹{scan_res.get('target_price'):.2f} (+{scan_res.get('target_pct')}%) | SL: ₹{scan_res.get('stop_loss'):.2f}", "SUCCESS")
-
             scanner_results.append(scan_res)
 
-        # Sort: BUY signals with highest Confluence Score first
+        # Sort: BUY signals with highest Confluence Score first (e.g. 98, 96, 95 A+ first!)
         scanner_results.sort(key=lambda x: (0 if x["signal"] == "BUY" else 1, -x.get("confluence_score", 0)))
+
+        # 4. Auto-Execute Top-Scoring Setups if Bot is Running
+        if self.is_running:
+            acc = SwingPaperTradingEngine.get_or_create_account()
+            avail_cash = acc.cash_balance
+
+            for scan_res in scanner_results:
+                if scan_res.get("signal") != "BUY":
+                    break
+                if len(held_symbols) >= self.max_positions:
+                    break
+
+                sym = scan_res.get("symbol")
+                if sym in held_symbols:
+                    continue
+
+                p = scan_res.get("price", 0.0)
+                if p <= 0:
+                    continue
+
+                qty = max(1, int(self.allocation_per_trade / p))
+                needed = qty * p
+
+                if avail_cash >= needed:
+                    exec_res = SwingPaperTradingEngine.execute_order(
+                        sym, "BUY", qty, p,
+                        strategy=scan_res.get("strategy_key", "VORTEX"),
+                        sl=scan_res.get("stop_loss", 0.0),
+                        tp=scan_res.get("target_price", 0.0),
+                        confluence=scan_res.get("confluence_score", 85)
+                    )
+                    if exec_res.get("success"):
+                        held_symbols.add(sym)
+                        avail_cash -= needed
+                        scan_res["action_executed"] = f"BOUGHT {qty} SHARES (CNC)"
+                        self.add_log(f"⚡ [SWING ENTRY A+] {sym.replace('.NS','')}: {scan_res.get('strategy')} | Bought {qty} shares @ ₹{p:.2f} | Score: {scan_res.get('confluence_score')} | Target: ₹{scan_res.get('target_price'):.2f} (+{scan_res.get('target_pct')}%) | SL: ₹{scan_res.get('stop_loss'):.2f}", "SUCCESS")
 
         self.last_scan_summary = {
             "total_scanned": len(scanner_results),

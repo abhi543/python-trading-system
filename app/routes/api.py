@@ -1278,6 +1278,15 @@ def get_swing_overview():
 @api_bp.route('/swing/scan', methods=['POST'])
 def run_swing_scan():
     from app.services.swing_bot import swing_bot_instance
+    body = request.get_json(silent=True) or {}
+    client_running = body.get('is_running')
+    if client_running is not None:
+        swing_bot_instance.is_running = bool(client_running)
+
+    client_positions = body.get('client_positions')
+    if client_positions is not None:
+        sync_swing_positions_from_client(client_positions)
+
     scan_summary = swing_bot_instance.scan_and_evaluate()
     return jsonify({
         "success": True,
