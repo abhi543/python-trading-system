@@ -910,37 +910,41 @@
         function updateKillswitchUI() {
             const alphaActive = localStorage.getItem('nifty_bot_active') === 'true';
             const ahActive = localStorage.getItem('ah_bot_active_v1') === 'true';
+            const swingActive = localStorage.getItem('titan_swing_is_active') === 'true';
             const dot = document.getElementById('global-killswitch-dot');
             const btn = document.getElementById('global-stop-both-bots-btn');
             if (!btn) return;
-            if (alphaActive || ahActive) {
+            if (alphaActive || ahActive || swingActive) {
                 if (dot) dot.classList.add('pulsing');
                 btn.style.borderColor = '#ef4444';
                 btn.style.boxShadow = '0 0 16px rgba(239, 68, 68, 0.45)';
-                btn.title = `Master Kill Switch: Stop Active Bots (${alphaActive ? 'ALPHA ' : ''}${ahActive ? 'NIGHTHAWK' : ''})`;
+                btn.title = `Master Kill Switch: Stop Active Bots (${alphaActive ? 'ALPHA ' : ''}${ahActive ? 'NIGHTHAWK ' : ''}${swingActive ? 'TITAN' : ''})`;
             } else {
                 if (dot) dot.classList.remove('pulsing');
                 btn.style.borderColor = 'rgba(239, 68, 68, 0.4)';
                 btn.style.boxShadow = 'none';
-                btn.title = 'Master Kill Switch: Both bots currently stopped. Click to ensure full shutdown.';
+                btn.title = 'Master Kill Switch: All bots currently stopped. Click to ensure full shutdown.';
             }
         }
 
         async function globalStopBothBots() {
             const alphaActive = localStorage.getItem('nifty_bot_active') === 'true';
             const ahActive = localStorage.getItem('ah_bot_active_v1') === 'true';
+            const swingActive = localStorage.getItem('titan_swing_is_active') === 'true';
 
             const confirmMsg = '🛑 EMERGENCY MASTER KILL SWITCH\n\n' +
-                'Stop both ALPHA (Day Bot) and NIGHTHAWK (Night Bot) immediately?\n\n' +
+                'Stop all trading bots (ALPHA, NIGHTHAWK, and TITAN) immediately?\n\n' +
                 '• Bot ALPHA: HALTED\n' +
-                '• Bot NIGHTHAWK: HALTED\n\n' +
-                'Autonomous sweeps and order execution will be paused immediately on both desks.';
+                '• Bot NIGHTHAWK: HALTED\n' +
+                '• Bot TITAN (Swing): HALTED\n\n' +
+                'Autonomous sweeps and order execution will be paused immediately across all desks.';
 
             if (!confirm(confirmMsg)) return;
 
             // 1. Force client storage flags to false
             localStorage.setItem('nifty_bot_active', 'false');
             localStorage.setItem('ah_bot_active_v1', 'false');
+            localStorage.setItem('titan_swing_is_active', 'false');
 
             // 2. Dispatch event for local page scripts
             window.dispatchEvent(new CustomEvent('both-bots-stopped'));
@@ -949,23 +953,26 @@
             if (typeof setBotActiveState === 'function') {
                 try { setBotActiveState(false, false); } catch (e) {}
             }
+            if (typeof isSwingBotActive !== 'undefined') {
+                isSwingBotActive = false;
+                if (typeof renderUI === 'function') renderUI();
+            }
 
             updateKillswitchUI();
 
-            // 4. Request backend halt for both bot instances
+            // 4. Request backend halt for all bot instances
             const btn = document.getElementById('global-stop-both-bots-btn');
             if (btn) btn.classList.add('stopping');
 
             try {
-                const res = await fetch('/api/bot/stop-all', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' }
-                });
-                const data = await res.json();
-                showGlobalToast('🛑 Both ALPHA and NIGHTHAWK bots have been STOPPED successfully!', 'warning');
+                await Promise.allSettled([
+                    fetch('/api/bot/stop-all', { method: 'POST', headers: { 'Content-Type': 'application/json' } }),
+                    fetch('/api/swing/stop', { method: 'POST' })
+                ]);
+                showGlobalToast('🛑 All trading desks (ALPHA, NIGHTHAWK & TITAN) STOPPED successfully!', 'warning');
             } catch (err) {
                 console.error('Stop all bots error:', err);
-                showGlobalToast('🛑 Both bots stopped locally. Server sync notice: ' + err.message, 'warning');
+                showGlobalToast('🛑 All bots stopped locally. Server sync notice: ' + err.message, 'warning');
             } finally {
                 if (btn) btn.classList.remove('stopping');
                 updateKillswitchUI();
@@ -986,13 +993,16 @@
             const resetBtn = document.getElementById('reset-account-btn');
             if (resetBtn) {
                 resetBtn.addEventListener('click', async () => {
-                    const isAH = window.location.pathname.includes('after-hours');
-                    const resetUrl = isAH ? '/api/after-hours/reset-account' : '/api/reset-account';
-                    const defaultCashStr = isAH ? '₹1,00,00,000.00' : '₹50,000.00';
-                    const defaultBpStr = isAH ? '₹5,00,00,000.00' : '₹2,50,000.00';
-                    const confirmMsg = isAH ?
-                        'Reset NIGHTHAWK paper desk to ₹1,00,00,000 (1 Crore) cash capital?' :
-                        'Reset paper desk to ₹50,000 cash and restore fresh NIFTY 50 watchlist?';
+                    const path = window.location.pathname;
+                    const isSwing = path.includes('swing');
+                    const isAH = path.includes('after-hours');
+                    const resetUrl = isSwing ? '/api/swing/reset-account' : (isAH ? '/api/after-hours/reset-account' : '/api/reset-account');
+                    const defaultCashStr = isSwing ? '₹1,00,000.00' : (isAH ? '₹1,00,00,000.00' : '₹50,000.00');
+                    const defaultBpStr = isSwing ? '₹0.00' : (isAH ? '₹5,00,00,000.00' : '₹2,50,000.00');
+                    const confirmMsg = isSwing ?
+                        'Reset TITAN Swing paper desk to ₹1,00,000 cash balance and clear open swing holdings?' :
+                        (isAH ? 'Reset NIGHTHAWK paper desk to ₹1,00,00,000 (1 Crore) cash capital?' :
+                        'Reset paper desk to ₹50,000 cash and restore fresh NIFTY 50 watchlist?');
 
                     if (!confirm(confirmMsg)) return;
                     try {
@@ -1006,6 +1016,10 @@
                             document.getElementById('nav-pnl').innerText = '₹0.00';
                             document.getElementById('nav-pnl').className = 'metric-value text-green';
                             
+                            if (isSwing) {
+                                try { localStorage.removeItem('titan_swing_positions_cache'); } catch (e) {}
+                                if (typeof fetchSwingOverview === 'function') fetchSwingOverview();
+                            }
                             if (typeof loadPortfolio === 'function') loadPortfolio();
                             if (typeof loadBotHoldings === 'function') loadBotHoldings();
                             if (typeof loadClosedTradesReport === 'function') loadClosedTradesReport();
@@ -1013,7 +1027,8 @@
                             if (typeof loadWatchlist === 'function') loadWatchlist();
                             
                             if (typeof showToast === 'function') {
-                                showToast(isAH ? 'NIGHTHAWK desk reset to ₹1 Crore cash capital!' : 'Desk reset to ₹50,000 cash capital!', 'success');
+                                const msg = isSwing ? 'TITAN desk reset to ₹1,00,000 cash balance!' : (isAH ? 'NIGHTHAWK desk reset to ₹1 Crore cash capital!' : 'Desk reset to ₹50,000 cash capital!');
+                                showToast(msg, 'success');
                             }
                         }
                     } catch (e) {
