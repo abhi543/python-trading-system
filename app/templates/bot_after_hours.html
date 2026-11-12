@@ -4207,6 +4207,9 @@
         tbody.innerHTML = '';
         filtered.forEach(p => {
             const isShort = (p.side === 'SHORT');
+            const stockMovePct = p.average_price > 0 
+                ? ((isShort ? (p.average_price - p.current_price) : (p.current_price - p.average_price)) / p.average_price * 100) 
+                : 0.0;
             const tr = document.createElement('tr');
             const pnlClass = (p.unrealized_pnl || 0) >= 0 ? 'text-green' : 'text-red';
             const pnlSign = (p.unrealized_pnl || 0) >= 0 ? '+' : '';
@@ -4239,7 +4242,10 @@
                 <td style="font-weight: 700;">₹${(p.average_price || 0).toFixed(2)}</td>
                 <td style="font-weight: 700;">₹${(p.current_price || 0).toFixed(2)}</td>
                 <td class="${pnlClass}" style="font-weight: 700;">${pnlSign}₹${(p.unrealized_pnl || 0).toFixed(2)}</td>
-                <td class="${pnlClass}" style="font-weight: 700;">${pnlSign}${(p.unrealized_pnl_pct || 0).toFixed(2)}%</td>
+                <td class="${pnlClass}" style="font-weight: 700;">
+                    ${pnlSign}${stockMovePct.toFixed(2)}%
+                    <span style="font-size:0.68rem; color:var(--text-muted); display:block; font-weight: 500;">(${pnlSign}${(p.unrealized_pnl_pct || 0).toFixed(1)}% ROI 5x)</span>
+                </td>
                 <td style="color: var(--red); font-weight: 700;">${slDisplay}</td>
                 <td style="color: #ff6b6b; font-weight: 700;">-₹${maxLoss.toFixed(2)} <span style="font-size:0.68rem; color:var(--text-muted); display:block;">(${maxLossPct.toFixed(2)}% SL)</span></td>
                 <td style="color: var(--green); font-weight: 700;">${tpDisplay}</td>
