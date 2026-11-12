@@ -400,3 +400,4 @@ class UnifiedSwingScanner:
                 "holding_days": best["holding_days"],
                 "reason": best["reason"]
             }
+

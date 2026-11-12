@@ -405,3 +405,4 @@ class SwingTradingBot:
         }
 
 swing_bot_instance = SwingTradingBot()
+
