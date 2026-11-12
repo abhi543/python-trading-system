@@ -243,76 +243,14 @@
             </div>
         </div>
 
-        <!-- MAIN TWO-COLUMN SPLIT: RADAR & HOLDINGS ON LEFT, TERMINAL ON RIGHT -->
+        <!-- MAIN TWO-COLUMN SPLIT: PORTFOLIO LEDGER ON LEFT, TERMINAL ON RIGHT -->
         <div class="bot-main-layout">
             
-            <!-- LEFT COLUMN: SIGNAL RADAR & POSITIONS -->
+            <!-- LEFT COLUMN: PORTFOLIO LEDGER & POSITIONS -->
             <div class="bot-left-col">
                 
-                <!-- NIFTY LIVE SIGNAL RADAR -->
-                <div class="bot-section-card">
-                    <div class="section-card-header">
-                        <div>
-                            <h3 id="radar-title-text"><i class="fa-solid fa-satellite-dish" style="color: var(--blue);"></i> NIFTY Multi-Basket Signal Radar</h3>
-                            <span class="card-caption">Real-time technical indicator calculations, trend momentum &amp; automated trade signals</span>
-                        </div>
-                        <div class="table-search-box">
-                            <i class="fa-solid fa-search"></i>
-                            <input type="text" id="radar-search" placeholder="Filter stock (e.g. INFY, RELIANCE)..." oninput="applyRadarFilters()">
-                        </div>
-                    </div>
-
-                    <!-- QUICK RADAR FILTER CHIPS -->
-                    <div class="radar-filter-bar">
-                        <button type="button" class="radar-chip active" id="chip-filter-all" onclick="setRadarFilter('ALL')">
-                            <i class="fa-solid fa-border-all"></i> All Stocks <span class="chip-count" id="count-chip-all">0</span>
-                        </button>
-                        <button type="button" class="radar-chip chip-buy" id="chip-filter-buy" onclick="setRadarFilter('BUY')">
-                            <i class="fa-solid fa-circle-arrow-up"></i> BUY Signals <span class="chip-count" id="count-chip-buy">0</span>
-                        </button>
-                        <button type="button" class="radar-chip chip-sell" id="chip-filter-sell" onclick="setRadarFilter('SELL')">
-                            <i class="fa-solid fa-circle-arrow-down"></i> SELL / Exits <span class="chip-count" id="count-chip-sell">0</span>
-                        </button>
-                        <button type="button" class="radar-chip chip-held" id="chip-filter-held" onclick="setRadarFilter('HELD')">
-                            <i class="fa-solid fa-briefcase"></i> In Portfolio <span class="chip-count" id="count-chip-held">0</span>
-                        </button>
-                        <button type="button" class="radar-chip chip-gainers" id="chip-filter-gainers" onclick="setRadarFilter('GAINERS')">
-                            <i class="fa-solid fa-arrow-trend-up"></i> Top Gainers <span class="chip-count" id="count-chip-gainers">0</span>
-                        </button>
-                        <button type="button" class="radar-chip chip-dips" id="chip-filter-dips" onclick="setRadarFilter('DIPS')">
-                            <i class="fa-solid fa-arrow-trend-down"></i> Deep Dips <span class="chip-count" id="count-chip-dips">0</span>
-                        </button>
-                    </div>
-
-                    <div class="table-wrapper sticky-scroll">
-                        <table class="data-table sticky-header" id="nifty-radar-table">
-                            <thead>
-                                <tr>
-                                    <th>STOCK</th>
-                                    <th style="min-width: 68px;">TREND</th>
-                                    <th>SIDE</th>
-                                    <th>LTP</th>
-                                    <th>24H CHG</th>
-                                    <th>SIGNAL</th>
-                                    <th>INDICATOR METRICS</th>
-                                    <th>BOT ACTION</th>
-                                    <th>ACTION</th>
-                                </tr>
-                            </thead>
-                            <tbody id="bot-scanner-tbody">
-                                <tr>
-                                    <td colspan="9" class="text-center" style="padding: 2.5rem; color: var(--text-muted);">
-                                        <i class="fa-solid fa-satellite fa-spin" style="font-size: 1.5rem; margin-bottom: 0.75rem; color: var(--blue);"></i><br>
-                                        NIFTY Scanner Ready. Click <strong>"SCAN BASKET NOW"</strong> or start the bot to sweep the entire basket.
-                                    </td>
-                                </tr>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-
                 <!-- PORTFOLIO LEDGER: BOT SESSION REPORT, ACTIVE HOLDINGS & CLOSED TRADES -->
-                <div class="bot-section-card" style="margin-top: 1.5rem;">
+                <div class="bot-section-card">
                     <div class="section-card-header" style="flex-wrap: wrap; gap: 0.75rem;">
                         <div class="ledger-tab-buttons" style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
                             <button id="tab-btn-session-report" class="ledger-tab-btn active" onclick="switchLedgerTab('session')">
@@ -3219,7 +3157,7 @@
     }
 
     function updateRadarPillCounts(data) {
-        if (!data) return;
+        if (!data || !document.getElementById('nifty-radar-table')) return;
         const allCount = data.length;
         const buyCount = data.filter(s => s.signal === 'BUY').length;
         const sellCount = data.filter(s => s.signal === 'SELL' || s.signal === 'STOP_LOSS' || s.signal === 'TAKE_PROFIT').length;
@@ -3244,6 +3182,7 @@
     }
 
     function applyRadarFilters() {
+        if (!document.getElementById('nifty-radar-table')) return;
         const query = (document.getElementById('radar-search')?.value || '').trim().toUpperCase();
         updateRadarPillCounts(allScannerData);
         

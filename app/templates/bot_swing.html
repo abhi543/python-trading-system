@@ -546,8 +546,10 @@
 // SWING TRADING BOT (TITAN) JAVASCRIPT CONTROLLER
 // ==============================================================================
 
+let isSwingBotActive = (localStorage.getItem('titan_swing_is_active') === 'true');
+
 let swingState = {
-    isRunning: false,
+    isRunning: isSwingBotActive,
     selectedStrategy: 'ALL',
     capitalPerTrade: 20000.0,
     maxPositions: 5,
@@ -570,14 +572,26 @@ let pollTimer = null;
 
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', () => {
+    isSwingBotActive = (localStorage.getItem('titan_swing_is_active') === 'true');
+    swingState.isRunning = isSwingBotActive;
+    renderUI();
     fetchSwingOverview();
-    pollTimer = setInterval(fetchSwingOverview, 15000); // 15-second refresh cycle
+    
+    pollTimer = setInterval(() => {
+        fetchSwingOverview();
+        if (isSwingBotActive) {
+            triggerSwingScan();
+        }
+    }, 30000); // 30-second auto-sweep cadence
 });
 
 async function fetchSwingOverview() {
     try {
         const localHoldings = loadLocalSwingHoldings();
-        const payload = localHoldings && localHoldings.length > 0 ? { client_positions: localHoldings } : {};
+        const payload = {
+            is_running: isSwingBotActive,
+            client_positions: localHoldings && localHoldings.length > 0 ? localHoldings : []
+        };
 
         const res = await fetch('/api/swing/overview', {
             method: 'POST',
@@ -586,11 +600,11 @@ async function fetchSwingOverview() {
         });
         const data = await res.json();
         if (data.status) {
-            swingState.isRunning = data.status.is_running;
-            swingState.selectedStrategy = data.status.selected_strategy || 'ALL';
-            swingState.capitalPerTrade = data.status.allocation_per_trade || 20000.0;
-            swingState.maxPositions = data.status.max_positions || 5;
-            swingState.universe = data.status.scan_mode || 'ALL_NIFTY_200';
+            swingState.isRunning = isSwingBotActive;
+            swingState.selectedStrategy = data.status.selected_strategy || swingState.selectedStrategy;
+            swingState.capitalPerTrade = data.status.allocation_per_trade || swingState.capitalPerTrade;
+            swingState.maxPositions = data.status.max_positions || swingState.maxPositions;
+            swingState.universe = data.status.scan_mode || swingState.universe;
             swingState.logs = data.status.logs || [];
             if (data.status.last_scan_summary && data.status.last_scan_summary.scanner_results) {
                 swingState.scannerResults = data.status.last_scan_summary.scanner_results;
@@ -598,6 +612,20 @@ async function fetchSwingOverview() {
         }
         if (data.portfolio) {
             swingState.portfolio = data.portfolio;
+            saveLocalSwingHoldings(data.portfolio.positions || []);
+        }
+        if (data.strategy_scorecard) {
+            swingState.scorecard = data.strategy_scorecard;
+        }
+        if (data.trades) {
+            swingState.closedTrades = data.trades;
+        }
+
+        renderUI();
+    } catch (err) {
+        console.error('Error fetching swing overview:', err);
+    }
+}
             saveLocalSwingHoldings(data.portfolio.positions || []);
         }
         if (data.strategy_scorecard) {
@@ -915,16 +943,34 @@ function formatCurrency(val) {
 // ==============================================================================
 
 async function toggleSwingBot() {
-    const url = swingState.isRunning ? '/api/swing/stop' : '/api/swing/start';
+    isSwingBotActive = !isSwingBotActive;
+    swingState.isRunning = isSwingBotActive;
+    localStorage.setItem('titan_swing_is_active', isSwingBotActive ? 'true' : 'false');
+    renderUI();
+
+    const url = isSwingBotActive ? '/api/swing/start' : '/api/swing/stop';
     try {
-        const res = await fetch(url, { method: 'POST' });
+        const res = await fetch(url, { 
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+                is_running: isSwingBotActive,
+                selected_strategy: swingState.selectedStrategy,
+                allocation_per_trade: swingState.capitalPerTrade,
+                max_positions: swingState.maxPositions,
+                scan_mode: swingState.universe
+            })
+        });
         const data = await res.json();
-        if (data.success) {
-            swingState.isRunning = data.is_running;
-            fetchSwingOverview();
+        if (data.status) {
+            swingState.isRunning = isSwingBotActive;
         }
     } catch (err) {
         console.error('Error toggling swing bot:', err);
+    }
+
+    if (isSwingBotActive) {
+        triggerSwingScan();
     }
 }
 

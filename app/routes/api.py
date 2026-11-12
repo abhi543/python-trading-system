@@ -1239,6 +1239,10 @@ def get_swing_overview():
         if client_positions is not None:
             sync_swing_positions_from_client(client_positions, explicit_clear=explicit_clear)
 
+        client_running = client_data.get('is_running')
+        if client_running is not None:
+            swing_bot_instance.is_running = bool(client_running)
+
     portfolio = SwingPaperTradingEngine.get_portfolio_summary()
     status = swing_bot_instance.get_status()
     scorecard = swing_bot_instance.get_strategy_scorecard()
@@ -1307,18 +1311,15 @@ def update_swing_config():
 @api_bp.route('/swing/start', methods=['POST'])
 def start_swing_bot():
     from app.services.swing_bot import swing_bot_instance
-    swing_bot_instance.is_running = True
-    swing_bot_instance.persist_state()
-    swing_bot_instance.add_log("🚀 TITAN Swing Bot Desk ACTIVATED - Multi-Strategy Scanning Online", "SUCCESS")
-    return jsonify({"success": True, "is_running": True})
+    data = request.get_json(silent=True) or {}
+    res = swing_bot_instance.start(config=data)
+    return jsonify(res)
 
 @api_bp.route('/swing/stop', methods=['POST'])
 def stop_swing_bot():
     from app.services.swing_bot import swing_bot_instance
-    swing_bot_instance.is_running = False
-    swing_bot_instance.persist_state()
-    swing_bot_instance.add_log("⏸️ TITAN Swing Bot Desk PAUSED - Open positions preserved safely", "WARNING")
-    return jsonify({"success": True, "is_running": False})
+    res = swing_bot_instance.stop()
+    return jsonify(res)
 
 @api_bp.route('/swing/order', methods=['POST'])
 def execute_swing_order():

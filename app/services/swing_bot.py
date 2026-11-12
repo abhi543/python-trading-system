@@ -25,7 +25,8 @@ from app.models.trading import (
 from app.services.market_data import MarketDataService
 from app.services.swing_strategies import UnifiedSwingScanner
 
-SWING_STATE_FILE = "swing_bot_state.json"
+is_serverless = any(k in os.environ for k in ('VERCEL', 'VERCEL_ENV', 'AWS_LAMBDA_FUNCTION_NAME'))
+SWING_STATE_FILE = os.path.join("/tmp", "swing_bot_state.json") if is_serverless else "swing_bot_state.json"
 
 class SwingPaperTradingEngine:
     @staticmethod
@@ -237,6 +238,28 @@ class SwingTradingBot:
                 }, f, indent=2)
         except Exception:
             pass
+
+    def start(self, config: dict = None) -> Dict[str, Any]:
+        if config:
+            if "selected_strategy" in config:
+                self.selected_strategy = str(config["selected_strategy"]).upper()
+            if "allocation_per_trade" in config:
+                self.allocation_per_trade = float(config["allocation_per_trade"])
+            if "max_positions" in config:
+                self.max_positions = int(config["max_positions"])
+            if "scan_mode" in config:
+                self.scan_mode = str(config["scan_mode"])
+
+        self.is_running = True
+        self.persist_state()
+        self.add_log(f"🚀 TITAN Swing Bot Desk ACTIVATED - Multi-Strategy Suite ({self.selected_strategy}) Online | Capital/Trade: ₹{self.allocation_per_trade:,.0f} | Max Slots: {self.max_positions}", "SUCCESS")
+        return {"success": True, "is_running": True, "status": self.get_status()}
+
+    def stop(self) -> Dict[str, Any]:
+        self.is_running = False
+        self.persist_state()
+        self.add_log("⏸️ TITAN Swing Bot Desk PAUSED - Open positions preserved safely", "WARNING")
+        return {"success": True, "is_running": False, "status": self.get_status()}
 
     def add_log(self, message: str, level: str = "INFO"):
         with self.lock:
