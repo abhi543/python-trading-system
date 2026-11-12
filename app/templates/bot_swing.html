@@ -626,20 +626,6 @@ async function fetchSwingOverview() {
         console.error('Error fetching swing overview:', err);
     }
 }
-            saveLocalSwingHoldings(data.portfolio.positions || []);
-        }
-        if (data.strategy_scorecard) {
-            swingState.scorecard = data.strategy_scorecard;
-        }
-        if (data.trades) {
-            swingState.closedTrades = data.trades;
-        }
-
-        renderUI();
-    } catch (err) {
-        console.error('Error fetching swing overview:', err);
-    }
-}
 
 function renderUI() {
     // 1. Status Indicator & Button
@@ -648,24 +634,32 @@ function renderUI() {
     const toggleBtn = document.getElementById('btn-toggle-swing-bot');
 
     if (swingState.isRunning) {
-        statusDot.className = 'bot-status-badge status-running';
-        statusText.textContent = 'SWING DESK ONLINE / ACTIVE';
-        toggleBtn.innerHTML = '<i class="fa-solid fa-pause"></i> PAUSE SWING BOT';
-        toggleBtn.style.background = 'linear-gradient(135deg, #ef4444, #dc2626)';
-        toggleBtn.style.boxShadow = '0 4px 15px rgba(239, 68, 68, 0.4)';
+        if (statusDot) statusDot.className = 'bot-status-badge status-running';
+        if (statusText) statusText.textContent = 'SWING DESK ONLINE / ACTIVE';
+        if (toggleBtn) {
+            toggleBtn.innerHTML = '<i class="fa-solid fa-pause"></i> PAUSE SWING BOT';
+            toggleBtn.style.background = 'linear-gradient(135deg, #ef4444, #dc2626)';
+            toggleBtn.style.boxShadow = '0 4px 15px rgba(239, 68, 68, 0.4)';
+        }
     } else {
-        statusDot.className = 'bot-status-badge status-stopped';
-        statusText.textContent = 'OFFLINE / STOPPED';
-        toggleBtn.innerHTML = '<i class="fa-solid fa-play"></i> START SWING BOT';
-        toggleBtn.style.background = 'linear-gradient(135deg, #a855f7, #7c3aed)';
-        toggleBtn.style.boxShadow = '0 4px 15px rgba(168, 85, 247, 0.4)';
+        if (statusDot) statusDot.className = 'bot-status-badge status-stopped';
+        if (statusText) statusText.textContent = 'OFFLINE / STOPPED';
+        if (toggleBtn) {
+            toggleBtn.innerHTML = '<i class="fa-solid fa-play"></i> START SWING BOT';
+            toggleBtn.style.background = 'linear-gradient(135deg, #a855f7, #7c3aed)';
+            toggleBtn.style.boxShadow = '0 4px 15px rgba(168, 85, 247, 0.4)';
+        }
     }
 
     // Controls sync
-    document.getElementById('config-strategy-select').value = swingState.selectedStrategy;
-    document.getElementById('config-capital-input').value = swingState.capitalPerTrade;
-    document.getElementById('config-max-positions').value = swingState.maxPositions;
-    document.getElementById('config-universe-select').value = swingState.universe;
+    const elStrat = document.getElementById('config-strategy-select');
+    if (elStrat && swingState.selectedStrategy) elStrat.value = swingState.selectedStrategy;
+    const elCap = document.getElementById('config-capital-input');
+    if (elCap && swingState.capitalPerTrade) elCap.value = swingState.capitalPerTrade;
+    const elMaxPos = document.getElementById('config-max-positions');
+    if (elMaxPos && swingState.maxPositions) elMaxPos.value = swingState.maxPositions;
+    const elUniv = document.getElementById('config-universe-select');
+    if (elUniv && swingState.universe) elUniv.value = swingState.universe;
 
     // 2. Scorecard Leaderboard
     const sc = swingState.scorecard || {};
@@ -687,26 +681,34 @@ function renderUI() {
     });
 
     // 3. KPI Ribbon & Navbar
-    const p = swingState.portfolio;
+    const p = swingState.portfolio || {};
     const totalEq = p.total_equity || 100000.0;
     const cash = p.cash_balance || 100000.0;
     const mVal = p.market_value || 0.0;
     const unPnl = p.unrealized_pnl || 0.0;
-    const unPnlPct = totalEq > 0 ? (unPnl / (totalEq - unPnl) * 100) : 0.0;
+    const unPnlPct = totalEq > 0 ? (unPnl / Math.max(1, totalEq - unPnl) * 100) : 0.0;
     const positions = p.positions || [];
 
-    document.getElementById('kpi-total-equity').textContent = formatCurrency(totalEq);
-    document.getElementById('kpi-cash-balance').textContent = formatCurrency(cash);
-    document.getElementById('kpi-holdings-val').textContent = formatCurrency(mVal);
-    document.getElementById('kpi-holdings-count').textContent = `${positions.length} of ${swingState.maxPositions} Slots Occupied`;
+    const eqEl = document.getElementById('kpi-total-equity');
+    if (eqEl) eqEl.textContent = formatCurrency(totalEq);
+    const cashEl = document.getElementById('kpi-cash-balance');
+    if (cashEl) cashEl.textContent = formatCurrency(cash);
+    const mValEl = document.getElementById('kpi-holdings-val');
+    if (mValEl) mValEl.textContent = formatCurrency(mVal);
+    const countEl = document.getElementById('kpi-holdings-count');
+    if (countEl) countEl.textContent = `${positions.length} of ${swingState.maxPositions} Slots Occupied`;
 
     const unPnlEl = document.getElementById('kpi-unrealized-pnl');
-    unPnlEl.textContent = formatCurrency(unPnl);
-    unPnlEl.className = unPnl >= 0 ? 'kpi-value text-green' : 'kpi-value text-red';
+    if (unPnlEl) {
+        unPnlEl.textContent = formatCurrency(unPnl);
+        unPnlEl.className = unPnl >= 0 ? 'kpi-value text-green' : 'kpi-value text-red';
+    }
 
     const unPnlPctEl = document.getElementById('kpi-unrealized-pct');
-    unPnlPctEl.textContent = `${unPnl >= 0 ? '+' : ''}${unPnlPct.toFixed(2)}%`;
-    unPnlPctEl.className = unPnl >= 0 ? 'kpi-subtext text-green' : 'kpi-subtext text-red';
+    if (unPnlPctEl) {
+        unPnlPctEl.textContent = `${unPnl >= 0 ? '+' : ''}${unPnlPct.toFixed(2)}%`;
+        unPnlPctEl.className = unPnl >= 0 ? 'kpi-subtext text-green' : 'kpi-subtext text-red';
+    }
 
     // Navbar mirror
     const navEq = document.getElementById('nav-total-equity');
@@ -723,7 +725,8 @@ function renderUI() {
 
     // Breakeven shield count
     const shielded = positions.filter(pos => pos.trailing_active).length;
-    document.getElementById('kpi-shielded-count').textContent = `${shielded} / ${positions.length}`;
+    const shieldEl = document.getElementById('kpi-shielded-count');
+    if (shieldEl) shieldEl.textContent = `${shielded} / ${positions.length}`;
 
     // 4. Holdings Table
     renderHoldingsTable(positions);
