@@ -12,8 +12,12 @@
             </form>
         </div>
         <div class="watchlist-list" id="watchlist-items">
-            <div style="padding: 1.5rem; text-align: center; color: var(--text-muted);">
-                <i class="fa-solid fa-spinner fa-spin"></i> Loading live quotes...
+            <div style="display: flex; flex-direction: column; gap: 0.5rem; padding: 0.75rem;">
+                <div class="skeleton-shimmer" style="height: 42px; width: 100%; border-radius: 6px;"></div>
+                <div class="skeleton-shimmer" style="height: 42px; width: 100%; border-radius: 6px;"></div>
+                <div class="skeleton-shimmer" style="height: 42px; width: 100%; border-radius: 6px;"></div>
+                <div class="skeleton-shimmer" style="height: 42px; width: 100%; border-radius: 6px;"></div>
+                <div class="skeleton-shimmer" style="height: 42px; width: 100%; border-radius: 6px;"></div>
             </div>
         </div>
     </aside>
@@ -37,29 +41,41 @@
         <div id="chart-container" class="chart-container"></div>
     </section>
 
-    <!-- RIGHT PANEL: ORDER EXECUTION TICKET -->
+    <!-- RIGHT PANEL: ORDER EXECUTION TICKET (REDESIGNED) -->
     <aside class="panel trade-panel">
         <div class="panel-header">
-            <h3><i class="fa-solid fa-bolt"></i> Quick Order Ticket</h3>
+            <h3><i class="fa-solid fa-bolt" style="color: var(--accent-current);"></i> Quick Order Ticket</h3>
         </div>
         <form id="order-form" class="order-form">
             <div class="form-group">
                 <label>Target Asset (NSE / NIFTY 50)</label>
-                <input type="text" id="order-symbol" class="form-control mono" readonly value="RELIANCE.NS">
+                <input type="text" id="order-symbol" class="form-control mono font-bold" readonly value="RELIANCE.NS">
             </div>
 
-            <div class="trade-side-selector">
-                <label class="side-btn buy-side active">
-                    <input type="radio" name="side" value="BUY" checked> BUY / LONG
-                </label>
-                <label class="side-btn sell-side">
-                    <input type="radio" name="side" value="SELL"> SELL / SHORT
-                </label>
+            <!-- Segmented BUY / SELL Side Control -->
+            <div class="segmented-side-control">
+                <button type="button" id="btn-side-buy" class="side-toggle-btn btn-buy-active" onclick="setOrderSide('BUY')">
+                    <i class="fa-solid fa-arrow-trend-up"></i> BUY / LONG
+                </button>
+                <button type="button" id="btn-side-sell" class="side-toggle-btn" onclick="setOrderSide('SELL')">
+                    <i class="fa-solid fa-arrow-trend-down"></i> SELL / SHORT
+                </button>
             </div>
+            <input type="hidden" name="side" id="order-side-input" value="BUY">
 
             <div class="form-group">
-                <label>Order Size (Shares)</label>
+                <label style="display: flex; justify-content: space-between; align-items: center;">
+                    <span>Order Size (Shares)</span>
+                    <span id="quick-cash-hint" style="font-size: 0.68rem; color: var(--text-muted); font-family: var(--font-code);">Max: --</span>
+                </label>
                 <input type="number" id="order-qty" class="form-control mono" min="1" step="1" value="10" required>
+                <!-- Quick Size Row (25%, 50%, 75%, 100%) -->
+                <div class="quick-size-row">
+                    <button type="button" class="quick-size-btn" onclick="applyQuickSize(0.25)">25%</button>
+                    <button type="button" class="quick-size-btn" onclick="applyQuickSize(0.50)">50%</button>
+                    <button type="button" class="quick-size-btn" onclick="applyQuickSize(0.75)">75%</button>
+                    <button type="button" class="quick-size-btn" onclick="applyQuickSize(1.00)">100%</button>
+                </div>
             </div>
 
             <div class="order-summary">
@@ -73,7 +89,7 @@
                 </div>
             </div>
 
-            <button type="submit" id="submit-order-btn" class="btn-submit btn-buy">
+            <button type="submit" id="submit-order-btn" class="btn-submit btn-buy" style="margin-top: 0.5rem; font-size: 0.95rem; font-weight: 800; padding: 0.85rem;">
                 BUY RELIANCE.NS
             </button>
         </form>
@@ -92,133 +108,112 @@
         </a>
     </div>
 
-    <!-- AUTO-TRADING BOT TAB -->
+    <!-- AUTO-TRADING BOT TAB (STREAMLINED & MERGED) -->
     <div id="tab-bot" class="tab-content active">
-        <div style="display: grid; grid-template-columns: 340px 1fr; gap: 1.25rem;">
-            <!-- BOT CONFIGURATION PANEL -->
-            <div style="background: var(--bg-surface); padding: 1.25rem; border-radius: 8px; border: 1px solid var(--border); display: flex; flex-direction: column; gap: 1rem;">
-                <div style="display: flex; justify-content: space-between; align-items: center;">
-                    <h4 style="font-size: 0.85rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-main);">
-                        <i class="fa-solid fa-sliders"></i> Bot Control Center
-                    </h4>
-                    <span id="bot-status-pill" class="status-pill" style="font-size: 0.65rem;">
+        <!-- COMPACT BOT STATUS STRIP -->
+        <div class="bot-compact-strip">
+            <div class="bot-compact-meta">
+                <div class="bot-compact-item">
+                    <span class="bot-compact-label">Bot Execution State</span>
+                    <span id="bot-status-pill" class="status-pill" style="margin-top: 2px;">
                         <span class="pulse-dot"></span> <span id="bot-status-text">OFFLINE</span>
                     </span>
                 </div>
-
-                <form id="bot-config-form" style="display: flex; flex-direction: column; gap: 0.85rem;">
-                    <div class="form-group">
-                        <label>Scanning Scope</label>
-                        <select id="bot-scan-mode" class="form-control" style="font-weight: 700; color: var(--green);">
-                            <option value="ALL_NIFTY_50" selected>⚡ ALL NIFTY 50 STOCKS (Full Basket)</option>
-                            <option value="SINGLE">Single Ticker Focus</option>
-                        </select>
-                    </div>
-
-                    <div class="form-group" id="bot-single-symbol-group" style="display: none;">
-                        <label>Target Single Asset</label>
-                        <input type="text" id="bot-symbol" class="form-control mono" value="RELIANCE.NS">
-                    </div>
-
-                    <div class="form-group">
-                        <label>Algorithmic Model</label>
-                        <select id="bot-strategy" class="form-control" style="font-weight: 600;">
-                            <option value="SMA_CROSSOVER" selected>Dual SMA Golden/Death Cross (9/21)</option>
-                            <option value="RSI_MOMENTUM">RSI Mean Reversion (14-Period, 35/65)</option>
-                        </select>
-                    </div>
-
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.6rem;">
-                        <div class="form-group">
-                            <label>Budget / Stock (₹)</label>
-                            <input type="number" id="bot-allocation" class="form-control mono" value="5000" step="1000" min="1000">
-                        </div>
-                        <div class="form-group">
-                            <label>Max Positions</label>
-                            <input type="number" id="bot-max-positions" class="form-control mono" value="3" min="1" max="20">
-                        </div>
-                    </div>
-
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.6rem;">
-                        <div class="form-group">
-                            <label>Stop-Loss (%)</label>
-                            <input type="number" id="bot-stop-loss" class="form-control mono" value="1.0" step="0.1" min="0.1">
-                        </div>
-                        <div class="form-group">
-                            <label>Take-Profit (%)</label>
-                            <input type="number" id="bot-take-profit" class="form-control mono" value="1.0" step="0.1" min="0.1">
-                        </div>
-                    </div>
-
-                    <div style="display: flex; gap: 0.6rem; margin-top: 0.5rem;">
-                        <button type="button" id="bot-toggle-btn" class="btn-submit btn-buy" style="flex: 1;">
-                            <i class="fa-solid fa-play"></i> START NIFTY 50 BOT
-                        </button>
-                        <button type="button" id="bot-tick-now-btn" class="btn-reset" style="padding: 0.65rem 0.9rem;" title="Scan all NIFTY 50 stocks right now">
-                            <i class="fa-solid fa-bolt"></i> Scan Now
-                        </button>
-                    </div>
-                </form>
+                <div class="bot-compact-item">
+                    <span class="bot-compact-label">Scanning Scope</span>
+                    <span class="bot-compact-val" id="bot-card-scanned" style="color: var(--blue);">50 NIFTY Stocks</span>
+                </div>
+                <div class="bot-compact-item">
+                    <span class="bot-compact-label">Strategy Model</span>
+                    <span class="bot-compact-val" style="color: var(--green);">Dual SMA Cross (9/21)</span>
+                </div>
+                <div class="bot-compact-item">
+                    <span class="bot-compact-label">Active Signals</span>
+                    <span class="bot-compact-val" id="bot-card-signals">0 BUY / 0 SELL</span>
+                </div>
+                <div class="bot-compact-item">
+                    <span class="bot-compact-label">Portfolio Slots</span>
+                    <span class="bot-compact-val mono" id="bot-card-slots">0 / 3 Active</span>
+                </div>
             </div>
 
-            <!-- BOT RADAR & REAL-TIME LOGS -->
-            <div style="display: flex; flex-direction: column; gap: 1rem;">
-                <!-- SUMMARY METRICS -->
-                <div class="metrics-grid" style="margin-bottom: 0;">
-                    <div class="stat-card">
-                        <span class="stat-label">Bot Execution State</span>
-                        <span class="stat-val text-green" id="bot-card-state">IDLE</span>
-                    </div>
-                    <div class="stat-card">
-                        <span class="stat-label">NIFTY 50 Scan Coverage</span>
-                        <span class="stat-val" id="bot-card-scanned" style="color: var(--blue);">50 Stocks</span>
-                    </div>
-                    <div class="stat-card">
-                        <span class="stat-label">Active Signals Found</span>
-                        <span class="stat-val" id="bot-card-signals">0 BUY / 0 SELL</span>
-                    </div>
-                    <div class="stat-card">
-                        <span class="stat-label">Portfolio Slots Used</span>
-                        <span class="stat-val mono" id="bot-card-slots">0 / 10 Active</span>
+            <div style="display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap;">
+                <button type="button" id="bot-toggle-btn" class="btn-submit btn-buy" style="padding: 0.45rem 0.95rem; font-size: 0.78rem;">
+                    <i class="fa-solid fa-play"></i> START BOT
+                </button>
+                <button type="button" id="bot-tick-now-btn" class="btn-reset" style="padding: 0.45rem 0.85rem;" title="Scan all NIFTY 50 stocks right now">
+                    <i class="fa-solid fa-bolt"></i> Scan Now
+                </button>
+                <a href="/bot" class="btn-open-bot-station" title="Launch dedicated full Bot Station with advanced parameters">
+                    <span>Open Bot Station</span> <i class="fa-solid fa-arrow-right"></i>
+                </a>
+            </div>
+        </div>
+
+        <!-- SIGNAL RADAR & NIFTY 50 HEATMAP CONTAINER -->
+        <div style="background: var(--bg-body); border: 1px solid var(--border); border-radius: 8px; display: flex; flex-direction: column; overflow: hidden; margin-bottom: 1rem;">
+            <!-- RADAR TOOLBAR -->
+            <div class="radar-header-bar">
+                <div style="display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap;">
+                    <strong style="font-size: 0.8rem; color: var(--text-main);"><i class="fa-solid fa-radar" style="color: var(--green);"></i> NIFTY 50 Signal Radar</strong>
+                    <div class="radar-filter-group">
+                        <button type="button" class="radar-filter-chip active" id="filter-chip-all" onclick="setRadarFilter('ALL', this)">All (50)</button>
+                        <button type="button" class="radar-filter-chip" id="filter-chip-buy" onclick="setRadarFilter('BUY', this)">🟢 BUY Only</button>
+                        <button type="button" class="radar-filter-chip" id="filter-chip-sell" onclick="setRadarFilter('SELL', this)">🔴 SELL Only</button>
                     </div>
                 </div>
 
-                <!-- LIVE NIFTY 50 SCANNER RESULTS TABLE -->
-                <div style="background: var(--bg-body); border: 1px solid var(--border); border-radius: 8px; display: flex; flex-direction: column; overflow: hidden; max-height: 250px;">
-                    <div style="padding: 0.6rem 0.9rem; background: var(--bg-surface); border-bottom: 1px solid var(--border); font-size: 0.75rem; font-weight: 700; color: var(--text-muted); display: flex; justify-content: space-between; align-items: center;">
-                        <span><i class="fa-solid fa-radar"></i> NIFTY 50 Live Signal Radar</span>
-                        <span style="font-size: 0.65rem; color: var(--green);"><i class="fa-solid fa-circle pulse-dot"></i> REAL-TIME SCANNER</span>
+                <div style="display: flex; align-items: center; gap: 0.75rem;">
+                    <div class="radar-view-toggle">
+                        <button type="button" class="radar-toggle-btn active" id="view-toggle-table" onclick="toggleRadarView('table')">
+                            <i class="fa-solid fa-table-list"></i> Table
+                        </button>
+                        <button type="button" class="radar-toggle-btn" id="view-toggle-heatmap" onclick="toggleRadarView('heatmap')">
+                            <i class="fa-solid fa-border-all"></i> Nifty 50 Heatmap
+                        </button>
                     </div>
-                    <div style="overflow-y: auto; flex: 1;">
-                        <table class="data-table" style="font-size: 0.8rem;">
-                            <thead>
-                                <tr>
-                                    <th>Stock</th>
-                                    <th>Price</th>
-                                    <th>Day %</th>
-                                    <th>Signal</th>
-                                    <th>Calculated Indicators</th>
-                                    <th>Bot Action</th>
-                                    <th>Chart</th>
-                                </tr>
-                            </thead>
-                            <tbody id="bot-scanner-tbody">
-                                <tr><td colspan="7" class="text-center" style="padding: 1.5rem; color: var(--text-muted);">Click <strong>Scan Now</strong> or <strong>START NIFTY 50 BOT</strong> to evaluate all 50 stocks.</td></tr>
-                            </tbody>
-                        </table>
-                    </div>
+                    <span style="font-size: 0.65rem; color: var(--green);"><i class="fa-solid fa-circle pulse-dot"></i> REAL-TIME</span>
                 </div>
+            </div>
 
-                <!-- LIVE LOG TERMINAL -->
-                <div style="background: var(--bg-body); border: 1px solid var(--border); border-radius: 8px; display: flex; flex-direction: column; overflow: hidden; max-height: 160px;">
-                    <div style="padding: 0.5rem 0.85rem; background: var(--bg-surface); border-bottom: 1px solid var(--border); font-size: 0.75rem; font-weight: 700; color: var(--text-muted); display: flex; justify-content: space-between; align-items: center;">
-                        <span><i class="fa-solid fa-terminal"></i> Bot Execution Console</span>
-                        <span id="bot-last-tick-time" style="font-size: 0.65rem; color: var(--text-muted);">Last run: --:--:--</span>
-                    </div>
-                    <div id="bot-logs-container" style="padding: 0.75rem; font-family: var(--font-code); font-size: 0.75rem; overflow-y: auto; max-height: 120px; display: flex; flex-direction: column; gap: 0.35rem;">
-                        <div style="color: var(--text-muted);">Bot ready. Configured to monitor all 50 NIFTY stocks. Click 'START NIFTY 50 BOT' or 'Scan Now'.</div>
+            <!-- TABLE VIEW -->
+            <div id="radar-table-view" style="overflow-y: auto; max-height: 280px;">
+                <table class="data-table" style="font-size: 0.8rem;">
+                    <thead>
+                        <tr>
+                            <th onclick="sortRadarTable('symbol')" style="cursor: pointer;" title="Sort by Symbol">Stock <i class="fa-solid fa-sort" style="font-size: 0.7rem; opacity: 0.6;"></i></th>
+                            <th onclick="sortRadarTable('price')" style="cursor: pointer;" title="Sort by LTP">Price <i class="fa-solid fa-sort" style="font-size: 0.7rem; opacity: 0.6;"></i></th>
+                            <th onclick="sortRadarTable('change_pct')" style="cursor: pointer;" title="Sort by Day % Change">Day % <i class="fa-solid fa-sort" style="font-size: 0.7rem; opacity: 0.6;"></i></th>
+                            <th onclick="sortRadarTable('signal')" style="cursor: pointer;" title="Sort by Signal">Signal <i class="fa-solid fa-sort" style="font-size: 0.7rem; opacity: 0.6;"></i></th>
+                            <th>Trend / Indicators</th>
+                            <th>Bot Action</th>
+                            <th>Chart</th>
+                        </tr>
+                    </thead>
+                    <tbody id="bot-scanner-tbody">
+                        <tr><td colspan="7" class="text-center" style="padding: 1.5rem; color: var(--text-muted);">Click <strong>Scan Now</strong> or <strong>START BOT</strong> to evaluate all 50 stocks.</td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- HEATMAP VIEW -->
+            <div id="radar-heatmap-view" class="nifty-heatmap-container" style="display: none;">
+                <div class="heatmap-grid" id="nifty-heatmap-grid">
+                    <div style="grid-column: 1 / -1; text-align: center; padding: 2rem; color: var(--text-muted);">
+                        Click <strong>Scan Now</strong> to generate the live NIFTY 50 Heatmap grid.
                     </div>
                 </div>
+            </div>
+        </div>
+
+        <!-- LIVE LOG TERMINAL -->
+        <div style="background: var(--bg-body); border: 1px solid var(--border); border-radius: 8px; display: flex; flex-direction: column; overflow: hidden; max-height: 140px;">
+            <div style="padding: 0.45rem 0.85rem; background: var(--bg-surface); border-bottom: 1px solid var(--border); font-size: 0.75rem; font-weight: 700; color: var(--text-muted); display: flex; justify-content: space-between; align-items: center;">
+                <span><i class="fa-solid fa-terminal"></i> Bot Execution Console</span>
+                <span id="bot-last-tick-time" style="font-size: 0.65rem; color: var(--text-muted);">Last run: --:--:--</span>
+            </div>
+            <div id="bot-logs-container" style="padding: 0.65rem 0.85rem; font-family: var(--font-code); font-size: 0.75rem; overflow-y: auto; max-height: 100px; display: flex; flex-direction: column; gap: 0.3rem;">
+                <div style="color: var(--text-muted);">Bot ready. Configured to monitor all 50 NIFTY stocks.</div>
             </div>
         </div>
     </div>
@@ -295,26 +290,34 @@
             <button type="submit" class="btn-simulate"><i class="fa-solid fa-play"></i> Run Simulation</button>
         </form>
 
-        <div id="backtest-results" class="hidden">
-            <div class="metrics-grid">
+        <div id="backtest-results" class="hidden" style="margin-top: 1.25rem;">
+            <div class="metrics-grid" style="grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 0.75rem; margin-bottom: 1rem;">
                 <div class="stat-card">
                     <span class="stat-label">Algorithmic Return</span>
                     <span class="stat-val text-green" id="bt-res-strategy-return">0%</span>
                 </div>
                 <div class="stat-card">
-                    <span class="stat-label">Benchmark Buy & Hold</span>
+                    <span class="stat-label">Benchmark Buy &amp; Hold</span>
                     <span class="stat-val" id="bt-res-market-return">0%</span>
                 </div>
                 <div class="stat-card">
-                    <span class="stat-label">Simulated Ending Capital</span>
-                    <span class="stat-val text-green" id="bt-res-ending-equity">$0.00</span>
+                    <span class="stat-label">Max Drawdown</span>
+                    <span class="stat-val text-red" id="bt-res-max-drawdown">0.00%</span>
                 </div>
                 <div class="stat-card">
-                    <span class="stat-label">Trade Signals Generated</span>
-                    <span class="stat-val" id="bt-res-trades">0</span>
+                    <span class="stat-label">Win Rate</span>
+                    <span class="stat-val text-green" id="bt-res-win-rate">0.00%</span>
+                </div>
+                <div class="stat-card">
+                    <span class="stat-label">Sharpe Ratio</span>
+                    <span class="stat-val" id="bt-res-sharpe" style="color: var(--blue);">0.00</span>
+                </div>
+                <div class="stat-card">
+                    <span class="stat-label">Ending Capital</span>
+                    <span class="stat-val text-green" id="bt-res-ending-equity">₹0.00</span>
                 </div>
             </div>
-            <div id="backtest-chart-container" class="chart-container-sm"></div>
+            <div id="backtest-chart-container" class="chart-container-sm" style="height: 320px; border-radius: 8px; border: 1px solid var(--border); overflow: hidden;"></div>
         </div>
     </div>
 </div>
@@ -520,6 +523,28 @@ async function loadPortfolio() {
         pnlEl.innerText = `${sign}₹${data.unrealized_pnl.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
         pnlEl.className = `metric-value ${data.unrealized_pnl >= 0 ? 'text-green' : 'text-red'}`;
 
+        // Sync dynamic green/red background tinting on P&L stat card
+        if (typeof syncHeaderPnlTint === 'function') {
+            syncHeaderPnlTint(data.unrealized_pnl);
+        }
+
+        // Equity Day Change Delta
+        const deltaEl = document.getElementById('nav-equity-delta');
+        if (deltaEl) {
+            const startCap = 50000;
+            const deltaPct = ((data.total_equity - startCap) / startCap * 100);
+            const deltaSign = deltaPct >= 0 ? '+' : '';
+            deltaEl.innerText = `${deltaSign}${deltaPct.toFixed(2)}% Today`;
+            deltaEl.className = `stat-subdelta ${deltaPct >= 0 ? 'text-green' : 'text-red'}`;
+        }
+
+        // Quick Order Size cash hint
+        const hintEl = document.getElementById('quick-cash-hint');
+        if (hintEl && currentQuotePrice > 0) {
+            const maxShares = Math.floor(buyingPower / currentQuotePrice);
+            hintEl.innerText = `Max: ${maxShares} shs (5x)`;
+        }
+
         let positions = data.positions || [];
         if (positions.length > 0) {
             try { localStorage.setItem('nifty_active_holdings_v3', JSON.stringify(positions)); } catch(e){}
@@ -652,19 +677,12 @@ function setupEventListeners() {
         });
     });
 
-    document.querySelectorAll('input[name="side"]').forEach(radio => {
-        radio.addEventListener('change', (e) => {
-            document.querySelectorAll('.side-btn').forEach(btn => btn.classList.remove('active'));
-            e.target.closest('.side-btn').classList.add('active');
-            updateOrderButton();
-        });
-    });
-
     document.getElementById('order-qty').addEventListener('input', calculateOrderTotal);
 
     document.getElementById('order-form').addEventListener('submit', async (e) => {
         e.preventDefault();
-        const side = document.querySelector('input[name="side"]:checked').value;
+        const sideInput = document.getElementById('order-side-input');
+        const side = sideInput ? sideInput.value : (document.querySelector('input[name="side"]:checked')?.value || 'BUY');
         const qty = parseFloat(document.getElementById('order-qty').value);
 
         try {
@@ -716,30 +734,16 @@ function setupEventListeners() {
             document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
             document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
             btn.classList.add('active');
-            document.getElementById(btn.dataset.tab).classList.add('active');
+            const target = document.getElementById(btn.dataset.tab);
+            if (target) target.classList.add('active');
         });
     });
 
-    document.getElementById('reset-account-btn').addEventListener('click', async () => {
-        if (!confirm('Reset desk balance back to ₹50,000 and restore NIFTY 50 watchlist?')) return;
-        try {
-            const res = await fetch('/api/reset-account', { method: 'POST' });
-            const data = await res.json();
-            if (data.success) {
-                try { localStorage.removeItem('nifty_positions_entry_lock_v1'); } catch(e){}
-                showToast('Portfolio reset to ₹50,000', 'success');
-                loadPortfolio();
-                loadTrades();
-                loadWatchlist();
-            }
-        } catch (err) {
-            showToast('Reset failed', 'error');
-        }
-    });
-
     // BOT EVENT LISTENERS
-    document.getElementById('bot-toggle-btn').addEventListener('click', toggleBot);
-    document.getElementById('bot-tick-now-btn').addEventListener('click', tickBotNow);
+    const botToggleBtn = document.getElementById('bot-toggle-btn');
+    if (botToggleBtn) botToggleBtn.addEventListener('click', toggleBot);
+    const botTickBtn = document.getElementById('bot-tick-now-btn');
+    if (botTickBtn) botTickBtn.addEventListener('click', tickBotNow);
 
     // Initial bot status fetch
     fetchBotStatus();
@@ -773,31 +777,95 @@ function setupEventListeners() {
     });
 }
 
+/* --- ORDER TICKET HELPERS (SEGMENTED BUY/SELL & QUICK SIZES) --- */
+function setOrderSide(side) {
+    const sideInput = document.getElementById('order-side-input');
+    if (sideInput) sideInput.value = side;
+    
+    const buyBtn = document.getElementById('btn-side-buy');
+    const sellBtn = document.getElementById('btn-side-sell');
+    if (buyBtn && sellBtn) {
+        if (side === 'BUY') {
+            buyBtn.className = 'side-toggle-btn btn-buy-active';
+            sellBtn.className = 'side-toggle-btn';
+        } else {
+            buyBtn.className = 'side-toggle-btn';
+            sellBtn.className = 'side-toggle-btn btn-sell-active';
+        }
+    }
+    updateOrderButton();
+}
+
+function applyQuickSize(pct) {
+    if (!currentQuotePrice || currentQuotePrice <= 0) {
+        showToast('Waiting for current asset quote...', 'warning');
+        return;
+    }
+    const cashStr = document.getElementById('nav-cash-balance')?.innerText || '₹50,000.00';
+    const cashVal = parseFloat(cashStr.replace(/[^0-9.-]+/g, '')) || 50000;
+    const buyingPower = cashVal * 5; // 5x intraday buying power
+    
+    const targetBudget = buyingPower * pct;
+    const shares = Math.max(1, Math.floor(targetBudget / currentQuotePrice));
+    
+    const qtyInput = document.getElementById('order-qty');
+    if (qtyInput) {
+        qtyInput.value = shares;
+        calculateOrderTotal();
+    }
+}
+
 function updateOrderButton() {
-    const side = document.querySelector('input[name="side"]:checked').value;
+    const sideInput = document.getElementById('order-side-input');
+    const side = sideInput ? sideInput.value : 'BUY';
     const btn = document.getElementById('submit-order-btn');
+    if (!btn) return;
     btn.className = `btn-submit ${side === 'BUY' ? 'btn-buy' : 'btn-sell'}`;
     btn.innerText = `${side} ${activeSymbol}`;
 }
 
+/* --- BACKTESTER RESULTS RENDERING --- */
 function renderBacktestResults(data) {
-    document.getElementById('backtest-results').classList.remove('hidden');
+    const resultsContainer = document.getElementById('backtest-results');
+    if (resultsContainer) resultsContainer.classList.remove('hidden');
     
     const stratRetEl = document.getElementById('bt-res-strategy-return');
-    stratRetEl.innerText = `${data.strategy_return_pct >= 0 ? '+' : ''}${data.strategy_return_pct}%`;
-    stratRetEl.className = `stat-val ${data.strategy_return_pct >= 0 ? 'text-green' : 'text-red'}`;
+    if (stratRetEl) {
+        stratRetEl.innerText = `${data.strategy_return_pct >= 0 ? '+' : ''}${data.strategy_return_pct}%`;
+        stratRetEl.className = `stat-val ${data.strategy_return_pct >= 0 ? 'text-green' : 'text-red'}`;
+    }
 
     const mktRetEl = document.getElementById('bt-res-market-return');
-    mktRetEl.innerText = `${data.benchmark_return_pct >= 0 ? '+' : ''}${data.benchmark_return_pct}%`;
-    mktRetEl.className = `stat-val ${data.benchmark_return_pct >= 0 ? 'text-green' : 'text-red'}`;
+    if (mktRetEl) {
+        mktRetEl.innerText = `${data.benchmark_return_pct >= 0 ? '+' : ''}${data.benchmark_return_pct}%`;
+        mktRetEl.className = `stat-val ${data.benchmark_return_pct >= 0 ? 'text-green' : 'text-red'}`;
+    }
 
-    document.getElementById('bt-res-ending-equity').innerText = `₹${data.final_strategy_equity.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
-    document.getElementById('bt-res-trades').innerText = data.total_trades;
+    const maxDdEl = document.getElementById('bt-res-max-drawdown');
+    if (maxDdEl) {
+        maxDdEl.innerText = `${data.max_drawdown_pct || 0.0}%`;
+    }
+
+    const winRateEl = document.getElementById('bt-res-win-rate');
+    if (winRateEl) {
+        winRateEl.innerText = `${data.win_rate_pct || 0.0}%`;
+        winRateEl.className = (data.win_rate_pct || 0) >= 50 ? 'stat-val text-green' : 'stat-val text-red';
+    }
+
+    const sharpeEl = document.getElementById('bt-res-sharpe');
+    if (sharpeEl) {
+        sharpeEl.innerText = `${data.sharpe_ratio || 0.0}`;
+    }
+
+    const endingEqEl = document.getElementById('bt-res-ending-equity');
+    if (endingEqEl) {
+        endingEqEl.innerText = `₹${(data.final_strategy_equity || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
+    }
 
     const container = document.getElementById('backtest-chart-container');
+    if (!container || !window.LightweightCharts) return;
     container.innerHTML = '';
     
-    if (!window.LightweightCharts) return;
     backtestChart = LightweightCharts.createChart(container, {
         layout: { background: { color: '#07090e' }, textColor: '#7e8ba6' },
         grid: { vertLines: { color: 'rgba(31, 41, 61, 0.35)' }, horzLines: { color: 'rgba(31, 41, 61, 0.35)' } },
@@ -828,6 +896,7 @@ function renderBacktestResults(data) {
 
 function showToast(message, type = 'success') {
     const container = document.getElementById('toast-container');
+    if (!container) return;
     const toast = document.createElement('div');
     toast.className = `toast toast-${type}`;
     toast.innerText = message;
@@ -835,9 +904,155 @@ function showToast(message, type = 'success') {
     setTimeout(() => { toast.remove(); }, 4000);
 }
 
-/* --- AUTO-TRADING BOT CLIENT LOGIC --- */
+/* --- AUTO-TRADING BOT CLIENT LOGIC & RADAR / HEATMAP --- */
 let isBotActive = false;
 let botTickTimer = null;
+let radarResultsCache = [];
+let currentRadarFilter = 'ALL';
+let radarSortCol = 'symbol';
+let radarSortAsc = true;
+let currentRadarView = 'table';
+
+function setRadarFilter(filter, el) {
+    currentRadarFilter = filter;
+    document.querySelectorAll('.radar-filter-chip').forEach(c => c.classList.remove('active'));
+    if (el) el.classList.add('active');
+    renderRadarUI();
+}
+
+function sortRadarTable(col) {
+    if (radarSortCol === col) {
+        radarSortAsc = !radarSortAsc;
+    } else {
+        radarSortCol = col;
+        radarSortAsc = true;
+    }
+    renderRadarUI();
+}
+
+function toggleRadarView(view) {
+    currentRadarView = view;
+    const tableView = document.getElementById('radar-table-view');
+    const heatmapView = document.getElementById('radar-heatmap-view');
+    const btnTable = document.getElementById('view-toggle-table');
+    const btnHeatmap = document.getElementById('view-toggle-heatmap');
+    
+    if (view === 'heatmap') {
+        if (tableView) tableView.style.display = 'none';
+        if (heatmapView) heatmapView.style.display = 'block';
+        if (btnTable) btnTable.classList.remove('active');
+        if (btnHeatmap) btnHeatmap.classList.add('active');
+    } else {
+        if (tableView) tableView.style.display = 'block';
+        if (heatmapView) heatmapView.style.display = 'none';
+        if (btnTable) btnTable.classList.add('active');
+        if (btnHeatmap) btnHeatmap.classList.remove('active');
+    }
+    renderRadarUI();
+}
+
+function renderRadarUI() {
+    if (!radarResultsCache || radarResultsCache.length === 0) return;
+
+    // 1. Filter
+    let filtered = radarResultsCache.slice();
+    if (currentRadarFilter === 'BUY') {
+        filtered = filtered.filter(s => s.signal === 'BUY');
+    } else if (currentRadarFilter === 'SELL') {
+        filtered = filtered.filter(s => s.signal === 'SELL' || s.signal === 'STOP_LOSS' || s.signal === 'TAKE_PROFIT');
+    }
+
+    // 2. Sort
+    filtered.sort((a, b) => {
+        let valA = a[radarSortCol];
+        let valB = b[radarSortCol];
+        if (typeof valA === 'string') valA = valA.toLowerCase();
+        if (typeof valB === 'string') valB = valB.toLowerCase();
+        if (valA < valB) return radarSortAsc ? -1 : 1;
+        if (valA > valB) return radarSortAsc ? 1 : -1;
+        return 0;
+    });
+
+    // 3. Render Table
+    const tbody = document.getElementById('bot-scanner-tbody');
+    if (tbody) {
+        if (filtered.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="7" class="text-center" style="padding: 1.5rem; color: var(--text-muted);">No signals matching filter "${currentRadarFilter}".</td></tr>`;
+        } else {
+            tbody.innerHTML = '';
+            filtered.forEach(s => {
+                const tr = document.createElement('tr');
+                let sigBadge = `<span class="badge" style="background: rgba(126, 139, 166, 0.15); color: var(--text-muted); font-size: 0.72rem;">HOLD</span>`;
+                if (s.signal === 'BUY') {
+                    sigBadge = `<span class="badge" style="background: rgba(0, 240, 144, 0.2); color: var(--green); font-weight: 800; font-size: 0.72rem;">🟢 BUY</span>`;
+                } else if (s.signal === 'SELL' || s.signal === 'STOP_LOSS' || s.signal === 'TAKE_PROFIT') {
+                    sigBadge = `<span class="badge" style="background: rgba(255, 51, 102, 0.2); color: var(--red); font-weight: 800; font-size: 0.72rem;">🔴 ${s.signal}</span>`;
+                }
+
+                const changeClass = (s.change_pct || 0) >= 0 ? 'text-green' : 'text-red';
+                const changeSign = (s.change_pct || 0) >= 0 ? '+' : '';
+                
+                let indText = s.reason || '--';
+                if (s.fast_sma && s.slow_sma) {
+                    indText = `SMA9: ₹${s.fast_sma} | SMA21: ₹${s.slow_sma}`;
+                } else if (s.rsi !== undefined && s.rsi !== null) {
+                    indText = `RSI: ${s.rsi}`;
+                }
+
+                let actionBadge = '--';
+                if (s.action_executed) {
+                    actionBadge = `<span style="color: var(--green); font-weight: 700;"><i class="fa-solid fa-check"></i> ${s.action_executed}</span>`;
+                }
+
+                tr.innerHTML = `
+                    <td><strong>${s.displayName || s.symbol.replace('.NS', '')}</strong></td>
+                    <td>₹${(s.price || 0).toFixed(2)}</td>
+                    <td class="${changeClass}">${changeSign}${(s.change_pct || 0).toFixed(2)}%</td>
+                    <td>${sigBadge}</td>
+                    <td style="font-size: 0.75rem; color: var(--text-muted);">${indText}</td>
+                    <td>${actionBadge}</td>
+                    <td>
+                        <button class="btn-sm btn-outline" style="padding: 2px 8px; font-size: 0.7rem;" onclick="selectSymbol('${s.symbol}')">
+                            <i class="fa-solid fa-chart-line"></i> Chart
+                        </button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+    }
+
+    // 4. Render Heatmap Grid
+    const heatmapGrid = document.getElementById('nifty-heatmap-grid');
+    if (heatmapGrid && radarResultsCache.length > 0) {
+        heatmapGrid.innerHTML = '';
+        radarResultsCache.forEach(s => {
+            const tile = document.createElement('div');
+            const pct = s.change_pct || 0;
+            let tier = 'neutral';
+            if (pct >= 3.0) tier = 'gain-3';
+            else if (pct >= 1.5) tier = 'gain-2';
+            else if (pct >= 0.5) tier = 'gain-1';
+            else if (pct > 0.0) tier = 'gain-0';
+            else if (pct <= -3.0) tier = 'loss-3';
+            else if (pct <= -1.5) tier = 'loss-2';
+            else if (pct <= -0.5) tier = 'loss-1';
+            else if (pct < 0.0) tier = 'loss-0';
+
+            tile.className = `heatmap-tile ${tier}`;
+            const sign = pct >= 0 ? '+' : '';
+            const symDisplay = s.displayName || s.symbol.replace('.NS', '');
+            
+            tile.innerHTML = `
+                <div class="tile-symbol">${symDisplay}</div>
+                <div class="tile-pct">${sign}${pct.toFixed(2)}%</div>
+                <div class="tile-price">₹${(s.price || 0).toFixed(1)}</div>
+            `;
+            tile.addEventListener('click', () => selectSymbol(s.symbol));
+            heatmapGrid.appendChild(tile);
+        });
+    }
+}
 
 async function fetchBotStatus() {
     try {
@@ -860,99 +1075,62 @@ function updateBotUI(data) {
     // Update badge & pills
     const badge = document.getElementById('bot-tab-badge');
     const pillText = document.getElementById('bot-status-text');
-    const stateCard = document.getElementById('bot-card-state');
     const toggleBtn = document.getElementById('bot-toggle-btn');
     
     if (isBotActive) {
-        badge.innerText = 'SCANNING';
-        badge.style.background = 'rgba(0, 240, 144, 0.2)';
-        badge.style.color = 'var(--green)';
-        
-        pillText.innerText = 'SCANNING NIFTY 50';
-        stateCard.innerText = 'AUTO SCANNING';
-        stateCard.className = 'stat-val text-green';
-        
-        toggleBtn.className = 'btn-submit btn-sell';
-        toggleBtn.innerHTML = '<i class="fa-solid fa-pause"></i> PAUSE NIFTY 50 BOT';
+        if (badge) {
+            badge.innerText = 'SCANNING';
+            badge.style.background = 'rgba(0, 240, 144, 0.2)';
+            badge.style.color = 'var(--green)';
+        }
+        if (pillText) pillText.innerText = 'SCANNING NIFTY 50';
+        if (toggleBtn) {
+            toggleBtn.className = 'btn-submit btn-sell';
+            toggleBtn.innerHTML = '<i class="fa-solid fa-pause"></i> PAUSE BOT';
+        }
     } else {
-        badge.innerText = 'IDLE';
-        badge.style.background = 'rgba(126, 139, 166, 0.15)';
-        badge.style.color = 'var(--text-muted)';
-        
-        pillText.innerText = 'OFFLINE / PAUSED';
-        stateCard.innerText = 'PAUSED';
-        stateCard.className = 'stat-val';
-        stateCard.style.color = 'var(--text-muted)';
-        
-        toggleBtn.className = 'btn-submit btn-buy';
-        toggleBtn.innerHTML = '<i class="fa-solid fa-play"></i> START NIFTY 50 BOT';
+        if (badge) {
+            badge.innerText = 'IDLE';
+            badge.style.background = 'rgba(126, 139, 166, 0.15)';
+            badge.style.color = 'var(--text-muted)';
+        }
+        if (pillText) pillText.innerText = 'OFFLINE / PAUSED';
+        if (toggleBtn) {
+            toggleBtn.className = 'btn-submit btn-buy';
+            toggleBtn.innerHTML = '<i class="fa-solid fa-play"></i> START BOT';
+        }
     }
 
     // Update Summary cards
     const summary = data.scan_summary || {};
-    document.getElementById('bot-card-scanned').innerText = `${summary.total_scanned || 50} Stocks`;
+    const scannedEl = document.getElementById('bot-card-scanned');
+    if (scannedEl) scannedEl.innerText = `${summary.total_scanned || 50} NIFTY Stocks`;
     
     const buysFound = summary.buys_found || 0;
     const sellsFound = summary.sells_found || 0;
     const signalsEl = document.getElementById('bot-card-signals');
-    signalsEl.innerText = `${buysFound} BUY / ${sellsFound} SELL`;
-    signalsEl.className = buysFound > 0 ? 'stat-val text-green' : (sellsFound > 0 ? 'stat-val text-red' : 'stat-val');
-
-    document.getElementById('bot-card-slots').innerText = `${summary.active_positions_count || 0} / ${data.max_positions || 3} Active`;
-    
-    if (data.last_run_time) {
-        document.getElementById('bot-last-tick-time').innerText = `Last scan: ${data.last_run_time.split(' ')[1] || data.last_run_time}`;
+    if (signalsEl) {
+        signalsEl.innerText = `${buysFound} BUY / ${sellsFound} SELL`;
+        signalsEl.className = buysFound > 0 ? 'bot-compact-val text-green' : (sellsFound > 0 ? 'bot-compact-val text-red' : 'bot-compact-val');
     }
 
-    // Render Scanner Table
-    const tbody = document.getElementById('bot-scanner-tbody');
+    const slotsEl = document.getElementById('bot-card-slots');
+    if (slotsEl) slotsEl.innerText = `${summary.active_positions_count || 0} / ${data.max_positions || 3} Active`;
+    
+    if (data.last_run_time) {
+        const timeEl = document.getElementById('bot-last-tick-time');
+        if (timeEl) timeEl.innerText = `Last scan: ${data.last_run_time.split(' ')[1] || data.last_run_time}`;
+    }
+
+    // Cache & render scanner results
     if (summary.scanner_results && summary.scanner_results.length > 0) {
-        tbody.innerHTML = '';
-        summary.scanner_results.forEach(s => {
-            const tr = document.createElement('tr');
-            
-            let sigBadge = `<span class="badge" style="background: rgba(126, 139, 166, 0.15); color: var(--text-muted);">HOLD</span>`;
-            if (s.signal === 'BUY') {
-                sigBadge = `<span class="badge" style="background: rgba(0, 240, 144, 0.2); color: var(--green); font-weight: 800;">🟢 BUY</span>`;
-            } else if (s.signal === 'SELL' || s.signal === 'STOP_LOSS' || s.signal === 'TAKE_PROFIT') {
-                sigBadge = `<span class="badge" style="background: rgba(255, 51, 102, 0.2); color: var(--red); font-weight: 800;">🔴 ${s.signal}</span>`;
-            }
-
-            const changeClass = (s.change_pct || 0) >= 0 ? 'text-green' : 'text-red';
-            const changeSign = (s.change_pct || 0) >= 0 ? '+' : '';
-            
-            let indText = s.reason || '--';
-            if (s.fast_sma && s.slow_sma) {
-                indText = `SMA9: ₹${s.fast_sma} | SMA21: ₹${s.slow_sma}`;
-            } else if (s.rsi !== undefined && s.rsi !== null) {
-                indText = `RSI: ${s.rsi}`;
-            }
-
-            let actionBadge = '--';
-            if (s.action_executed) {
-                actionBadge = `<span style="color: var(--green); font-weight: 700;"><i class="fa-solid fa-check"></i> ${s.action_executed}</span>`;
-            }
-
-            tr.innerHTML = `
-                <td><strong>${s.displayName}</strong></td>
-                <td>₹${s.price.toFixed(2)}</td>
-                <td class="${changeClass}">${changeSign}${(s.change_pct || 0).toFixed(2)}%</td>
-                <td>${sigBadge}</td>
-                <td style="font-size: 0.75rem; color: var(--text-muted);">${indText}</td>
-                <td>${actionBadge}</td>
-                <td>
-                    <button class="btn-sm btn-outline" style="padding: 2px 8px; font-size: 0.7rem;" onclick="selectSymbol('${s.symbol}')">
-                        <i class="fa-solid fa-chart-line"></i> Chart
-                    </button>
-                </td>
-            `;
-            tbody.appendChild(tr);
-        });
+        radarResultsCache = summary.scanner_results;
+        renderRadarUI();
     }
 
     // Render logs
     const logsContainer = document.getElementById('bot-logs-container');
-    if (data.logs && data.logs.length > 0) {
+    if (data.logs && data.logs.length > 0 && logsContainer) {
         logsContainer.innerHTML = '';
         data.logs.forEach(log => {
             const entry = document.createElement('div');
@@ -996,16 +1174,15 @@ async function toggleBot() {
             showToast('Failed to stop bot', 'error');
         }
     } else {
-        const scanMode = document.getElementById('bot-scan-mode').value;
         const config = {
-            scan_mode: scanMode,
-            single_symbol: document.getElementById('bot-symbol').value.trim().toUpperCase(),
-            strategy: document.getElementById('bot-strategy').value,
-            allocation_per_trade: parseFloat(document.getElementById('bot-allocation').value) || 5000,
-            max_positions: parseInt(document.getElementById('bot-max-positions').value) || 3,
+            scan_mode: 'ALL_NIFTY_50',
+            single_symbol: 'RELIANCE.NS',
+            strategy: 'SMA_CROSSOVER',
+            allocation_per_trade: 5000,
+            max_positions: 3,
             interval_seconds: 60,
-            stop_loss_pct: parseFloat(document.getElementById('bot-stop-loss').value) || 1.0,
-            take_profit_pct: parseFloat(document.getElementById('bot-take-profit').value) || 1.0
+            stop_loss_pct: 1.0,
+            take_profit_pct: 1.0
         };
 
         try {
@@ -1025,6 +1202,24 @@ async function toggleBot() {
         } catch (err) {
             showToast('Start bot request failed', 'error');
         }
+    }
+}
+
+async function tickBotNow() {
+    showToast('Scanning all NIFTY 50 stocks for signals...', 'success');
+    try {
+        const res = await fetch('/api/bot/tick', { method: 'POST' });
+        const data = await res.json();
+        if (data.bot_state) {
+            updateBotUI(data.bot_state);
+        }
+        loadPortfolio();
+        loadTrades();
+        
+        const summary = data.result || {};
+        showToast(`Scan Complete: Scanned ${summary.total_scanned || 50} stocks | 🟢 ${summary.buys_found || 0} BUY signals | 🔴 ${summary.sells_found || 0} SELL signals`, 'success');
+    } catch (err) {
+        showToast('Scanning cycle failed', 'error');
     }
 }
 

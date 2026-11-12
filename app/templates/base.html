@@ -15,96 +15,149 @@
     <!-- Master Theme Stylesheet (Unified Design Tokens, Desks & Components) -->
     <link rel="stylesheet" href="/static/css/theme.css">
 </head>
-<body>
-    <header class="navbar">
-        <div class="nav-brand">
-            <div class="logo-badge"><i class="fa-solid fa-chart-line"></i></div>
-            <div class="logo-title">ALGO<span>TRADE</span> PRO</div>
-            <div class="status-pill"><div class="pulse-dot"></div> PAPER LIVE</div>
-            <nav class="nav-links">
-                <a href="/" class="nav-link {% if request.path == '/' or request.path == '/api/index' %}active{% endif %}">
-                    <i class="fa-solid fa-desktop"></i> Terminal
+<body class="{% if request.path == '/bot' %}theme-alpha{% elif request.path == '/bot-after-hours' or request.path == '/after-hours' %}theme-nighthawk{% elif request.path == '/bot-swing' or request.path == '/swing' %}theme-titan{% else %}theme-terminal{% endif %}">
+    <header class="app-header">
+        <!-- Tier 1: Slim Top Nav Row -->
+        <div class="top-nav-row">
+            <div class="nav-brand-group">
+                <a href="/" style="text-decoration: none; display: flex; align-items: center; gap: 0.75rem; color: inherit;">
+                    <div class="logo-badge"><i class="fa-solid fa-chart-line"></i></div>
+                    <div class="logo-title">ALGO<span>TRADE</span> PRO</div>
                 </a>
-                <a href="/bot" class="nav-link {% if request.path == '/bot' %}active{% endif %}" style="border: 1px solid rgba(0, 240, 144, 0.3); background: rgba(0, 240, 144, 0.08);">
-                    <i class="fa-solid fa-sun" style="color: #00f090;"></i> ALPHA (Day Bot)
-                    <span class="bot-nav-dot"></span>
+                <div class="status-pill"><div class="pulse-dot"></div> PAPER LIVE</div>
+            </div>
+
+            <nav class="desk-nav-pills">
+                <a href="/" class="desk-pill pill-terminal {% if request.path == '/' or request.path == '/api/index' %}active{% endif %}">
+                    <span class="desk-dot"></span> Terminal
                 </a>
-                <a href="/bot-after-hours" class="nav-link {% if request.path == '/bot-after-hours' or request.path == '/after-hours' %}active{% endif %}" style="border: 1px solid rgba(255, 209, 102, 0.4); background: rgba(255, 209, 102, 0.1);">
-                    <i class="fa-solid fa-moon" style="color: #ffd166;"></i> NIGHTHAWK (Night Bot)
-                    <span class="bot-nav-dot" style="background: #ffd166;"></span>
+                <a href="/bot" class="desk-pill pill-alpha {% if request.path == '/bot' %}active{% endif %}">
+                    <span class="desk-dot"></span> ALPHA (Day)
                 </a>
-                <a href="/bot-swing" class="nav-link {% if request.path == '/bot-swing' or request.path == '/swing' %}active{% endif %}" style="border: 1px solid rgba(168, 85, 247, 0.4); background: rgba(168, 85, 247, 0.1);">
-                    <i class="fa-solid fa-bolt" style="color: #c084fc;"></i> TITAN (Swing Bot)
-                    <span class="bot-nav-dot" style="background: #c084fc;"></span>
+                <a href="/bot-after-hours" class="desk-pill pill-nighthawk {% if request.path == '/bot-after-hours' or request.path == '/after-hours' %}active{% endif %}">
+                    <span class="desk-dot"></span> NIGHTHAWK (Night)
                 </a>
-                <button id="global-stop-both-bots-btn" class="nav-killswitch-btn" onclick="globalStopBothBots()" title="Master Kill Switch: Immediately halt both ALPHA and NIGHTHAWK bots">
-                    <span class="killswitch-dot" id="global-killswitch-dot"></span>
-                    <i class="fa-solid fa-power-off"></i> STOP BOTH BOTS
-                </button>
+                <a href="/bot-swing" class="desk-pill pill-titan {% if request.path == '/bot-swing' or request.path == '/swing' %}active{% endif %}">
+                    <span class="desk-dot"></span> TITAN (Swing)
+                </a>
             </nav>
+
+            <div class="nav-actions-right">
+                <button id="global-stop-both-bots-btn" class="btn-master-killswitch" onclick="globalStopBothBots()" title="Master Kill Switch: Immediately halt all autonomous bots">
+                    <span class="killswitch-dot" id="global-killswitch-dot"></span>
+                    <i class="fa-solid fa-power-off"></i> STOP ALL BOTS
+                </button>
+            </div>
         </div>
-        <div class="nav-metrics">
-            {% if request.path == '/bot-swing' or request.path == '/swing' %}
-            <div class="metric-box">
-                <span class="metric-title"><i class="fa-solid fa-bolt" style="color: #c084fc;"></i> TITAN EQUITY</span>
-                <span class="metric-value text-green" id="nav-total-equity">₹1,00,000.00</span>
+
+        <!-- Tier 2: Separate Header Stat Strip -->
+        <div class="header-stat-strip">
+            <div class="stat-strip-items">
+                {% if request.path == '/bot-swing' or request.path == '/swing' %}
+                <div class="stat-chip stat-chip-equity">
+                    <svg class="mini-sparkline" width="46" height="20" viewBox="0 0 46 20">
+                        <path d="M 2 15 Q 12 16, 20 10 T 36 6 T 44 4" stroke="#c084fc"/>
+                    </svg>
+                    <div class="stat-chip-info">
+                        <span class="stat-chip-label"><i class="fa-solid fa-bolt" style="color: #c084fc;"></i> TITAN EQUITY</span>
+                        <span class="stat-chip-val text-green" id="nav-total-equity">₹1,00,000.00</span>
+                    </div>
+                    <span class="stat-subdelta text-green" id="nav-equity-delta">+0.00%</span>
+                </div>
+                <div class="stat-chip">
+                    <div class="stat-chip-info">
+                        <span class="stat-chip-label">AVAILABLE CASH</span>
+                        <span class="stat-chip-val" id="nav-cash-balance">₹1,00,000.00</span>
+                    </div>
+                </div>
+                <div class="stat-chip">
+                    <div class="stat-chip-info">
+                        <span class="stat-chip-label">CNC HOLDINGS VALUE</span>
+                        <span class="stat-chip-val" id="nav-buying-power" style="color: #c084fc;">₹0.00</span>
+                    </div>
+                </div>
+                <div class="stat-chip stat-chip-pnl" id="nav-pnl-chip">
+                    <div class="stat-chip-info">
+                        <span class="stat-chip-label">UNREALIZED P&amp;L</span>
+                        <span class="stat-chip-val" id="nav-pnl">₹0.00</span>
+                    </div>
+                </div>
+                {% elif request.path == '/bot-after-hours' or request.path == '/after-hours' %}
+                <div class="stat-chip stat-chip-equity">
+                    <svg class="mini-sparkline" width="46" height="20" viewBox="0 0 46 20">
+                        <path d="M 2 14 Q 14 18, 22 11 T 36 7 T 44 3" stroke="#ffd166"/>
+                    </svg>
+                    <div class="stat-chip-info">
+                        <span class="stat-chip-label"><i class="fa-solid fa-moon" style="color: #ffd166;"></i> NIGHTHAWK EQUITY</span>
+                        <span class="stat-chip-val text-green" id="nav-total-equity">₹1,00,00,000.00</span>
+                    </div>
+                    <span class="stat-subdelta text-green" id="nav-equity-delta">+0.00%</span>
+                </div>
+                <div class="stat-chip">
+                    <div class="stat-chip-info">
+                        <span class="stat-chip-label">NIGHTHAWK CASH</span>
+                        <span class="stat-chip-val" id="nav-cash-balance">₹1,00,00,000.00</span>
+                    </div>
+                </div>
+                <div class="stat-chip">
+                    <div class="stat-chip-info">
+                        <span class="stat-chip-label">5X BUYING POWER</span>
+                        <span class="stat-chip-val text-green" id="nav-buying-power">₹5,00,00,000.00</span>
+                    </div>
+                </div>
+                <div class="stat-chip stat-chip-pnl" id="nav-pnl-chip">
+                    <div class="stat-chip-info">
+                        <span class="stat-chip-label">UNREALIZED P&amp;L</span>
+                        <span class="stat-chip-val" id="nav-pnl">₹0.00</span>
+                    </div>
+                </div>
+                {% else %}
+                <div class="stat-chip stat-chip-equity">
+                    <svg class="mini-sparkline" width="46" height="20" viewBox="0 0 46 20">
+                        <path d="M 2 16 Q 12 14, 22 10 T 34 8 T 44 4" stroke="#00f090"/>
+                    </svg>
+                    <div class="stat-chip-info">
+                        <span class="stat-chip-label">TOTAL EQUITY</span>
+                        <span class="stat-chip-val text-green" id="nav-total-equity">₹50,000.00</span>
+                    </div>
+                    <span class="stat-subdelta text-green" id="nav-equity-delta">+0.00%</span>
+                </div>
+                <div class="stat-chip">
+                    <div class="stat-chip-info">
+                        <span class="stat-chip-label">AVAILABLE CASH</span>
+                        <span class="stat-chip-val" id="nav-cash-balance">₹50,000.00</span>
+                    </div>
+                </div>
+                <div class="stat-chip">
+                    <div class="stat-chip-info">
+                        <span class="stat-chip-label">5X BUYING POWER</span>
+                        <span class="stat-chip-val text-green" id="nav-buying-power">₹2,50,000.00</span>
+                    </div>
+                </div>
+                <div class="stat-chip stat-chip-pnl" id="nav-pnl-chip">
+                    <div class="stat-chip-info">
+                        <span class="stat-chip-label">UNREALIZED P&amp;L</span>
+                        <span class="stat-chip-val" id="nav-pnl">₹0.00</span>
+                    </div>
+                </div>
+                {% endif %}
             </div>
-            <div class="metric-box">
-                <span class="metric-title">AVAILABLE CASH</span>
-                <span class="metric-value" id="nav-cash-balance">₹1,00,000.00</span>
+
+            <div class="stat-strip-actions">
+                {% if request.path == '/bot-swing' or request.path == '/swing' %}
+                <button id="reset-account-btn" class="btn-reset-chip" title="Reset TITAN Swing balance back to ₹1,00,000">
+                    <i class="fa-solid fa-rotate-left"></i> Reset ₹1 Lakh
+                </button>
+                {% elif request.path == '/bot-after-hours' or request.path == '/after-hours' %}
+                <button id="reset-account-btn" class="btn-reset-chip" title="Reset NIGHTHAWK balance back to ₹1,00,00,000">
+                    <i class="fa-solid fa-rotate-left"></i> Reset ₹1 Crore
+                </button>
+                {% else %}
+                <button id="reset-account-btn" class="btn-reset-chip" title="Reset portfolio balance back to ₹50,000">
+                    <i class="fa-solid fa-rotate-left"></i> Reset ₹50k
+                </button>
+                {% endif %}
             </div>
-            <div class="metric-box">
-                <span class="metric-title">CNC HOLDINGS VALUE</span>
-                <span class="metric-value" id="nav-buying-power" style="color: #c084fc;">₹0.00</span>
-            </div>
-            <div class="metric-box">
-                <span class="metric-title">UNREALIZED P&amp;L</span>
-                <span class="metric-value" id="nav-pnl">₹0.00</span>
-            </div>
-            <button id="reset-account-btn" class="btn-reset" style="background: rgba(168, 85, 247, 0.15); color: #c084fc; border: 1px solid rgba(168, 85, 247, 0.4); font-weight: 700; padding: 0.45rem 0.85rem;" title="Reset TITAN Swing balance back to ₹1,00,000">
-                <i class="fa-solid fa-rotate-left"></i> Reset to ₹1 Lakh
-            </button>
-            {% elif request.path == '/bot-after-hours' or request.path == '/after-hours' %}
-            <div class="metric-box">
-                <span class="metric-title"><i class="fa-solid fa-moon" style="color: #ffd166;"></i> NIGHTHAWK EQUITY</span>
-                <span class="metric-value text-green" id="nav-total-equity">₹1,00,00,000.00</span>
-            </div>
-            <div class="metric-box">
-                <span class="metric-title">NIGHTHAWK CASH</span>
-                <span class="metric-value" id="nav-cash-balance">₹1,00,00,000.00</span>
-            </div>
-            <div class="metric-box">
-                <span class="metric-title">5X BUYING POWER</span>
-                <span class="metric-value text-green" id="nav-buying-power">₹5,00,00,000.00</span>
-            </div>
-            <div class="metric-box">
-                <span class="metric-title">UNREALIZED P&amp;L</span>
-                <span class="metric-value" id="nav-pnl">₹0.00</span>
-            </div>
-            <button id="reset-account-btn" class="btn-reset" style="background: rgba(255, 209, 102, 0.15); color: #ffd166; border: 1px solid rgba(255, 209, 102, 0.4); font-weight: 700; padding: 0.45rem 0.85rem;" title="Reset NIGHTHAWK balance back to ₹1,00,00,000 (1 Crore)">
-                <i class="fa-solid fa-rotate-left"></i> Reset to ₹1 Crore
-            </button>
-            {% else %}
-            <div class="metric-box">
-                <span class="metric-title">TOTAL PORTFOLIO EQUITY</span>
-                <span class="metric-value text-green" id="nav-total-equity">₹50,000.00</span>
-            </div>
-            <div class="metric-box">
-                <span class="metric-title">AVAILABLE CASH MARGIN</span>
-                <span class="metric-value" id="nav-cash-balance">₹50,000.00</span>
-            </div>
-            <div class="metric-box">
-                <span class="metric-title">5X BUYING POWER</span>
-                <span class="metric-value text-green" id="nav-buying-power">₹2,50,00,00.00</span>
-            </div>
-            <div class="metric-box">
-                <span class="metric-title">UNREALIZED P&amp;L</span>
-                <span class="metric-value" id="nav-pnl">₹0.00</span>
-            </div>
-            <button id="reset-account-btn" class="btn-reset" style="background: rgba(255, 75, 75, 0.15); color: #ff7575; border: 1px solid rgba(255, 75, 75, 0.4); font-weight: 700; padding: 0.45rem 0.85rem;" title="Reset portfolio balance back to ₹50,000">
-                <i class="fa-solid fa-rotate-left"></i> Reset to ₹50k
-            </button>
-            {% endif %}
         </div>
     </header>
 
@@ -114,7 +167,42 @@
 
     <div id="toast-container" class="toast-container"></div>
 
+    <!-- Mobile Bottom Navigation Bar -->
+    <nav class="mobile-bottom-nav">
+        <a href="/" class="mobile-nav-item {% if request.path == '/' or request.path == '/api/index' %}active{% endif %}">
+            <i class="fa-solid fa-desktop"></i>
+            <span>Terminal</span>
+        </a>
+        <a href="/bot" class="mobile-nav-item {% if request.path == '/bot' %}active{% endif %}">
+            <i class="fa-solid fa-sun" style="color: #00f090;"></i>
+            <span>ALPHA</span>
+        </a>
+        <a href="/bot-after-hours" class="mobile-nav-item {% if request.path == '/bot-after-hours' or request.path == '/after-hours' %}active{% endif %}">
+            <i class="fa-solid fa-moon" style="color: #ffd166;"></i>
+            <span>NIGHT</span>
+        </a>
+        <a href="/bot-swing" class="mobile-nav-item {% if request.path == '/bot-swing' or request.path == '/swing' %}active{% endif %}">
+            <i class="fa-solid fa-bolt" style="color: #c084fc;"></i>
+            <span>TITAN</span>
+        </a>
+        <button type="button" onclick="globalStopBothBots()" class="mobile-nav-item" style="background: none; border: none; cursor: pointer; color: #ef4444;">
+            <i class="fa-solid fa-power-off"></i>
+            <span>HALT</span>
+        </button>
+    </nav>
+
     <script>
+        // Sync P&L chip background tint
+        function syncHeaderPnlTint(pnlVal) {
+            const chip = document.getElementById('nav-pnl-chip');
+            if (!chip) return;
+            chip.classList.remove('positive', 'negative');
+            if (pnlVal > 0.001) {
+                chip.classList.add('positive');
+            } else if (pnlVal < -0.001) {
+                chip.classList.add('negative');
+            }
+        }
         function showGlobalToast(msg, type = 'info') {
             const container = document.getElementById('toast-container');
             if (!container) return;

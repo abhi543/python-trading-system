@@ -684,6 +684,17 @@ function renderUI() {
     if (navPnl) {
         navPnl.textContent = formatCurrency(unPnl);
         navPnl.className = unPnl >= 0 ? 'metric-value text-green' : 'metric-value text-red';
+        if (typeof syncHeaderPnlTint === 'function') {
+            syncHeaderPnlTint(unPnl);
+        }
+    }
+    const deltaEl = document.getElementById('nav-equity-delta');
+    if (deltaEl) {
+        const startCap = 100000; // 1 Lakh
+        const deltaPct = ((totEq - startCap) / startCap * 100);
+        const deltaSign = deltaPct >= 0 ? '+' : '';
+        deltaEl.innerText = `${deltaSign}${deltaPct.toFixed(2)}% Today`;
+        deltaEl.className = `stat-subdelta ${deltaPct >= 0 ? 'text-green' : 'text-red'}`;
     }
 
     // Breakeven shield count

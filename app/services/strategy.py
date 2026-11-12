@@ -34,6 +34,24 @@ class StrategyBacktester:
         
         total_trades = int((df['Position'] != 0).sum())
         
+        # Performance Analytics: Max Drawdown, Win Rate & Sharpe Ratio
+        cum_strat = df['Cum_Strategy_Return']
+        rolling_max = cum_strat.cummax()
+        drawdown_series = (cum_strat - rolling_max) / rolling_max
+        max_drawdown_pct = round(float(drawdown_series.min() * 100), 2) if not drawdown_series.empty else 0.0
+
+        # Win Rate on trade days where strategy return is realized
+        active_returns = df.loc[df['Strategy_Return'] != 0, 'Strategy_Return']
+        win_rate_pct = round(float((active_returns > 0).mean() * 100), 2) if len(active_returns) > 0 else 0.0
+
+        # Annualized Sharpe Ratio (assuming 252 trading days)
+        strat_ret = df['Strategy_Return'].fillna(0)
+        ret_std = strat_ret.std()
+        if ret_std > 1e-8:
+            sharpe_ratio = round(float((strat_ret.mean() / ret_std) * np.sqrt(252)), 2)
+        else:
+            sharpe_ratio = 0.0
+        
         dates = [str(d) for d in df['time']]
         
         return {
@@ -46,6 +64,9 @@ class StrategyBacktester:
             "strategy_return_pct": round(float((df['Cum_Strategy_Return'].iloc[-1] - 1) * 100), 2),
             "benchmark_return_pct": round(float((df['Cum_Market_Return'].iloc[-1] - 1) * 100), 2),
             "total_trades": total_trades,
+            "max_drawdown_pct": max_drawdown_pct,
+            "win_rate_pct": win_rate_pct,
+            "sharpe_ratio": sharpe_ratio,
             "chart": {
                 "dates": dates,
                 "prices": [round(float(p), 2) for p in df['Close']],
