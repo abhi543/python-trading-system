@@ -546,9 +546,12 @@ async function loadPortfolio() {
         }
 
         let positions = data.positions || [];
+        if (window.recentlyExitedSymbols && window.recentlyExitedSymbols.size > 0) {
+            positions = positions.filter(p => !window.recentlyExitedSymbols.has(p.symbol));
+        }
         if (positions.length > 0) {
             try { localStorage.setItem('nifty_active_holdings_v3', JSON.stringify(positions)); } catch(e){}
-        } else if (localPositions.length > 0) {
+        } else if (localPositions.length > 0 && (!window.recentlyExitedSymbols || window.recentlyExitedSymbols.size === 0)) {
             positions = localPositions;
         }
 
@@ -648,6 +651,19 @@ window.closePosition = async function(symbol, quantity, side = 'LONG') {
     const label = isShort ? 'Cover short position' : 'Liquidate long position';
     if (!confirm(`${label} in ${symbol} (${quantity} shares)?`)) return;
     try {
+        window.recentlyExitedSymbols = window.recentlyExitedSymbols || new Set();
+        window.recentlyExitedSymbols.add(symbol);
+
+        // Immediately purge from localStorage so subsequent sync polls never resurrect it
+        try {
+            let active = JSON.parse(localStorage.getItem('nifty_active_holdings_v3') || '[]');
+            active = active.filter(p => p.symbol !== symbol);
+            localStorage.setItem('nifty_active_holdings_v3', JSON.stringify(active));
+            let lock = JSON.parse(localStorage.getItem('nifty_positions_entry_lock_v1') || '{}');
+            delete lock[symbol];
+            localStorage.setItem('nifty_positions_entry_lock_v1', JSON.stringify(lock));
+        } catch(e){}
+
         const res = await fetch('/api/order', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },

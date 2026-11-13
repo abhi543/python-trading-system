@@ -28,7 +28,7 @@ def sync_positions_from_client(client_positions, explicit_clear=False):
     if client_positions is None or not isinstance(client_positions, list):
         return
     try:
-        from app.models.trading import Position
+        from app.models.trading import Position, TradeHistory
         from app import db
         from app.services.paper_trader import PaperTradingEngine
 
@@ -45,6 +45,15 @@ def sync_positions_from_client(client_positions, explicit_clear=False):
             sym = cp.get('symbol')
             if not sym:
                 continue
+
+            # Anti-resurrection guard: if this symbol was already exited (latest trade is SELL/COVER),
+            # never allow stale client state to recreate it as open!
+            latest_trade = TradeHistory.query.filter_by(symbol=sym).order_by(TradeHistory.timestamp.desc(), TradeHistory.id.desc()).first()
+            if latest_trade and latest_trade.side in ("SELL", "COVER"):
+                if sym in existing:
+                    db.session.delete(existing[sym])
+                continue
+
             client_symbols.add(sym)
             p = existing.get(sym)
             if not p:
@@ -216,12 +225,23 @@ def place_order():
                 )
                 db.session.add(pos)
                 db.session.commit()
+            elif pos.quantity < quantity:
+                pos.quantity = quantity
+                db.session.commit()
         except Exception:
             pass
 
     result = PaperTradingEngine.execute_order(symbol, side, quantity)
     if not result.get("success"):
         return jsonify(result), 400
+
+    # Ensure position is completely expunged from DB if full exit
+    if side in ("SELL", "COVER") and result.get("success"):
+        try:
+            Position.query.filter_by(symbol=symbol).delete()
+            db.session.commit()
+        except Exception:
+            pass
         
     # Build complete closed trade details if this was a position liquidation/cover
     closed_trade = None

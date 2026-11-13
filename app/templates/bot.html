@@ -2705,7 +2705,13 @@
         if (!tbody) return;
 
         let serverPositions = (data && Array.isArray(data.positions)) ? data.positions : [];
+        if (window.recentlyExitedSymbols && window.recentlyExitedSymbols.size > 0) {
+            serverPositions = serverPositions.filter(p => !window.recentlyExitedSymbols.has(p.symbol));
+        }
         let storedPositions = (typeof getStoredActivePositions === 'function') ? getStoredActivePositions() : [];
+        if (window.recentlyExitedSymbols && window.recentlyExitedSymbols.size > 0) {
+            storedPositions = storedPositions.filter(p => !window.recentlyExitedSymbols.has(p.symbol));
+        }
 
         // Protection against cold-start serverless instance returning empty positions:
         // If server returns [] but client has stored active positions (and user did NOT square off),
@@ -3558,6 +3564,9 @@
         const actionLabel = isShort ? 'Cover short position' : 'Liquidate long position';
         if (!confirm(`${actionLabel} in ${symbol} (${quantity} shares)?`)) return;
         try {
+            window.recentlyExitedSymbols = window.recentlyExitedSymbols || new Set();
+            window.recentlyExitedSymbols.add(symbol);
+
             const exitOrderSide = isShort ? 'COVER' : 'SELL';
             const currentAvg = getLockedEntryPrice(symbol, 0);
             const res = await fetch('/api/order', {

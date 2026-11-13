@@ -949,6 +949,10 @@ class AutoTradingBot:
         else:
             target_stocks = [self.single_symbol]
         
+        # Always include all held stocks so their SL/TP/Trailing stop is evaluated in every cycle!
+        if held_map:
+            target_stocks = list(dict.fromkeys(list(target_stocks) + list(held_map.keys())))
+        
         # Parallel high-speed data fetch for stock universe
         stock_data_map = {}
         with concurrent.futures.ThreadPoolExecutor(max_workers=35) as executor:
