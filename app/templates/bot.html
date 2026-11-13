@@ -118,7 +118,9 @@
                 <span class="cfg-pill pill-capital" id="ribbon-capital"><i class="fa-solid fa-bolt" style="color: var(--green);"></i> 5x Leverage: <strong>₹5,000 Margin (₹25,000 Exposure)</strong></span>
                 <span class="cfg-pill pill-sl" id="ribbon-sl"><i class="fa-solid fa-shield-halved"></i> SL: <strong>Pattern Stop (Point 3)</strong></span>
                 <span class="cfg-pill pill-tp" id="ribbon-tp"><i class="fa-solid fa-bullseye"></i> TP: <strong>Measured Move</strong></span>
-                <span class="cfg-pill pill-filter" id="ribbon-ema"><i class="fa-solid fa-filter" style="color: var(--green);"></i> 200 EMA Filter: <strong>ON</strong></span>
+                <span class="cfg-pill pill-filter" id="ribbon-ema"><i class="fa-solid fa-filter" style="color: var(--green);"></i> 200 EMA: <strong>ON</strong></span>
+                <span class="cfg-pill pill-filter" id="ribbon-nifty" style="border-color: rgba(6, 214, 160, 0.4); color: #06d6a0;"><i class="fa-solid fa-compass" style="color: #06d6a0;"></i> NIFTY Regime: <strong>BULLISH</strong></span>
+                <span class="cfg-pill pill-filter" id="ribbon-vol" style="border-color: rgba(255, 209, 102, 0.4); color: #ffd166;"><i class="fa-solid fa-fire-flame-curved" style="color: #ffd166;"></i> Vol Breakout: <strong>≥1.3x</strong></span>
                 <span class="cfg-pill pill-filter" id="ribbon-trailing"><i class="fa-solid fa-anchor" style="color: var(--blue);"></i> Trailing SL: <strong>ON</strong></span>
             </div>
 
@@ -196,10 +198,18 @@
 
                 <div class="config-item" style="display: flex; flex-direction: column; justify-content: center;">
                     <label style="cursor: pointer; display: flex; align-items: center; gap: 0.5rem;">
-                        <input type="checkbox" id="bot-use-vol" style="accent-color: #ffd166; width: 16px; height: 16px;">
-                        <span><i class="fa-solid fa-fire-flame-curved" style="color: #ffd166;"></i> Volume Surge Check</span>
+                        <input type="checkbox" id="bot-use-nifty" checked style="accent-color: #06d6a0; width: 16px; height: 16px;" onchange="updateConfigSummaryRibbon()">
+                        <span><i class="fa-solid fa-compass" style="color: #06d6a0;"></i> NIFTY Regime Filter</span>
                     </label>
-                    <span style="font-size: 0.68rem; color: var(--text-muted); margin-top: 3px;">Trigger only on volume &gt; 20-day avg</span>
+                    <span style="font-size: 0.68rem; color: var(--text-muted); margin-top: 3px;" id="nifty-regime-status-hint">Align all trades with broader index trend</span>
+                </div>
+
+                <div class="config-item" style="display: flex; flex-direction: column; justify-content: center;">
+                    <label style="cursor: pointer; display: flex; align-items: center; gap: 0.5rem;">
+                        <input type="checkbox" id="bot-use-vol" checked style="accent-color: #ffd166; width: 16px; height: 16px;" onchange="updateConfigSummaryRibbon()">
+                        <span><i class="fa-solid fa-fire-flame-curved" style="color: #ffd166;"></i> Volume Breakout (≥1.3x)</span>
+                    </label>
+                    <span style="font-size: 0.68rem; color: var(--text-muted); margin-top: 3px;">Filter false moves: volume ≥ 1.3x 20-day SMA</span>
                 </div>
             </div>
         </div>
@@ -1993,8 +2003,21 @@
         if (data.use_ema200_filter !== undefined) {
             document.getElementById('bot-use-ema200').checked = data.use_ema200_filter;
         }
+        if (data.use_nifty_filter !== undefined && document.getElementById('bot-use-nifty')) {
+            document.getElementById('bot-use-nifty').checked = data.use_nifty_filter;
+        }
         if (data.use_volume_filter !== undefined) {
             document.getElementById('bot-use-vol').checked = data.use_volume_filter;
+        }
+        if (data.nifty_market_regime) {
+            window.lastNiftyRegime = data.nifty_market_regime.regime || 'BULLISH';
+            const hint = document.getElementById('nifty-regime-status-hint');
+            if (hint) {
+                const reg = data.nifty_market_regime.regime || 'BULLISH';
+                const np = data.nifty_market_regime.price ? ` (₹${Number(data.nifty_market_regime.price).toLocaleString('en-IN')})` : '';
+                const color = reg === 'BULLISH' ? '#06d6a0' : (reg === 'BEARISH' ? '#ff3366' : '#ffd166');
+                hint.innerHTML = `Active Regime: <strong style="color: ${color};">${reg}${np}</strong>`;
+            }
         }
         if (data.use_trailing_stop !== undefined) {
             document.getElementById('bot-use-trailing').checked = data.use_trailing_stop;
@@ -2074,6 +2097,8 @@
         const slVal = document.getElementById('bot-stop-loss')?.value || '1.0';
         const tpVal = document.getElementById('bot-take-profit')?.value || '1.0';
         const emaOn = document.getElementById('bot-use-ema200')?.checked ?? true;
+        const niftyOn = document.getElementById('bot-use-nifty')?.checked ?? true;
+        const volOn = document.getElementById('bot-use-vol')?.checked ?? true;
         const trailOn = document.getElementById('bot-use-trailing')?.checked ?? true;
 
         const ribStrat = document.getElementById('ribbon-strat');
@@ -2082,6 +2107,8 @@
         const ribSl = document.getElementById('ribbon-sl');
         const ribTp = document.getElementById('ribbon-tp');
         const ribEma = document.getElementById('ribbon-ema');
+        const ribNifty = document.getElementById('ribbon-nifty');
+        const ribVol = document.getElementById('ribbon-vol');
         const ribTrail = document.getElementById('ribbon-trailing');
 
         if (ribStrat) ribStrat.innerHTML = `<i class="fa-solid fa-brain"></i> Strategy: <strong>${stratName}</strong>`;
@@ -2092,6 +2119,10 @@
         if (ribSl) ribSl.innerHTML = (stratVal === '123_REVERSAL') ? `<i class="fa-solid fa-shield-halved"></i> SL: <strong>Point 3 (Max ${slVal}%)</strong>` : `<i class="fa-solid fa-shield-halved"></i> SL: <strong>${slVal}%</strong>`;
         if (ribTp) ribTp.innerHTML = (stratVal === '123_REVERSAL') ? `<i class="fa-solid fa-bullseye"></i> TP: <strong>Dual (${tpVal}% / Measured Move)</strong>` : `<i class="fa-solid fa-bullseye"></i> TP: <strong>${tpVal}%</strong>`;
         if (ribEma) ribEma.innerHTML = emaOn ? `<i class="fa-solid fa-filter" style="color: var(--green);"></i> 200 EMA: <strong>ON</strong>` : `<i class="fa-solid fa-filter" style="color: var(--text-muted);"></i> 200 EMA: <strong>OFF</strong>`;
+        const regStr = window.lastNiftyRegime || 'BULLISH';
+        const regCol = regStr === 'BULLISH' ? '#06d6a0' : (regStr === 'BEARISH' ? '#ff3366' : '#ffd166');
+        if (ribNifty) ribNifty.innerHTML = niftyOn ? `<i class="fa-solid fa-compass" style="color: ${regCol};"></i> NIFTY Regime: <strong style="color: ${regCol};">${regStr}</strong>` : `<i class="fa-solid fa-compass" style="color: var(--text-muted);"></i> NIFTY Regime: <strong>OFF</strong>`;
+        if (ribVol) ribVol.innerHTML = volOn ? `<i class="fa-solid fa-fire-flame-curved" style="color: #ffd166;"></i> Vol Breakout: <strong>≥1.3x</strong>` : `<i class="fa-solid fa-fire-flame-curved" style="color: var(--text-muted);"></i> Vol Breakout: <strong>OFF</strong>`;
         if (ribTrail) ribTrail.innerHTML = trailOn ? `<i class="fa-solid fa-anchor" style="color: var(--blue);"></i> Trailing SL: <strong>ON</strong>` : `<i class="fa-solid fa-anchor" style="color: var(--text-muted);"></i> Trailing SL: <strong>OFF</strong>`;
     }
 
@@ -2461,7 +2492,9 @@
             stop_loss_pct: parseFloat(document.getElementById('bot-stop-loss')?.value) || 1.0,
             take_profit_pct: parseFloat(document.getElementById('bot-take-profit')?.value) || 1.0,
             use_ema200_filter: document.getElementById('bot-use-ema200')?.checked ?? true,
+            use_nifty_filter: document.getElementById('bot-use-nifty')?.checked ?? true,
             use_volume_filter: document.getElementById('bot-use-vol')?.checked ?? true,
+            min_volume_ratio: 1.3,
             use_trailing_stop: document.getElementById('bot-use-trailing')?.checked ?? true,
             use_atr_exits: document.getElementById('bot-use-atr')?.checked ?? false
         };

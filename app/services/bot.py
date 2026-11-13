@@ -135,7 +135,10 @@ class AutoTradingBot:
         
         # Option A: Macro Trend & Volume Confirmation
         self.use_ema200_filter = persisted.get("use_ema200_filter", True)
-        self.use_volume_filter = persisted.get("use_volume_filter", False)
+        self.use_volume_filter = persisted.get("use_volume_filter", True)
+        self.min_volume_ratio = float(persisted.get("min_volume_ratio", 1.3))
+        self.use_nifty_filter = persisted.get("use_nifty_filter", True)
+        self.nifty_market_regime = persisted.get("nifty_market_regime", {"regime": "BULLISH", "price": 0.0, "percent_change": 0.0, "ema_200": 0.0})
         
         # Option B: Trailing Stop-Loss & Dynamic ATR Exits
         self.use_trailing_stop = persisted.get("use_trailing_stop", True)
@@ -189,6 +192,9 @@ class AutoTradingBot:
                 "take_profit_pct": self.take_profit_pct,
                 "use_ema200_filter": self.use_ema200_filter,
                 "use_volume_filter": self.use_volume_filter,
+                "min_volume_ratio": self.min_volume_ratio,
+                "use_nifty_filter": self.use_nifty_filter,
+                "nifty_market_regime": self.nifty_market_regime,
                 "use_trailing_stop": self.use_trailing_stop,
                 "use_atr_exits": self.use_atr_exits,
                 "session_id": self.session_id,
@@ -301,6 +307,9 @@ class AutoTradingBot:
             "take_profit_pct": self.take_profit_pct,
             "use_ema200_filter": self.use_ema200_filter,
             "use_volume_filter": self.use_volume_filter,
+            "min_volume_ratio": getattr(self, "min_volume_ratio", 1.3),
+            "use_nifty_filter": getattr(self, "use_nifty_filter", True),
+            "nifty_market_regime": getattr(self, "nifty_market_regime", {"regime": "BULLISH", "price": 0.0, "percent_change": 0.0, "ema_200": 0.0}),
             "use_trailing_stop": self.use_trailing_stop,
             "trailing_trigger_pct": self.trailing_trigger_pct,
             "use_atr_exits": self.use_atr_exits,
@@ -362,6 +371,10 @@ class AutoTradingBot:
             self.use_ema200_filter = bool(config["use_ema200_filter"])
         if "use_volume_filter" in config:
             self.use_volume_filter = bool(config["use_volume_filter"])
+        if "min_volume_ratio" in config:
+            self.min_volume_ratio = float(config["min_volume_ratio"])
+        if "use_nifty_filter" in config:
+            self.use_nifty_filter = bool(config["use_nifty_filter"])
         if "use_trailing_stop" in config:
             self.use_trailing_stop = bool(config["use_trailing_stop"])
         if "use_atr_exits" in config:
@@ -784,26 +797,37 @@ class AutoTradingBot:
             else:
                 reason = f"Neutral Momentum (RSI: {current_rsi:.1f})"
 
-        # OPTION A: Filter BUY/SELL signals with 200 EMA Macro Trend & Volume Surge
+        # OPTION A: Filter BUY/SELL signals with 200 EMA Macro Trend, NIFTY 50 Regime & Volume Breakout
         filter_status = None
+        nifty_reg = getattr(self, "nifty_market_regime", {}).get("regime", "BULLISH")
+        min_vol = getattr(self, "min_volume_ratio", 1.3)
+
         if signal == "BUY" and (not pos or getattr(pos, 'side', 'LONG') == 'SHORT'):
-            if self.use_ema200_filter and trend_200 == "BEARISH":
+            if getattr(self, 'use_nifty_filter', True) and nifty_reg == "BEARISH":
                 signal = "HOLD"
-                reason = f"BUY Filtered: Bearish Trend (Price ₹{current_price:.1f} < 200 EMA ₹{ema_200})"
+                reason = f"BUY Filtered: NIFTY 50 is BEARISH ({nifty_reg}) | Macro Market Trend Filter"
+                filter_status = "FILTERED_NIFTY_REGIME"
+            elif self.use_ema200_filter and trend_200 == "BEARISH":
+                signal = "HOLD"
+                reason = f"BUY Filtered: Bearish Stock Trend (Price ₹{current_price:.1f} < 200 EMA ₹{ema_200})"
                 filter_status = "FILTERED_200EMA"
-            elif self.use_volume_filter and vol_ratio < 1.0:
+            elif self.use_volume_filter and vol_ratio < min_vol:
                 signal = "HOLD"
-                reason = f"BUY Filtered: Low Volume Surge ({vol_ratio:.2f}x < 1.0x avg)"
+                reason = f"BUY Filtered: Weak Volume Surge ({vol_ratio:.2f}x < {min_vol:.1f}x threshold)"
                 filter_status = "FILTERED_VOLUME"
         elif signal == "SELL" and not pos:
             # For new SHORT entries:
-            if self.use_ema200_filter and trend_200 == "BULLISH":
+            if getattr(self, 'use_nifty_filter', True) and nifty_reg == "BULLISH":
                 signal = "HOLD"
-                reason = f"SHORT Filtered: Bullish Trend (Price ₹{current_price:.1f} > 200 EMA ₹{ema_200})"
+                reason = f"SHORT Filtered: NIFTY 50 is BULLISH ({nifty_reg}) | Macro Market Trend Filter"
+                filter_status = "FILTERED_NIFTY_REGIME"
+            elif self.use_ema200_filter and trend_200 == "BULLISH":
+                signal = "HOLD"
+                reason = f"SHORT Filtered: Bullish Stock Trend (Price ₹{current_price:.1f} > 200 EMA ₹{ema_200})"
                 filter_status = "FILTERED_200EMA"
-            elif self.use_volume_filter and vol_ratio < 1.0:
+            elif self.use_volume_filter and vol_ratio < min_vol:
                 signal = "HOLD"
-                reason = f"SHORT Filtered: Low Volume Surge ({vol_ratio:.2f}x < 1.0x avg)"
+                reason = f"SHORT Filtered: Weak Volume Surge ({vol_ratio:.2f}x < {min_vol:.1f}x threshold)"
                 filter_status = "FILTERED_VOLUME"
 
         return {
@@ -941,6 +965,30 @@ class AutoTradingBot:
         account = self.engine.reconcile_account_balance()
         available_cash = account.cash_balance if account else 0.0
         already_traded_today = self.get_intraday_traded_symbols(client_traded_symbols=client_traded_symbols)
+
+        # Master Market Regime: NIFTY 50 trend check
+        nifty_regime_info = {"regime": "BULLISH", "price": 0.0, "percent_change": 0.0, "ema_200": 0.0}
+        try:
+            nifty_data = MarketDataService.get_stock_analysis_data('^NSEI')
+            if nifty_data and "error" not in nifty_data:
+                np_price = nifty_data.get("price", 0.0)
+                np_ema = nifty_data.get("ema_200", 0.0)
+                np_pct = nifty_data.get("percent_change", 0.0)
+                if np_price >= np_ema and np_pct > -1.2:
+                    reg = "BULLISH"
+                elif np_price < np_ema or np_pct <= -1.2:
+                    reg = "BEARISH"
+                else:
+                    reg = "NEUTRAL"
+                nifty_regime_info = {
+                    "regime": reg,
+                    "price": np_price,
+                    "percent_change": np_pct,
+                    "ema_200": np_ema
+                }
+                self.nifty_market_regime = nifty_regime_info
+        except Exception:
+            pass
 
         if self.scan_mode == "ALL_NIFTY_200":
             target_stocks = NIFTY_200_DEFAULT
@@ -1310,6 +1358,7 @@ class AutoTradingBot:
             "recent_sweep_trades": trades_executed,
             "active_positions_count": len(held_map),
             "max_positions_limit": self.max_positions,
+            "nifty_market_regime": getattr(self, "nifty_market_regime", nifty_regime_info),
             "scanner_results": scanner_results,
             "closed_trades": sweep_closed_trades
         }
