@@ -181,7 +181,7 @@ class PaperTradingEngine:
             return False
 
     @staticmethod
-    def execute_order(symbol: str, side: str, quantity: float, execution_price: float = None, force_bypass_day_limit: bool = False):
+    def execute_order(symbol: str, side: str, quantity: float, execution_price: float = None, force_bypass_day_limit: bool = True):
         symbol = symbol.strip().upper()
         side = side.strip().upper()
         quantity = float(quantity)
@@ -578,12 +578,11 @@ class AfterHoursPaperTradingEngine:
 
     @staticmethod
     def is_symbol_traded_today(symbol: str) -> bool:
-        # NIGHTHAWK (24/7 Strategy Sandbox Lab): No 1-trade limit per day.
-        # Once a position is closed, re-entry on new signals is immediately permitted.
+        # Limit of trades removed: symbols can be traded without daily restriction
         return False
 
     @staticmethod
-    def execute_order(symbol: str, side: str, quantity: float, execution_price: float = None, force_bypass_day_limit: bool = False):
+    def execute_order(symbol: str, side: str, quantity: float, execution_price: float = None, force_bypass_day_limit: bool = True):
         symbol = symbol.strip().upper()
         side = side.strip().upper()
         quantity = float(quantity)

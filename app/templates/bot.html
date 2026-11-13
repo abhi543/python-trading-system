@@ -148,14 +148,14 @@
 
                 <div class="config-item">
                     <label><i class="fa-solid fa-indian-rupee-sign"></i> MARGIN PER TRADE (₹) [5X LEVERAGE]</label>
-                    <input type="number" id="bot-allocation" class="config-input" value="5000" step="1000" min="1000" onchange="onStrategyChange()">
-                    <span class="badge" style="font-size: 0.68rem; background: rgba(0, 240, 144, 0.15); color: var(--green); border: 1px solid rgba(0, 240, 144, 0.3); margin-top: 4px; display: inline-block;">⚡ 5x Buying Power: ₹25,000 Exposure</span>
+                    <input type="number" id="bot-allocation" class="config-input" value="500" step="100" min="100" onchange="onStrategyChange()">
+                    <span id="badge-allocation" class="badge" style="font-size: 0.68rem; background: rgba(0, 240, 144, 0.15); color: var(--green); border: 1px solid rgba(0, 240, 144, 0.3); margin-top: 4px; display: inline-block;">⚡ 5x Buying Power: ₹2,500 Exposure</span>
                 </div>
 
                 <div class="config-item" id="cfg-item-max-positions">
-                    <label><i class="fa-solid fa-boxes-stacked"></i> MAX CONCURRENT POSITIONS</label>
-                    <input type="number" id="bot-max-positions" class="config-input" value="3" min="1" max="50" onchange="onStrategyChange()">
-                    <span id="badge-unlimited-pos" class="badge" style="font-size: 0.68rem; background: rgba(0, 240, 144, 0.15); color: var(--green); border: 1px solid rgba(0, 240, 144, 0.3); margin-top: 4px; display: inline-block;">✨ Unlimited (1-2-3 Mode)</span>
+                    <label><i class="fa-solid fa-boxes-stacked"></i> MAX CONCURRENT POSITIONS (0 = UNLIMITED)</label>
+                    <input type="number" id="bot-max-positions" class="config-input" value="0" min="0" max="50" onchange="onStrategyChange()">
+                    <span id="badge-unlimited-pos" class="badge" style="font-size: 0.68rem; background: rgba(0, 240, 144, 0.15); color: var(--green); border: 1px solid rgba(0, 240, 144, 0.3); margin-top: 4px; display: inline-block;">✨ Unlimited Holdings (No Limit)</span>
                 </div>
 
                 <div class="config-item" id="cfg-item-stop-loss">
@@ -2070,7 +2070,7 @@
         const stratName = (stratVal === '123_REVERSAL') ? '1-2-3 Reversal Map' : (stratVal === 'SMA_CROSSOVER' ? 'Dual SMA (9/21)' : 'RSI Reversion');
         const mode = document.getElementById('bot-scan-mode')?.value || 'ALL_NIFTY_200';
         const universeName = (mode === 'ALL_NIFTY_200') ? 'NIFTY 200' : (mode === 'SINGLE' ? 'Single Focus' : 'NIFTY 50');
-        const capital = document.getElementById('bot-allocation')?.value || '5000';
+        const capital = document.getElementById('bot-allocation')?.value || '500';
         const slVal = document.getElementById('bot-stop-loss')?.value || '1.0';
         const tpVal = document.getElementById('bot-take-profit')?.value || '1.0';
         const emaOn = document.getElementById('bot-use-ema200')?.checked ?? true;
@@ -2086,7 +2086,7 @@
 
         if (ribStrat) ribStrat.innerHTML = `<i class="fa-solid fa-brain"></i> Strategy: <strong>${stratName}</strong>`;
         if (ribUni) ribUni.innerHTML = `<i class="fa-solid fa-layer-group"></i> Universe: <strong>${universeName}</strong>`;
-        const marginVal = Number(capital) || 5000;
+        const marginVal = Number(capital) || 500;
         const exposureVal = marginVal * 5;
         if (ribCap) ribCap.innerHTML = `<i class="fa-solid fa-bolt" style="color: var(--green);"></i> Margin: <strong>₹${marginVal.toLocaleString('en-IN')}</strong> <span style="opacity: 0.85;">(5x: ₹${exposureVal.toLocaleString('en-IN')})</span>`;
         if (ribSl) ribSl.innerHTML = (stratVal === '123_REVERSAL') ? `<i class="fa-solid fa-shield-halved"></i> SL: <strong>Point 3 (Max ${slVal}%)</strong>` : `<i class="fa-solid fa-shield-halved"></i> SL: <strong>${slVal}%</strong>`;
@@ -2206,7 +2206,18 @@
         const slInput = document.getElementById('bot-stop-loss');
         const tpInput = document.getElementById('bot-take-profit');
 
-        if (unlBadge) unlBadge.style.display = is123 ? 'inline-block' : 'none';
+        const allocInput = document.getElementById('bot-allocation');
+        const allocBadge = document.getElementById('badge-allocation');
+        if (allocInput && allocBadge) {
+            const aVal = parseFloat(allocInput.value) || 500;
+            allocBadge.innerText = `⚡ 5x Buying Power: ₹${(aVal * 5).toLocaleString('en-IN')} Exposure`;
+        }
+
+        if (unlBadge) {
+            const pVal = parseInt(posInput?.value ?? '0');
+            unlBadge.innerHTML = (isNaN(pVal) || pVal <= 0) ? '✨ Unlimited Holdings (No Limit)' : `✨ Max ${pVal} Positions`;
+            unlBadge.style.display = 'inline-block';
+        }
         if (slBadge) {
             slBadge.innerHTML = is123 ? '🛡️ Point 3 Stop (Max Clamped Ceiling)' : '🛑 Fixed % Stop-Loss';
             slBadge.style.display = 'inline-block';
@@ -2217,8 +2228,8 @@
         }
 
         if (posInput) {
-            posInput.style.opacity = is123 ? '0.6' : '1.0';
-            posInput.title = is123 ? 'Unlimited positions for 1-2-3 Reversal strategy' : '';
+            posInput.style.opacity = '1.0';
+            posInput.title = 'Max concurrent positions (0 = Unlimited Holdings)';
         }
         if (slInput) {
             slInput.style.opacity = '1.0';
@@ -2444,8 +2455,8 @@
             scan_mode: document.getElementById('bot-scan-mode')?.value || 'ALL_NIFTY_200',
             single_symbol: document.getElementById('bot-symbol')?.value?.trim()?.toUpperCase() || 'RELIANCE.NS',
             strategy: document.getElementById('bot-strategy')?.value || '123_REVERSAL',
-            allocation_per_trade: parseFloat(document.getElementById('bot-allocation')?.value) || 5000,
-            max_positions: parseInt(document.getElementById('bot-max-positions')?.value) || 3,
+            allocation_per_trade: parseFloat(document.getElementById('bot-allocation')?.value) || 500,
+            max_positions: (document.getElementById('bot-max-positions') && !isNaN(parseInt(document.getElementById('bot-max-positions').value))) ? parseInt(document.getElementById('bot-max-positions').value) : 0,
             interval_seconds: 60,
             stop_loss_pct: parseFloat(document.getElementById('bot-stop-loss')?.value) || 1.0,
             take_profit_pct: parseFloat(document.getElementById('bot-take-profit')?.value) || 1.0,

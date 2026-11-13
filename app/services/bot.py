@@ -92,7 +92,7 @@ class AutoTradingBot:
             self.account_model = AfterHoursAccount
             self.engine = AfterHoursPaperTradingEngine
         else:
-            default_alloc = 5000.0   # ₹5,000 per trade for ₹50,000 Desk
+            default_alloc = 500.0   # ₹500 per trade for ₹50,000 Desk (starts from just ₹500)
             from app.models.trading import Position, TradeHistory, Account
             from app.services.paper_trader import PaperTradingEngine
             self.pos_model = Position
@@ -105,9 +105,19 @@ class AutoTradingBot:
         self.scan_mode = persisted.get("scan_mode", "ALL_NIFTY_200")
         self.single_symbol = persisted.get("single_symbol", "RELIANCE.NS")
         self.strategy = persisted.get("strategy", "123_REVERSAL")
-        self.allocation_per_trade = float(persisted.get("allocation_per_trade", default_alloc))
+        if self.name == "ALPHA":
+            # Start stock traded from just 500 margin
+            persisted_alloc = persisted.get("allocation_per_trade")
+            if persisted_alloc is None or float(persisted_alloc) >= 5000:
+                self.allocation_per_trade = default_alloc  # 500.0
+            else:
+                self.allocation_per_trade = float(persisted_alloc)
+            # No limit of holdings (0 = unlimited holdings)
+            self.max_positions = 0
+        else:
+            self.allocation_per_trade = float(persisted.get("allocation_per_trade", default_alloc))
+            self.max_positions = int(persisted.get("max_positions", 0))
         self.leverage = float(persisted.get("leverage", 5.0))  # 5x NSE Intraday MIS Leverage
-        self.max_positions = int(persisted.get("max_positions", 0))
         self.slippage_pct = float(persisted.get("slippage_pct", 0.0))
         try:
             from app.services.paper_trader import AfterHoursPaperTradingEngine
@@ -241,54 +251,8 @@ class AutoTradingBot:
             self.persist_state()
 
     def get_intraday_traded_symbols(self, client_traded_symbols: list = None) -> set:
-        """Returns set of symbols that have already had an entry trade today during the current IST session"""
-        # In NIGHTHAWK (24/7 Sandbox Lab), stocks can be traded multiple times once closed
-        if self.name == "NIGHTHAWK":
-            return set()
-
-        from datetime import datetime, timezone, timedelta
-        
-        traded = set()
-        # 0. Client-provided traded symbols (persisted in browser across Vercel serverless cold starts)
-        if client_traded_symbols and isinstance(client_traded_symbols, list):
-            for s in client_traded_symbols:
-                if s and isinstance(s, str):
-                    traded.add(s.strip().upper())
-
-        # 1. Any currently held open position
-        try:
-            open_positions = self.pos_model.query.filter(self.pos_model.quantity > 0).all()
-            for p in open_positions:
-                traded.add(p.symbol)
-        except Exception:
-            pass
-
-        # 2. Database TradeHistory for today's IST trading session
-        try:
-            now_utc = datetime.now(timezone.utc)
-            now_ist = now_utc + timedelta(hours=5, minutes=30)
-            start_of_ist_day_utc = datetime(now_ist.year, now_ist.month, now_ist.day, 0, 0, 0) - timedelta(hours=5, minutes=30)
-            
-            today_trades = self.trade_model.query.filter(
-                self.trade_model.timestamp >= start_of_ist_day_utc,
-                self.trade_model.side.in_(["BUY", "SHORT"])
-            ).all()
-            for t in today_trades:
-                traded.add(t.symbol)
-        except Exception:
-            pass
-            
-        # 3. Session trades from current bot state
-        try:
-            for t in (self.session_trades or []):
-                if t.get("side") in ["BUY", "SHORT"]:
-                    sym = t.get("symbol")
-                    if sym:
-                        traded.add(sym)
-        except Exception:
-            pass
-            
-        return traded
+        """Limit of trades removed: returns empty set so valid signals can execute trades without limit"""
+        return set()
 
     def get_status(self) -> dict:
         persisted = _load_persistent_bot_state(self.state_filename)
@@ -1074,7 +1038,7 @@ class AutoTradingBot:
 
             # AUTO-TRADE EXECUTION LOGIC (TWO-WAY: LONG & SHORT):
             max_limit = getattr(self, 'max_positions', 0)
-            # If max_positions is 0 or negative, allow unlimited. Otherwise strictly enforce the cap!
+            # If max_positions is 0 or negative, allow unlimited holdings (No limit of holdings)
             has_position_slot = (max_limit <= 0) or (len(held_map) < max_limit)
 
             if sig == "BUY":
@@ -1126,21 +1090,17 @@ class AutoTradingBot:
 
                     # Otherwise, if we do not hold this stock and have a position slot, open a LONG trade
                     elif symbol not in held_map and has_position_slot:
-                        if self.name != "NIGHTHAWK" and symbol in already_traded_today:
-                            eval_res["action_executed"] = "SKIPPED (Already Traded Today)"
-                            self.add_log(f"⏸️ {display_name} BUY skipped: Strict 1-trade per stock intraday limit reached", "INFO")
-                        else:
-                            buying_power = self.allocation_per_trade * self.leverage
-                            trade_qty = max(1, int(buying_power / price))
-                            margin_needed = round((trade_qty * price) / self.leverage, 2)
+                        buying_power = self.allocation_per_trade * self.leverage
+                        trade_qty = max(1, int(buying_power / price))
+                        margin_needed = round((trade_qty * price) / self.leverage, 2)
 
-                            if available_cash >= margin_needed:
-                                exec_res = self.engine.execute_order(symbol, "BUY", trade_qty, execution_price=price)
-                                if exec_res.get("success"):
-                                    already_traded_today.add(symbol)
-                                    trades_executed += 1
-                                    available_cash -= margin_needed
-                                    eval_res["action_executed"] = f"BOUGHT {trade_qty} (5x)"
+                        if available_cash >= margin_needed:
+                            exec_res = self.engine.execute_order(symbol, "BUY", trade_qty, execution_price=price, force_bypass_day_limit=True)
+                            if exec_res.get("success"):
+                                already_traded_today.add(symbol)
+                                trades_executed += 1
+                                available_cash -= margin_needed
+                                eval_res["action_executed"] = f"BOUGHT {trade_qty} (5x)"
                                 
                                 pos_rec = self.pos_model.query.filter_by(symbol=symbol).first()
                                 if pos_rec:
@@ -1254,21 +1214,17 @@ class AutoTradingBot:
 
                     # Case B: If we do NOT hold this stock, enter a SHORT position!
                     elif symbol not in held_map and has_position_slot:
-                        if self.name != "NIGHTHAWK" and symbol in already_traded_today:
-                            eval_res["action_executed"] = "SKIPPED (Already Traded Today)"
-                            self.add_log(f"⏸️ {display_name} SHORT skipped: Strict 1-trade per stock intraday limit reached", "INFO")
-                        else:
-                            buying_power = self.allocation_per_trade * self.leverage
-                            trade_qty = max(1, int(buying_power / price))
-                            margin_needed = round((trade_qty * price) / self.leverage, 2)
+                        buying_power = self.allocation_per_trade * self.leverage
+                        trade_qty = max(1, int(buying_power / price))
+                        margin_needed = round((trade_qty * price) / self.leverage, 2)
 
-                            if available_cash >= margin_needed:
-                                exec_res = self.engine.execute_order(symbol, "SHORT", trade_qty, execution_price=price)
-                                if exec_res.get("success"):
-                                    already_traded_today.add(symbol)
-                                    trades_executed += 1
-                                    available_cash -= margin_needed
-                                    eval_res["action_executed"] = f"SHORTED {trade_qty} (5x)"
+                        if available_cash >= margin_needed:
+                            exec_res = self.engine.execute_order(symbol, "SHORT", trade_qty, execution_price=price, force_bypass_day_limit=True)
+                            if exec_res.get("success"):
+                                already_traded_today.add(symbol)
+                                trades_executed += 1
+                                available_cash -= margin_needed
+                                eval_res["action_executed"] = f"SHORTED {trade_qty} (5x)"
 
                                 pos_rec = self.pos_model.query.filter_by(symbol=symbol).first()
                                 if pos_rec:

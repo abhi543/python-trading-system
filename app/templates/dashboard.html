@@ -1115,7 +1115,10 @@ function updateBotUI(data) {
     }
 
     const slotsEl = document.getElementById('bot-card-slots');
-    if (slotsEl) slotsEl.innerText = `${summary.active_positions_count || 0} / ${data.max_positions || 3} Active`;
+    if (slotsEl) {
+        const isUnlimited = (!data.max_positions || data.max_positions <= 0);
+        slotsEl.innerText = isUnlimited ? `${summary.active_positions_count || 0} Holdings (No Limit)` : `${summary.active_positions_count || 0} / ${data.max_positions} Active`;
+    }
     
     if (data.last_run_time) {
         const timeEl = document.getElementById('bot-last-tick-time');
@@ -1178,8 +1181,8 @@ async function toggleBot() {
             scan_mode: 'ALL_NIFTY_50',
             single_symbol: 'RELIANCE.NS',
             strategy: 'SMA_CROSSOVER',
-            allocation_per_trade: 5000,
-            max_positions: 3,
+            allocation_per_trade: 500,
+            max_positions: 0,
             interval_seconds: 60,
             stop_loss_pct: 1.0,
             take_profit_pct: 1.0
