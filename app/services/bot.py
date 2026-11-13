@@ -129,6 +129,7 @@ class AutoTradingBot:
             self.max_positions = int(persisted.get("max_positions", 0))
         self.leverage = float(persisted.get("leverage", 5.0))  # 5x NSE Intraday MIS Leverage
         self.slippage_pct = float(persisted.get("slippage_pct", 0.0))
+        self.batch_scan_index = 0
         try:
             from app.services.paper_trader import AfterHoursPaperTradingEngine
             AfterHoursPaperTradingEngine.slippage_pct = self.slippage_pct
@@ -1073,7 +1074,14 @@ class AutoTradingBot:
         except Exception:
             pass
 
-        if self.scan_mode == "ALL_NIFTY_200":
+        batch_label = None
+        if self.scan_mode == "ALL_NSE_2000":
+            from app.models.nse_universe import get_nse_universe_batch
+            batch_stocks, curr_batch, total_batches = get_nse_universe_batch(self.batch_scan_index, batch_size=200)
+            self.batch_scan_index = (self.batch_scan_index + 1) % total_batches
+            target_stocks = batch_stocks
+            batch_label = f"Batch {curr_batch}/{total_batches} (200 of 2,391 Stocks)"
+        elif self.scan_mode == "ALL_NIFTY_200":
             target_stocks = NIFTY_200_DEFAULT
         elif self.scan_mode == "ALL_NIFTY_50":
             target_stocks = NIFTY_50_DEFAULT
@@ -1435,6 +1443,9 @@ class AutoTradingBot:
 
         self.last_scan_summary = {
             "total_scanned": len(scanner_results),
+            "scan_mode": self.scan_mode,
+            "batch_label": batch_label,
+            "total_universe_count": 2391 if self.scan_mode == "ALL_NSE_2000" else (200 if self.scan_mode == "ALL_NIFTY_200" else 50),
             "buys_found": buys_found,
             "sells_found": sells_found,
             "trades_executed": len(self.session_trades),
@@ -1447,7 +1458,8 @@ class AutoTradingBot:
         }
 
         sweep_tag = "🌙 AFTER-MARKET SWEEP (Simulated)" if after_hours else "☀️ LIVE NSE MARKET SWEEP (Real Quotes)"
-        self.add_log(f"{sweep_tag}: Scanned {len(scanner_results)} stocks | 🟢 {buys_found} BUY signals | 🔴 {sells_found} SELL signals | {trades_executed} Trades executed", "INFO")
+        batch_log = f" [{batch_label}]" if batch_label else ""
+        self.add_log(f"{sweep_tag}{batch_log}: Scanned {len(scanner_results)} stocks | 🟢 {buys_found} BUY signals | 🔴 {sells_found} SELL signals | {trades_executed} Trades executed", "INFO")
 
         return self.last_scan_summary
 

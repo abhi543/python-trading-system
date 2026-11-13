@@ -24,6 +24,16 @@ def get_candles(symbol):
     candles = MarketDataService.get_historical_candles(symbol, period, interval)
     return jsonify({"symbol": symbol.upper(), "candles": candles})
 
+@api_bp.route('/nse/stocks', methods=['GET'])
+def get_nse_stocks():
+    query = request.args.get('q', '').strip().upper()
+    limit = int(request.args.get('limit', 100))
+    from app.models.nse_universe import _NSE_STOCKS_DATA
+    if not query:
+        return jsonify({"total": len(_NSE_STOCKS_DATA), "stocks": _NSE_STOCKS_DATA[:limit]})
+    matches = [s for s in _NSE_STOCKS_DATA if query in s['ticker'] or query in s['name'].upper()][:limit]
+    return jsonify({"total": len(matches), "query": query, "stocks": matches})
+
 def sync_positions_from_client(client_positions, explicit_clear=False):
     if client_positions is None or not isinstance(client_positions, list):
         return

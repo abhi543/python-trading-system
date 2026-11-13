@@ -128,9 +128,10 @@
                 <div class="config-item">
                     <label><i class="fa-solid fa-layer-group"></i> SCANNING UNIVERSE</label>
                     <select id="bot-scan-mode" class="config-select" onchange="onScanModeChange();">
-                        <option value="ALL_NIFTY_200" selected>All NIFTY 200 Basket (Top 200 Stocks)</option>
+                        <option value="ALL_NSE_2000" selected>🚀 NIFTY Total Market (All 2,000+ NSE Stocks)</option>
+                        <option value="ALL_NIFTY_200">All NIFTY 200 Basket (Top 200 Stocks)</option>
                         <option value="ALL_NIFTY_50">All NIFTY 50 Basket (Top 50 Stocks)</option>
-                        <option value="SINGLE">Single Stock Focus</option>
+                        <option value="SINGLE">Single Stock Focus (1 Stock)</option>
                     </select>
                 </div>
 
@@ -219,9 +220,9 @@
             <div class="kpi-card">
                 <div class="kpi-icon icon-blue"><i class="fa-solid fa-magnifying-glass-chart"></i></div>
                 <div class="kpi-body">
-                    <span class="kpi-title">NIFTY 50 SCANNED</span>
-                    <span class="kpi-value" id="kpi-scanned">0 / 50</span>
-                    <span class="kpi-sub">Constituents monitored</span>
+                    <span class="kpi-title" id="kpi-scanned-title">UNIVERSE SCANNED</span>
+                    <span class="kpi-value" id="kpi-scanned">0 / 2,391</span>
+                    <span class="kpi-sub" id="kpi-scanned-sub">Constituents monitored</span>
                 </div>
             </div>
 
@@ -1904,7 +1905,7 @@
         singleGroup.style.display = (mode === 'SINGLE') ? 'flex' : 'none';
         const scanBtn = document.getElementById('bot-scan-btn');
         if (scanBtn) {
-            const label = (mode === 'ALL_NIFTY_200') ? 'ALL 200' : ((mode === 'SINGLE') ? 'TARGET' : 'ALL 50');
+            const label = (mode === 'ALL_NSE_2000') ? '2,000+ STOCKS' : ((mode === 'ALL_NIFTY_200') ? 'ALL 200' : ((mode === 'SINGLE') ? 'TARGET' : 'ALL 50'));
             scanBtn.innerHTML = `<i class="fa-solid fa-arrows-rotate"></i> SCAN ${label} NOW`;
         }
         updateConfigSummaryRibbon();
@@ -2040,8 +2041,12 @@
 
         const summary = data.scan_summary || {};
         const scannedCount = summary.total_scanned || (summary.scanner_results ? summary.scanner_results.length : 0);
-        const totalUniverse = (data.scan_mode === 'ALL_NIFTY_200') ? 200 : ((data.scan_mode === 'SINGLE') ? 1 : 50);
+        const totalUniverse = (data.scan_mode === 'ALL_NSE_2000') ? '2,391' : ((data.scan_mode === 'ALL_NIFTY_200') ? 200 : ((data.scan_mode === 'SINGLE') ? 1 : 50));
         document.getElementById('kpi-scanned').innerText = `${scannedCount} / ${totalUniverse}`;
+        const kpiScannedSub = document.getElementById('kpi-scanned-sub');
+        if (kpiScannedSub) {
+            kpiScannedSub.innerText = summary.batch_label || ((data.scan_mode === 'ALL_NSE_2000') ? 'Rolling 2,000+ NSE Equities' : 'Constituents monitored');
+        }
         document.getElementById('kpi-buys').innerText = summary.buys_found || 0;
         document.getElementById('kpi-sells').innerText = summary.sells_found || 0;
         
@@ -2091,8 +2096,8 @@
     function updateConfigSummaryRibbon() {
         const stratVal = document.getElementById('bot-strategy')?.value || '123_REVERSAL';
         const stratName = (stratVal === '123_REVERSAL') ? '1-2-3 Reversal Map' : (stratVal === 'SMA_CROSSOVER' ? 'Dual SMA (9/21)' : 'RSI Reversion');
-        const mode = document.getElementById('bot-scan-mode')?.value || 'ALL_NIFTY_200';
-        const universeName = (mode === 'ALL_NIFTY_200') ? 'NIFTY 200' : (mode === 'SINGLE' ? 'Single Focus' : 'NIFTY 50');
+        const mode = document.getElementById('bot-scan-mode')?.value || 'ALL_NSE_2000';
+        const universeName = (mode === 'ALL_NSE_2000') ? 'Total Market (2,000+)' : ((mode === 'ALL_NIFTY_200') ? 'NIFTY 200' : (mode === 'SINGLE' ? 'Single Focus' : 'NIFTY 50'));
         const capital = document.getElementById('bot-allocation')?.value || '500';
         const slVal = document.getElementById('bot-stop-loss')?.value || '1.0';
         const tpVal = document.getElementById('bot-take-profit')?.value || '1.0';
@@ -2483,7 +2488,7 @@
     function getCurrentBotConfig() {
         return {
             is_running: isBotActive,
-            scan_mode: document.getElementById('bot-scan-mode')?.value || 'ALL_NIFTY_200',
+            scan_mode: document.getElementById('bot-scan-mode')?.value || 'ALL_NSE_2000',
             single_symbol: document.getElementById('bot-symbol')?.value?.trim()?.toUpperCase() || 'RELIANCE.NS',
             strategy: document.getElementById('bot-strategy')?.value || '123_REVERSAL',
             allocation_per_trade: parseFloat(document.getElementById('bot-allocation')?.value) || 500,
@@ -2569,8 +2574,8 @@
         if (isScanning) return;
         isScanning = true;
 
-        const scanMode = document.getElementById('bot-scan-mode')?.value || 'ALL_NIFTY_200';
-        const label = (scanMode === 'ALL_NIFTY_200') ? '200' : ((scanMode === 'SINGLE') ? '1' : '50');
+        const scanMode = document.getElementById('bot-scan-mode')?.value || 'ALL_NSE_2000';
+        const label = (scanMode === 'ALL_NSE_2000') ? '2,000+ (Batch 200)' : ((scanMode === 'ALL_NIFTY_200') ? '200' : ((scanMode === 'SINGLE') ? '1' : '50'));
         const btn = document.getElementById('bot-scan-btn');
         if (btn) {
             btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Scanning ${label} Stocks...`;
@@ -2639,8 +2644,8 @@
             showToast('Scan sweep notice: Network response delayed, auto-retrying on next cycle', 'warning');
         } finally {
             if (btn) {
-                const currentMode = document.getElementById('bot-scan-mode')?.value || 'ALL_NIFTY_200';
-                const finalLabel = (currentMode === 'ALL_NIFTY_200') ? 'ALL 200' : ((currentMode === 'SINGLE') ? 'TARGET' : 'ALL 50');
+                const currentMode = document.getElementById('bot-scan-mode')?.value || 'ALL_NSE_2000';
+                const finalLabel = (currentMode === 'ALL_NSE_2000') ? '2,000+ STOCKS' : ((currentMode === 'ALL_NIFTY_200') ? 'ALL 200' : ((currentMode === 'SINGLE') ? 'TARGET' : 'ALL 50'));
                 btn.innerHTML = `<i class="fa-solid fa-arrows-rotate"></i> SCAN ${finalLabel} NOW`;
                 btn.disabled = false;
             }
