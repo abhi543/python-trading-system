@@ -49,6 +49,16 @@ def is_nse_market_open() -> bool:
     # 09:15 to 15:30 IST
     return (9 * 60 + 15) <= current_minutes <= (15 * 60 + 30)
 
+def is_intraday_squareoff_time() -> bool:
+    """Returns True if current IST time is 15:20 or later (standard Indian intraday 3:20 PM auto-squareoff window)"""
+    from datetime import datetime, timezone, timedelta
+    now_ist = datetime.now(timezone.utc) + timedelta(hours=5, minutes=30)
+    if now_ist.weekday() >= 5:
+        return True
+    current_minutes = now_ist.hour * 60 + now_ist.minute
+    # 15:20 IST is 15*60 + 20 = 920 minutes. After 15:20 or before 09:15 IST
+    return current_minutes >= (15 * 60 + 20) or current_minutes < (9 * 60 + 15)
+
 def get_after_hours_price(symbol: str, base_price: float, pos=None) -> float:
     import random
     global _price_drift_state
@@ -856,28 +866,101 @@ class AutoTradingBot:
             "action_executed": None
         }
 
+    def auto_square_off_all_positions(self, reason: str = "EOD 3:20 PM Auto Square-Off") -> list:
+        """
+        Automatically liquidates every open intraday position at current market prices
+        at market close (15:20 – 15:30 IST) or when market is closed, returning margin to cash.
+        """
+        positions = self.pos_model.query.filter(self.pos_model.quantity > 0).all()
+        if not positions:
+            return []
+
+        closed_trades = []
+        for pos in positions:
+            sym = pos.symbol
+            qty = pos.quantity
+            side = getattr(pos, 'side', 'LONG') or 'LONG'
+            exit_side = "COVER" if side == "SHORT" else "SELL"
+            display_name = sym.replace('.NS', '')
+
+            exec_res = self.engine.execute_order(sym, exit_side, qty)
+            if exec_res.get("success"):
+                pnl = float(exec_res.get("realized_pnl", 0.0))
+                chg_dict = exec_res.get("charges") if isinstance(exec_res.get("charges"), dict) else {}
+                chg = float(chg_dict.get("total_charges", 0.0) if isinstance(chg_dict, dict) else 0.0)
+                entry_p = float(exec_res.get("entry_price") or pos.average_price or exec_res.get("price", 0.0))
+                exit_p = float(exec_res.get("price", 0.0))
+                cost_basis = round(qty * (entry_p if entry_p > 0 else 1.0), 2)
+                roi_pct = round((pnl / cost_basis) * 100, 2) if cost_basis > 0 else 0.0
+
+                trade_record = {
+                    "id": exec_res.get("trade_id") or (int(datetime.now().timestamp() * 1000) + len(closed_trades)),
+                    "symbol": sym,
+                    "displayName": display_name,
+                    "side": exit_side,
+                    "quantity": qty,
+                    "entry_price": entry_p,
+                    "exit_price": exit_p,
+                    "price": exit_p,
+                    "total_value": round(qty * exit_p, 2),
+                    "charges": chg,
+                    "brokerage": round(float(chg_dict.get("brokerage", 0.0)), 2),
+                    "stt": round(float(chg_dict.get("stt", 0.0)), 2),
+                    "exchange_charges": round(float(chg_dict.get("exchange_charges", 0.0)), 2),
+                    "sebi_charges": round(float(chg_dict.get("sebi_charges", 0.0)), 2),
+                    "gst": round(float(chg_dict.get("gst", 0.0)), 2),
+                    "stamp_duty": round(float(chg_dict.get("stamp_duty", 0.0)), 2),
+                    "net_proceeds": round((qty * exit_p) - chg, 2),
+                    "realized_pnl": pnl,
+                    "roi_pct": roi_pct,
+                    "is_win": pnl >= 0,
+                    "action": exit_side,
+                    "signal": "EOD_SQUAREOFF",
+                    "reason": reason,
+                    "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                }
+                self.record_session_trade(trade_record)
+                closed_trades.append(trade_record)
+                pnl_str = f"+₹{pnl:,.2f}" if pnl >= 0 else f"-₹{abs(pnl):,.2f}"
+                self.add_log(f"🔔 [EOD AUTO SQUARE-OFF] Liquidated {qty} shares of {display_name} @ ₹{exit_p:.2f} ({reason}) | P&L: {pnl_str}", "SUCCESS" if pnl >= 0 else "WARNING")
+
+        if closed_trades:
+            self.persist_state()
+
+        return closed_trades
+
     def evaluate_signals(self, simulation_event: str = None, target_symbol: str = None, client_traded_symbols: list = None) -> dict:
         """Runs the scanner across all Nifty 50 constituents (or single stock) and auto-trades"""
         import random
         self.last_run_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-        # 0. Enforce Operating Hours: ALPHA strictly during Live Market, NIGHTHAWK strictly After Hours
+        # 0. Enforce Operating Hours & 15:20 EOD Auto Square-Off:
         market_open = is_nse_market_open()
+        square_off_time = is_intraday_squareoff_time()
         is_explicit_test = simulation_event in ["FORCE_BUY", "STOP_SHOCK", "FLASH_CRASH", "BULL_SURGE", "BULL_RUNNER", "TRAIL_PUSH", "WHIPSAW_CHOP"]
 
-        if self.name == "ALPHA" and not market_open and not is_explicit_test:
-            if self.is_running:
-                self.is_running = False
-                self.session_status = "MARKET_CLOSED_PAUSED"
-                self.persist_state()
-                self.add_log("⏸️ [ALPHA SLEEP] NSE Market is closed. ALPHA paused until 09:15 AM tomorrow. Use NIGHTHAWK for after-market trading.", "WARNING")
-            return {
-                "total_scanned": 0, "buys_found": 0, "sells_found": 0, "trades_executed": 0,
-                "message": "Market Closed: ALPHA runs exclusively during live NSE market hours (09:15 AM – 03:30 PM IST Mon-Fri).",
-                "is_market_closed": True,
-                "allowed_engine": "NIGHTHAWK",
-                "switch_url": "/bot-after-hours"
-            }
+        if self.name == "ALPHA" and not is_explicit_test:
+            # Check if any positions need to be auto-squared off at market close (3:20 PM or after hours)
+            eod_closed = []
+            if square_off_time or not market_open:
+                eod_closed = self.auto_square_off_all_positions(reason="3:20 PM EOD Market Close Auto Square-Off")
+                if eod_closed:
+                    self.add_log(f"🏁 [EOD COMPLETE] Auto-squared off all {len(eod_closed)} intraday positions at market close. Desk 100% in cash.", "SUCCESS")
+
+            if not market_open:
+                if self.is_running:
+                    self.is_running = False
+                    self.session_status = "MARKET_CLOSED_PAUSED"
+                    self.persist_state()
+                    self.add_log("⏸️ [ALPHA SLEEP] NSE Market is closed. ALPHA auto-squared off and paused until 09:15 AM tomorrow. Use NIGHTHAWK for after-market trading.", "WARNING")
+                return {
+                    "total_scanned": 0, "buys_found": 0, "sells_found": 0, "trades_executed": len(eod_closed),
+                    "message": "Market Closed: ALPHA auto-squares off all positions by 03:20 PM IST. Re-opens at 09:15 AM tomorrow.",
+                    "is_market_closed": True,
+                    "eod_closed_trades": eod_closed,
+                    "allowed_engine": "NIGHTHAWK",
+                    "switch_url": "/bot-after-hours"
+                }
 
 
 

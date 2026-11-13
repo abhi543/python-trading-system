@@ -2600,8 +2600,14 @@
                 updateBotUI(data.bot_state);
             }
 
-            // Immediately merge any automated SL/TP closed trades from this scan sweep to prevent vanishing
-            const sweepClosed = (data.result && Array.isArray(data.result.closed_trades)) ? data.result.closed_trades : [];
+            // Immediately merge any automated SL/TP or EOD market-close closed trades from this scan sweep
+            const sweepClosed = (data.result && Array.isArray(data.result.closed_trades)) ? [...data.result.closed_trades] : [];
+            if (data.result && Array.isArray(data.result.eod_closed_trades)) {
+                sweepClosed.push(...data.result.eod_closed_trades);
+                saveStoredActivePositions([]);
+                window.cachedActivePositions = [];
+                showToast(`🔔 Market Closed: All open positions automatically squared off at 3:20 PM IST.`, 'success');
+            }
             if (sweepClosed.length > 0) {
                 const currentClosed = getStoredClosedTrades();
                 const tradeMap = new Map();
