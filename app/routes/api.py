@@ -31,6 +31,16 @@ def sync_positions_from_client(client_positions, explicit_clear=False):
         from app.models.trading import Position, TradeHistory
         from app import db
         from app.services.paper_trader import PaperTradingEngine
+        from app.services.bot import is_nse_market_open, is_intraday_squareoff_time
+
+        # Intraday EOD Guard: After market close (>= 15:20 IST), all intraday positions must be flat.
+        # Prevent stale client caches from ever resurrecting intraday positions overnight!
+        if is_intraday_squareoff_time() or not is_nse_market_open():
+            if Position.query.count() > 0:
+                Position.query.delete()
+                db.session.commit()
+                PaperTradingEngine.reconcile_account_balance()
+            return
 
         if len(client_positions) == 0:
             if explicit_clear:
