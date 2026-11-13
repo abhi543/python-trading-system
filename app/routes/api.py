@@ -31,7 +31,7 @@ def get_nse_stocks():
     from app.models.nse_universe import _NSE_STOCKS_DATA
     if not query:
         return jsonify({"total": len(_NSE_STOCKS_DATA), "stocks": _NSE_STOCKS_DATA[:limit]})
-    matches = [s for s in _NSE_STOCKS_DATA if query in s['ticker'] or query in s['name'].upper()][:limit]
+    matches = [s for s in _NSE_STOCKS_DATA if query in s.get('ticker', '') or query in s.get('symbol', '') or query in s.get('name', '').upper()][:limit]
     return jsonify({"total": len(matches), "query": query, "stocks": matches})
 
 def sync_positions_from_client(client_positions, explicit_clear=False):
