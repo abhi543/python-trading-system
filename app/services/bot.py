@@ -112,7 +112,7 @@ class AutoTradingBot:
 
         persisted = _load_persistent_bot_state(self.state_filename)
         self.is_running = persisted.get("is_running", False)
-        self.scan_mode = persisted.get("scan_mode", "ALL_NIFTY_200")
+        self.scan_mode = persisted.get("scan_mode", "TOP_200_TURNOVER")
         self.single_symbol = persisted.get("single_symbol", "RELIANCE.NS")
         self.strategy = persisted.get("strategy", "123_REVERSAL")
         if self.name == "ALPHA":
@@ -455,7 +455,7 @@ class AutoTradingBot:
         self.start_new_session()
 
         after_hours = not is_nse_market_open()
-        mode_label = "ALL NIFTY 200 STOCKS" if self.scan_mode == "ALL_NIFTY_200" else ("ALL NIFTY 50 STOCKS" if self.scan_mode == "ALL_NIFTY_50" else self.single_symbol)
+        mode_label = "TOP 200 TURNOVER STOCKS" if self.scan_mode == "TOP_200_TURNOVER" else ("ALL 2,000+ NSE STOCKS" if self.scan_mode == "ALL_NSE_2000" else ("ALL NIFTY 200 STOCKS" if self.scan_mode == "ALL_NIFTY_200" else ("ALL NIFTY 50 STOCKS" if self.scan_mode == "ALL_NIFTY_50" else self.single_symbol)))
         ema_tag = "200 EMA Filter [ON]" if self.use_ema200_filter else "200 EMA Filter [OFF]"
         trail_tag = "Trailing Stop [ON]" if self.use_trailing_stop else "Trailing Stop [OFF]"
         session_tag = "🌙 AFTER-MARKET HOURS (ACTIVE 24/7)" if after_hours else "☀️ LIVE NSE MARKET SESSION"
@@ -1075,7 +1075,11 @@ class AutoTradingBot:
             pass
 
         batch_label = None
-        if self.scan_mode == "ALL_NSE_2000":
+        if self.scan_mode == "TOP_200_TURNOVER":
+            from app.models.nse_universe import get_top_turnover_stocks
+            target_stocks = get_top_turnover_stocks(200)
+            batch_label = "Top 200 by Daily Turnover & Liquidity"
+        elif self.scan_mode == "ALL_NSE_2000":
             from app.models.nse_universe import get_nse_universe_batch
             batch_stocks, curr_batch, total_batches = get_nse_universe_batch(self.batch_scan_index, batch_size=200)
             self.batch_scan_index = (self.batch_scan_index + 1) % total_batches
@@ -1444,8 +1448,8 @@ class AutoTradingBot:
         self.last_scan_summary = {
             "total_scanned": len(scanner_results),
             "scan_mode": self.scan_mode,
-            "batch_label": batch_label,
-            "total_universe_count": 2391 if self.scan_mode == "ALL_NSE_2000" else (200 if self.scan_mode == "ALL_NIFTY_200" else 50),
+            "batch_label": batch_label or ("Daily Top 200 Turnover Basket" if self.scan_mode == "TOP_200_TURNOVER" else None),
+            "total_universe_count": 200 if self.scan_mode in ["TOP_200_TURNOVER", "ALL_NIFTY_200"] else (2391 if self.scan_mode == "ALL_NSE_2000" else (50 if self.scan_mode == "ALL_NIFTY_50" else 1)),
             "buys_found": buys_found,
             "sells_found": sells_found,
             "trades_executed": len(self.session_trades),

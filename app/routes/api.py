@@ -34,6 +34,19 @@ def get_nse_stocks():
     matches = [s for s in _NSE_STOCKS_DATA if query in s.get('ticker', '') or query in s.get('symbol', '') or query in s.get('name', '').upper()][:limit]
     return jsonify({"total": len(matches), "query": query, "stocks": matches})
 
+@api_bp.route('/nse/top-turnover', methods=['GET'])
+def get_top_turnover():
+    limit = int(request.args.get('limit', 200))
+    from app.models.nse_universe import get_top_turnover_stocks, NSE_2000_MAP
+    symbols = get_top_turnover_stocks(limit)
+    stocks = [NSE_2000_MAP.get(s, {"symbol": s, "ticker": s.replace('.NS', ''), "name": f"{s.replace('.NS', '')} Equity"}) for s in symbols]
+    return jsonify({
+        "total": len(stocks),
+        "limit": limit,
+        "criteria": "High Daily Traded Turnover & Top Liquidity",
+        "stocks": stocks
+    })
+
 def sync_positions_from_client(client_positions, explicit_clear=False):
     if client_positions is None or not isinstance(client_positions, list):
         return
