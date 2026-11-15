@@ -527,6 +527,107 @@ def backtest():
         return jsonify(result), 400
     return jsonify(result)
 
+@api_bp.route('/complete-reset', methods=['POST'])
+def complete_system_reset():
+    """
+    COMPLETE RESET:
+    1. Closes and deletes ALL open positions across ALPHA, NIGHTHAWK, and TITAN.
+    2. Resets all accounts to clean baseline capital (ALPHA: ₹50,000, NIGHTHAWK: ₹1 Crore, TITAN: ₹1 Lakh).
+    3. Clears unrealized PnL to strictly 0.0.
+    4. Resets scanner results, trade sessions, and logs across all bots.
+    5. Restores default watchlists.
+    """
+    from app.models.trading import (
+        Position, Account, WatchlistItem, NIFTY_50_DEFAULT,
+        AfterHoursPosition, AfterHoursAccount,
+        SwingPosition, SwingAccount
+    )
+    from app.services.bot import bot_instance, after_hours_bot_instance
+    from app.services.swing_bot import swing_bot_instance
+
+    body = request.get_json(silent=True) or {}
+    desk = str(body.get('desk') or 'all').lower()
+
+    # 1. Reset ALPHA (Intraday Desk)
+    if desk in ('all', 'alpha'):
+        Position.query.delete()
+        WatchlistItem.query.delete()
+        for s in NIFTY_50_DEFAULT:
+            db.session.add(WatchlistItem(symbol=s))
+        account = Account.query.first()
+        if account:
+            account.cash_balance = 50000.0
+        else:
+            db.session.add(Account(cash_balance=50000.0))
+        
+        bot_instance.logs = []
+        bot_instance.last_scan_summary = {
+            "total_scanned": 0, "buys_found": 0, "sells_found": 0,
+            "trades_executed": 0, "scanner_results": []
+        }
+        bot_instance.start_new_session()
+
+    # 2. Reset NIGHTHAWK (After-Hours Desk)
+    if desk in ('all', 'nighthawk'):
+        AfterHoursPosition.query.delete()
+        ah_account = AfterHoursAccount.query.first()
+        if ah_account:
+            ah_account.cash_balance = 10000000.0
+        else:
+            db.session.add(AfterHoursAccount(cash_balance=10000000.0))
+
+        after_hours_bot_instance.logs = []
+        after_hours_bot_instance.last_scan_summary = {
+            "total_scanned": 0, "buys_found": 0, "sells_found": 0,
+            "trades_executed": 0, "scanner_results": []
+        }
+        after_hours_bot_instance.start_new_session()
+
+    # 3. Reset TITAN (Swing Desk)
+    if desk in ('all', 'titan', 'swing'):
+        SwingPosition.query.delete()
+        swing_acc = SwingAccount.query.first()
+        if swing_acc:
+            swing_acc.cash_balance = 100000.0
+        else:
+            db.session.add(SwingAccount(cash_balance=100000.0))
+
+        swing_bot_instance.logs = []
+        swing_bot_instance.last_scan_summary = {
+            "total_scanned": 0, "buys_found": 0, "scanner_results": []
+        }
+
+    try:
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+
+    return jsonify({
+        "success": True,
+        "message": "Complete reset successful! All open positions closed and unrealized profit wiped to ₹0.00.",
+        "unrealized_pnl": 0.0,
+        "positions": [],
+        "desk": desk,
+        "alpha": {
+            "cash_balance": 50000.0,
+            "total_equity": 50000.0,
+            "unrealized_pnl": 0.0,
+            "positions_count": 0
+        },
+        "nighthawk": {
+            "cash_balance": 10000000.0,
+            "total_equity": 10000000.0,
+            "unrealized_pnl": 0.0,
+            "positions_count": 0
+        },
+        "titan": {
+            "cash_balance": 100000.0,
+            "total_equity": 100000.0,
+            "unrealized_pnl": 0.0,
+            "positions_count": 0
+        }
+    })
+
 @api_bp.route('/reset-account', methods=['POST'])
 def reset_account():
     Position.query.delete()

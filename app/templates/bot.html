@@ -3722,9 +3722,18 @@
             const data = await res.json();
             if (data.success) {
                 window.explicitSquareOffDone = true;
-                try { localStorage.removeItem(POS_ENTRY_LOCK_KEY); } catch(e){}
+                try { 
+                    localStorage.removeItem(ACTIVE_HOLDINGS_KEY);
+                    localStorage.removeItem(POS_ENTRY_LOCK_KEY); 
+                } catch(e){}
                 saveStoredActivePositions([]);
                 window.cachedActivePositions = [];
+                if (window.recentlyExitedSymbols) window.recentlyExitedSymbols.clear();
+                const pnlEl = document.getElementById('nav-pnl');
+                if (pnlEl) {
+                    pnlEl.innerText = '₹0.00';
+                    pnlEl.className = 'metric-value text-green';
+                }
 
                 if (Array.isArray(data.closed_trades) && data.closed_trades.length > 0) {
                     const currentClosed = getStoredClosedTrades();
@@ -3765,9 +3774,18 @@
             const data = await res.json();
             if (data.success) {
                 window.explicitSquareOffDone = true;
-                try { localStorage.removeItem(POS_ENTRY_LOCK_KEY); } catch(e){}
+                try { 
+                    localStorage.removeItem(ACTIVE_HOLDINGS_KEY);
+                    localStorage.removeItem(POS_ENTRY_LOCK_KEY); 
+                } catch(e){}
                 saveStoredActivePositions([]);
                 window.cachedActivePositions = [];
+                if (window.recentlyExitedSymbols) window.recentlyExitedSymbols.clear();
+                const pnlEl = document.getElementById('nav-pnl');
+                if (pnlEl) {
+                    pnlEl.innerText = '₹0.00';
+                    pnlEl.className = 'metric-value text-green';
+                }
                 resetBotSessionReport(false);
                 showToast('Bot reset and successfully restarted fresh with ₹50,000 capital!', 'success');
                 loadAccountMetrics();
@@ -3790,9 +3808,18 @@
             const data = await res.json();
             if (data.success) {
                 window.explicitSquareOffDone = true;
-                try { localStorage.removeItem(POS_ENTRY_LOCK_KEY); } catch(e){}
+                try { 
+                    localStorage.removeItem(ACTIVE_HOLDINGS_KEY);
+                    localStorage.removeItem(POS_ENTRY_LOCK_KEY); 
+                } catch(e){}
                 saveStoredActivePositions([]);
                 window.cachedActivePositions = [];
+                if (window.recentlyExitedSymbols) window.recentlyExitedSymbols.clear();
+                const pnlEl = document.getElementById('nav-pnl');
+                if (pnlEl) {
+                    pnlEl.innerText = '₹0.00';
+                    pnlEl.className = 'metric-value text-green';
+                }
                 showToast('Portfolio successfully reset back to ₹50,000 cash!', 'success');
                 resetBotSessionReport(false);
                 loadAccountMetrics();

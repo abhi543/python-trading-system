@@ -1122,9 +1122,17 @@ async function manualExitPosition(symbol, quantity) {
 async function exitAllSwingPositions() {
     if (!confirm('Are you sure you want to LIQUIDATE ALL open swing delivery positions?')) return;
     try {
+        window.explicitSwingExitDone = true;
+        try { localStorage.removeItem('titan_swing_positions_cache'); } catch(e){}
         const res = await fetch('/api/swing/positions/exit-all', { method: 'POST' });
         const data = await res.json();
         if (data.success) {
+            const pnlEl = document.getElementById('kpi-unrealized-pnl');
+            if (pnlEl) pnlEl.innerText = '₹0.00';
+            const pctEl = document.getElementById('kpi-unrealized-pct');
+            if (pctEl) pctEl.innerText = '+0.00%';
+            const navPnl = document.getElementById('nav-pnl');
+            if (navPnl) navPnl.innerText = '₹0.00';
             fetchSwingOverview();
         }
     } catch (err) {

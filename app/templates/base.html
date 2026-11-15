@@ -144,19 +144,9 @@
             </div>
 
             <div class="stat-strip-actions">
-                {% if request.path == '/bot-swing' or request.path == '/swing' %}
-                <button id="reset-account-btn" class="btn-reset-chip" title="Reset TITAN Swing balance back to ₹1,00,000">
-                    <i class="fa-solid fa-rotate-left"></i> Reset ₹1 Lakh
+                <button id="reset-account-btn" class="btn-reset-chip" style="background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.4); color: #f87171; font-weight: 700; transition: all 0.2s ease;" onclick="window.triggerCompleteReset()" title="Complete Reset: Liquidates all open positions, wipes unrealized P&L to ₹0.00, and restores clean capital">
+                    <i class="fa-solid fa-power-off" style="color: #f87171;"></i> COMPLETE RESET
                 </button>
-                {% elif request.path == '/bot-after-hours' or request.path == '/after-hours' %}
-                <button id="reset-account-btn" class="btn-reset-chip" title="Reset NIGHTHAWK balance back to ₹1,00,00,000">
-                    <i class="fa-solid fa-rotate-left"></i> Reset ₹1 Crore
-                </button>
-                {% else %}
-                <button id="reset-account-btn" class="btn-reset-chip" title="Reset portfolio balance back to ₹50,000">
-                    <i class="fa-solid fa-rotate-left"></i> Reset ₹50k
-                </button>
-                {% endif %}
             </div>
         </div>
     </header>
@@ -294,53 +284,120 @@
             }
         });
 
+        window.triggerCompleteReset = async function(deskOverride) {
+            const path = window.location.pathname;
+            const isSwing = path.includes('swing');
+            const isAH = path.includes('after-hours');
+            const desk = deskOverride || (isSwing ? 'titan' : (isAH ? 'nighthawk' : 'alpha'));
+            const deskName = isSwing ? 'TITAN Swing Desk' : (isAH ? 'NIGHTHAWK 24/7 Desk' : 'ALPHA Intraday Desk');
+
+            const confirmed = confirm(
+                `🚨 COMPLETE RESET — ${deskName.toUpperCase()}\n\n` +
+                `• ALL open positions will be CLOSED immediately.\n` +
+                `• ALL unrealized profits and losses will be WIPED to ₹0.00.\n` +
+                `• Cash balance and total equity will be restored to clean initial capital.\n` +
+                `• All local storage position caches and entry locks will be completely erased.\n\n` +
+                `Do you want to proceed with COMPLETE RESET?`
+            );
+            if (!confirmed) return;
+
+            // 1. Immediately wipe ALL position caches & locks from LocalStorage
+            try {
+                localStorage.removeItem('nifty_active_holdings_v3');
+                localStorage.removeItem('nifty_positions_entry_lock_v1');
+                localStorage.removeItem('ah_active_holdings_v1');
+                localStorage.removeItem('ah_positions_entry_lock_v1');
+                localStorage.removeItem('titan_swing_positions_cache');
+                localStorage.removeItem('active_bot_holdings_cache');
+                localStorage.removeItem('after_hours_bot_holdings_cache');
+                localStorage.removeItem('bot_session_trades_v1');
+                localStorage.removeItem('ah_session_trades_v1');
+                localStorage.removeItem('alpha_closed_trades_v1');
+                localStorage.removeItem('ah_closed_trades_v1');
+            } catch (e) {}
+
+            // 2. Set permanent anti-resurrection flags on window & clear arrays
+            window.explicitSquareOffDone = true;
+            window.explicitSwingExitDone = true;
+            window.cachedActivePositions = [];
+            if (window.recentlyExitedSymbols) window.recentlyExitedSymbols.clear();
+            if (typeof allPositions !== 'undefined') allPositions = [];
+
+            // 3. Immediately zero out all navbar metrics visually (Zero Delay!)
+            const defaultCash = isSwing ? '₹1,00,000.00' : (isAH ? '₹1,00,00,000.00' : '₹50,000.00');
+            const defaultBp = isSwing ? '₹0.00' : (isAH ? '₹5,00,00,000.00' : '₹2,50,000.00');
+
+            const elEq = document.getElementById('nav-total-equity');
+            if (elEq) elEq.innerText = defaultCash;
+            const elCash = document.getElementById('nav-cash-balance');
+            if (elCash) elCash.innerText = defaultCash;
+            const elBp = document.getElementById('nav-buying-power');
+            if (elBp) elBp.innerText = defaultBp;
+
+            const elPnl = document.getElementById('nav-pnl');
+            if (elPnl) {
+                elPnl.innerText = '₹0.00';
+                elPnl.className = 'stat-chip-val text-green';
+            }
+            const elDelta = document.getElementById('nav-equity-delta');
+            if (elDelta) {
+                elDelta.innerText = '+0.00% Today';
+                elDelta.className = 'stat-subdelta text-green';
+            }
+            const elPnlChip = document.getElementById('nav-pnl-chip');
+            if (elPnlChip) {
+                elPnlChip.style.background = '';
+                elPnlChip.style.borderColor = '';
+            }
+
+            // 4. Empty table and counters immediately
+            ['hero-holdings-count', 'tab-holdings-count', 'holdings-badge-count', 'holdings-badge', 'kpi-shielded-count'].forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.innerText = '0';
+            });
+
+            const botTbody = document.getElementById('bot-holdings-tbody');
+            if (botTbody) {
+                botTbody.innerHTML = `<tr><td colspan="11" class="text-center" style="padding: 2.5rem; color: var(--text-muted);"><i class="fa-solid fa-inbox" style="font-size: 2rem; margin-bottom: 0.5rem; display: block; opacity: 0.4;"></i> All positions closed. Unrealized profit cleared to ₹0.00.</td></tr>`;
+            }
+            const swingTbody = document.getElementById('holdings-tbody');
+            if (swingTbody) {
+                swingTbody.innerHTML = `<tr><td colspan="11" style="text-align: center; padding: 2.5rem; color: var(--text-muted);"><i class="fa-solid fa-inbox" style="font-size: 2rem; margin-bottom: 0.5rem; display: block; opacity: 0.4;"></i> All positions closed. Unrealized profit cleared to ₹0.00.</td></tr>`;
+            }
+            const swingPnl = document.getElementById('kpi-unrealized-pnl');
+            if (swingPnl) swingPnl.innerText = '₹0.00';
+            const swingPct = document.getElementById('kpi-unrealized-pct');
+            if (swingPct) swingPct.innerText = '+0.00%';
+
+            // 5. Call Backend Complete Reset API
+            try {
+                const res = await fetch('/api/complete-reset', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ desk: desk })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    if (typeof showToast === 'function') {
+                        showToast('✅ Complete Reset Done! All positions closed & unrealized profit wiped to ₹0.00', 'success');
+                    }
+                }
+            } catch (e) {
+                console.error('Complete reset error:', e);
+            }
+
+            // 6. Refresh views
+            if (typeof loadAccountMetrics === 'function') loadAccountMetrics();
+            if (typeof fetchSwingOverview === 'function') fetchSwingOverview();
+            if (typeof loadPortfolio === 'function') loadPortfolio();
+            if (typeof resetBotSessionReport === 'function') resetBotSessionReport(false);
+        };
+
         document.addEventListener('DOMContentLoaded', () => {
             updateKillswitchUI();
             const resetBtn = document.getElementById('reset-account-btn');
             if (resetBtn) {
-                resetBtn.addEventListener('click', async () => {
-                    const path = window.location.pathname;
-                    const isSwing = path.includes('swing');
-                    const isAH = path.includes('after-hours');
-                    const resetUrl = isSwing ? '/api/swing/reset-account' : (isAH ? '/api/after-hours/reset-account' : '/api/reset-account');
-                    const defaultCashStr = isSwing ? '₹1,00,000.00' : (isAH ? '₹1,00,00,000.00' : '₹50,000.00');
-                    const defaultBpStr = isSwing ? '₹0.00' : (isAH ? '₹5,00,00,000.00' : '₹2,50,000.00');
-                    const confirmMsg = isSwing ?
-                        'Reset TITAN Swing paper desk to ₹1,00,000 cash balance and clear open swing holdings?' :
-                        (isAH ? 'Reset NIGHTHAWK paper desk to ₹1,00,00,000 (1 Crore) cash capital?' :
-                        'Reset paper desk to ₹50,000 cash and restore fresh NIFTY 50 watchlist?');
-
-                    if (!confirm(confirmMsg)) return;
-                    try {
-                        const res = await fetch(resetUrl, { method: 'POST' });
-                        const data = await res.json();
-                        if (data.success) {
-                            document.getElementById('nav-total-equity').innerText = defaultCashStr;
-                            document.getElementById('nav-cash-balance').innerText = defaultCashStr;
-                            const bpEl = document.getElementById('nav-buying-power');
-                            if (bpEl) bpEl.innerText = defaultBpStr;
-                            document.getElementById('nav-pnl').innerText = '₹0.00';
-                            document.getElementById('nav-pnl').className = 'metric-value text-green';
-                            
-                            if (isSwing) {
-                                try { localStorage.removeItem('titan_swing_positions_cache'); } catch (e) {}
-                                if (typeof fetchSwingOverview === 'function') fetchSwingOverview();
-                            }
-                            if (typeof loadPortfolio === 'function') loadPortfolio();
-                            if (typeof loadBotHoldings === 'function') loadBotHoldings();
-                            if (typeof loadClosedTradesReport === 'function') loadClosedTradesReport();
-                            if (typeof fetchBotStatus === 'function') fetchBotStatus();
-                            if (typeof loadWatchlist === 'function') loadWatchlist();
-                            
-                            if (typeof showToast === 'function') {
-                                const msg = isSwing ? 'TITAN desk reset to ₹1,00,000 cash balance!' : (isAH ? 'NIGHTHAWK desk reset to ₹1 Crore cash capital!' : 'Desk reset to ₹50,000 cash capital!');
-                                showToast(msg, 'success');
-                            }
-                        }
-                    } catch (e) {
-                        alert('Reset failed: ' + e);
-                    }
-                });
+                resetBtn.addEventListener('click', () => window.triggerCompleteReset());
             }
         });
     </script>
