@@ -606,6 +606,7 @@
                                         <th>P&L (₹)</th>
                                         <th>P&L (%)</th>
                                         <th style="color: #00f090;"><i class="fa-solid fa-lock"></i> PROFIT LOCKED</th>
+                                        <th style="color: #38bdf8;"><i class="fa-solid fa-robot"></i> BOT ACTION</th>
                                         <th>STOP-LOSS</th>
                                         <th style="color: #ff6b6b;"><i class="fa-solid fa-shield-halved"></i> MAX LOSS (₹)</th>
                                         <th>TARGET</th>
@@ -614,7 +615,7 @@
                                 </thead>
                                 <tbody id="bot-holdings-tbody">
                                     <tr>
-                                        <td colspan="12" class="text-center" style="padding: 1.5rem; color: var(--text-muted);">No open positions held.</td>
+                                        <td colspan="13" class="text-center" style="padding: 1.5rem; color: var(--text-muted);">No open positions held.</td>
                                     </tr>
                                 </tbody>
                             </table>
@@ -2818,17 +2819,36 @@
             // Immediately merge any automated SL/TP closed trades from this scan sweep to prevent vanishing
             const sweepClosed = (data.result && Array.isArray(data.result.closed_trades)) ? data.result.closed_trades : [];
             if (sweepClosed.length > 0) {
-                // 1. Immediately remove closed symbols from stored active positions
-                const closedSymbols = new Set(sweepClosed.map(t => t.symbol));
+                // 1. Immediately remove closed symbols from stored active positions (match with and without .NS)
+                const closedSymbols = new Set();
+                sweepClosed.forEach(t => {
+                    if (t && t.symbol) {
+                        const clean = t.symbol.replace('.NS', '').trim().toUpperCase();
+                        closedSymbols.add(t.symbol.toUpperCase());
+                        closedSymbols.add(clean);
+                        closedSymbols.add(`${clean}.NS`);
+                    }
+                });
                 let currentActive = (typeof getStoredActivePositions === 'function') ? getStoredActivePositions() : [];
-                currentActive = currentActive.filter(p => !closedSymbols.has(p.symbol));
+                currentActive = currentActive.filter(p => {
+                    if (!p || !p.symbol) return false;
+                    const clean = p.symbol.replace('.NS', '').trim().toUpperCase();
+                    return !closedSymbols.has(p.symbol.toUpperCase()) && !closedSymbols.has(clean) && !closedSymbols.has(`${clean}.NS`);
+                });
                 saveStoredActivePositions(currentActive);
                 window.cachedActivePositions = currentActive;
 
                 // 2. Remove from pos entry lock
                 try {
                     let cache = JSON.parse(localStorage.getItem(POS_ENTRY_LOCK_KEY) || '{}');
-                    sweepClosed.forEach(t => delete cache[t.symbol]);
+                    sweepClosed.forEach(t => {
+                        if (t && t.symbol) {
+                            const clean = t.symbol.replace('.NS', '').trim().toUpperCase();
+                            delete cache[t.symbol];
+                            delete cache[clean];
+                            delete cache[`${clean}.NS`];
+                        }
+                    });
                     localStorage.setItem(POS_ENTRY_LOCK_KEY, JSON.stringify(cache));
                 } catch(e){}
 
@@ -3054,11 +3074,23 @@
         let serverPositions = (data && Array.isArray(data.positions)) ? data.positions : [];
         let storedPositions = (typeof getStoredActivePositions === 'function') ? getStoredActivePositions() : [];
         const closedTrades = (typeof getStoredClosedTrades === 'function') ? getStoredClosedTrades() : [];
-        const recentlyClosedSymbols = new Set(closedTrades.slice(0, 50).map(t => t.symbol));
+        const recentlyClosedSymbols = new Set();
+        (closedTrades.slice(0, 50) || []).forEach(t => {
+            if (t && t.symbol) {
+                const clean = t.symbol.replace('.NS', '').trim().toUpperCase();
+                recentlyClosedSymbols.add(t.symbol.toUpperCase());
+                recentlyClosedSymbols.add(clean);
+                recentlyClosedSymbols.add(`${clean}.NS`);
+            }
+        });
 
         // Always remove positions from storedPositions that have already been closed
         if (recentlyClosedSymbols.size > 0 && storedPositions.length > 0) {
-            storedPositions = storedPositions.filter(p => !recentlyClosedSymbols.has(p.symbol));
+            storedPositions = storedPositions.filter(p => {
+                if (!p || !p.symbol) return false;
+                const clean = p.symbol.replace('.NS', '').trim().toUpperCase();
+                return !recentlyClosedSymbols.has(p.symbol.toUpperCase()) && !recentlyClosedSymbols.has(clean) && !recentlyClosedSymbols.has(`${clean}.NS`);
+            });
             saveStoredActivePositions(storedPositions);
         }
 
@@ -3227,13 +3259,13 @@
         }
 
         if (totalCount === 0) {
-            tbody.innerHTML = '<tr><td colspan="12" class="text-center" style="padding: 1.5rem; color: var(--text-muted);">No open positions held. Bot will execute buys when signals trigger.</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="13" class="text-center" style="padding: 1.5rem; color: var(--text-muted);">No open positions held. Bot will execute buys when signals trigger.</td></tr>';
             renderHoldingsHeatmap();
             return;
         }
 
         if (filtered.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="12" class="text-center" style="padding: 1.5rem; color: var(--text-muted);"><i class="fa-solid fa-filter" style="margin-right: 6px;"></i> No holdings match filter "${window.activeHoldingsFilter}"${query ? ` and query "${query}"` : ''}. <button class="btn-sm btn-outline" onclick="resetHoldingsFilter()" style="margin-left: 8px; font-size: 0.72rem;">Clear Filter</button></td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="13" class="text-center" style="padding: 1.5rem; color: var(--text-muted);"><i class="fa-solid fa-filter" style="margin-right: 6px;"></i> No holdings match filter "${window.activeHoldingsFilter}"${query ? ` and query "${query}"` : ''}. <button class="btn-sm btn-outline" onclick="resetHoldingsFilter()" style="margin-left: 8px; font-size: 0.72rem;">Clear Filter</button></td></tr>`;
             renderHoldingsHeatmap();
             return;
         }
@@ -3308,6 +3340,34 @@
                 </span>`;
             }
 
+            // Compute Live Bot Action for this holding
+            let botActionHtml = '<span style="color: var(--text-muted); font-size: 0.74rem;">--</span>';
+            const cleanSym = p.symbol.replace('.NS', '').toUpperCase();
+            const scanItem = (allScannerData || []).find(s => 
+                (s.symbol && (s.symbol === p.symbol || s.symbol.replace('.NS', '') === cleanSym)) ||
+                (s.displayName && s.displayName.toUpperCase() === cleanSym)
+            );
+            
+            if (scanItem && scanItem.action_executed) {
+                if (scanItem.action_executed.includes('PROFIT_LOCKED')) {
+                    botActionHtml = '<span style="color: var(--green); font-weight: 700; font-size: 0.74rem;"><i class="fa-solid fa-check"></i> PROFIT_LOCKED</span>';
+                } else if (scanItem.action_executed.includes('STOP_EXIT') || scanItem.action_executed.includes('LIQUIDATED')) {
+                    botActionHtml = '<span style="color: #f87171; font-weight: 700; font-size: 0.74rem;"><i class="fa-solid fa-skull-crossbones"></i> STOP_EXIT</span>';
+                } else {
+                    botActionHtml = `<span style="color: var(--green); font-weight: 700; font-size: 0.74rem;"><i class="fa-solid fa-check"></i> ${scanItem.action_executed}</span>`;
+                }
+            } else if (isLocked && lockedAmt > 0) {
+                botActionHtml = '<span style="color: var(--green); font-weight: 700; font-size: 0.74rem;"><i class="fa-solid fa-lock"></i> PROFIT_LOCKED</span>';
+            } else if (p.trailing_active || isLocked) {
+                botActionHtml = '<span style="color: #38bdf8; font-weight: 600; font-size: 0.74rem;"><i class="fa-solid fa-shield-halved"></i> Breakeven Shield</span>';
+            } else if (scanItem && scanItem.signal === 'TAKE_PROFIT') {
+                botActionHtml = '<span style="color: #c084fc; font-weight: 700; font-size: 0.74rem;"><i class="fa-solid fa-bullseye"></i> Target Hit</span>';
+            } else if ((p.unrealized_pnl || 0) > 0) {
+                botActionHtml = '<span style="color: #34d399; font-size: 0.72rem; font-weight: 600;"><i class="fa-solid fa-arrow-trend-up"></i> Trailing Gain</span>';
+            } else {
+                botActionHtml = '<span style="color: var(--text-muted); font-size: 0.72rem;"><i class="fa-solid fa-shield-halved" style="opacity: 0.6;"></i> Active Guard</span>';
+            }
+
             tr.innerHTML = `
                 <td>
                     <strong>${p.symbol.replace('.NS', '')}</strong> 
@@ -3325,6 +3385,7 @@
                     <span style="font-size:0.68rem; color:var(--text-muted); display:block; font-weight: 500;">(${pnlSign}${(p.unrealized_pnl_pct || 0).toFixed(1)}% ROI 5x)</span>
                 </td>
                 <td>${lockedHtml}</td>
+                <td>${botActionHtml}</td>
                 <td style="color: var(--red); font-weight: 700;">${slDisplay}</td>
                 <td style="color: #ff6b6b; font-weight: 700;">-₹${maxLoss.toFixed(2)} <span style="font-size:0.68rem; color:var(--text-muted); display:block;">(${maxLossPct.toFixed(2)}% SL)</span></td>
                 <td style="color: var(--green); font-weight: 700;">${tpDisplay}</td>
@@ -3988,12 +4049,19 @@
             if (data.success) {
                 try {
                     let cache = JSON.parse(localStorage.getItem(POS_ENTRY_LOCK_KEY) || '{}');
+                    const cleanExitSym = symbol.replace('.NS', '').trim().toUpperCase();
                     delete cache[symbol];
+                    delete cache[cleanExitSym];
+                    delete cache[`${cleanExitSym}.NS`];
                     localStorage.setItem(POS_ENTRY_LOCK_KEY, JSON.stringify(cache));
                 } catch(e){}
                 
                 // Immediately update local active holdings
-                const remaining = getStoredActivePositions().filter(p => p.symbol !== symbol);
+                const cleanExitSym = symbol.replace('.NS', '').trim().toUpperCase();
+                const remaining = getStoredActivePositions().filter(p => {
+                    const s = (p.symbol || '').replace('.NS', '').trim().toUpperCase();
+                    return s !== cleanExitSym;
+                });
                 saveStoredActivePositions(remaining);
                 window.cachedActivePositions = remaining;
 

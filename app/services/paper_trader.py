@@ -227,7 +227,13 @@ class PaperTradingEngine:
         if not account:
             return {"success": False, "message": "Account not initialized"}
 
-        position = Position.query.filter_by(symbol=symbol).first()
+        clean_sym = symbol.replace('.NS', '').strip().upper()
+        ns_sym = f"{clean_sym}.NS"
+        position = Position.query.filter(
+            (Position.symbol == symbol) |
+            (Position.symbol == clean_sym) |
+            (Position.symbol == ns_sym)
+        ).first()
         pos_side = (getattr(position, 'side', 'LONG') or 'LONG') if position else None
 
         # -------------------------------------------------------------
@@ -659,7 +665,13 @@ class AfterHoursPaperTradingEngine:
         if not account:
             return {"success": False, "message": "After-hours account not initialized"}
 
-        position = AfterHoursPosition.query.filter_by(symbol=symbol).first()
+        clean_sym = symbol.replace('.NS', '').strip().upper()
+        ns_sym = f"{clean_sym}.NS"
+        position = AfterHoursPosition.query.filter(
+            (AfterHoursPosition.symbol == symbol) |
+            (AfterHoursPosition.symbol == clean_sym) |
+            (AfterHoursPosition.symbol == ns_sym)
+        ).first()
         pos_side = (getattr(position, 'side', 'LONG') or 'LONG') if position else None
 
         # 1. SHORT EXIT: COVER
