@@ -234,7 +234,7 @@ class AutoTradingBot:
                 "session_start_time": self.session_start_time,
                 "session_stop_time": self.session_stop_time,
                 "session_status": self.session_status,
-                "session_trades": self.session_trades[:200],
+                "session_trades": self.session_trades[:100],
                 "session_metrics": self.session_metrics,
                 "past_sessions": self.past_sessions[:5]
             }
@@ -299,6 +299,8 @@ class AutoTradingBot:
                 trade_data["id"] = f"tr_{int(time.time()*1000)}_{len(self.session_trades)+1}"
 
             self.session_trades.insert(0, trade_data)
+            if len(self.session_trades) > 100:
+                self.session_trades = self.session_trades[:100]
 
             sm = self.session_metrics
             sm["total_trades"] = len(self.session_trades)

@@ -429,7 +429,7 @@
                                 <i class="fa-solid fa-briefcase" style="color: var(--blue);"></i> Active Holdings (<span id="holdings-badge-count">0</span>)
                             </button>
                             <button id="tab-btn-closed-trades" class="ledger-tab-btn" onclick="switchLedgerTab('closed')">
-                                <i class="fa-solid fa-receipt" style="color: #ffd166;"></i> All Closed Trades (<span id="closed-trades-badge-count">0</span>)
+                                <i class="fa-solid fa-receipt" style="color: #ffd166;"></i> Closed Trades (Last 100) (<span id="closed-trades-badge-count">0</span>)
                             </button>
                         </div>
                         <div style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
@@ -2867,7 +2867,7 @@
                         botSession.trades.push(t);
                     }
                 });
-                const mergedClosed = Array.from(tradeMap.values()).sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+                const mergedClosed = Array.from(tradeMap.values()).sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp)).slice(0, 100);
                 saveStoredClosedTrades(mergedClosed);
                 cachedClosedTrades = mergedClosed;
                 recalcSessionMetrics();
@@ -3508,6 +3508,9 @@
 
     function saveBotSession() {
         try {
+            if (botSession && Array.isArray(botSession.trades) && botSession.trades.length > 100) {
+                botSession.trades = botSession.trades.slice(0, 100);
+            }
             localStorage.setItem(BOT_SESSION_STORAGE_KEY, JSON.stringify(botSession));
         } catch (e) {}
     }
@@ -3864,7 +3867,8 @@
 
     function saveStoredClosedTrades(trades) {
         try {
-            localStorage.setItem(AH_CLOSED_TRADES_KEY, JSON.stringify(trades));
+            const capped = (Array.isArray(trades) ? trades : []).slice(0, 100);
+            localStorage.setItem(AH_CLOSED_TRADES_KEY, JSON.stringify(capped));
         } catch (e) {}
     }
 
@@ -3880,7 +3884,7 @@
         localTrades.forEach(t => tradeMap.set(getKey(t), t));
         serverTrades.forEach(t => tradeMap.set(getKey(t), t));
 
-        const mergedTrades = Array.from(tradeMap.values()).sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+        const mergedTrades = Array.from(tradeMap.values()).sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp)).slice(0, 100);
         saveStoredClosedTrades(mergedTrades);
         cachedClosedTrades = mergedTrades;
 
@@ -4091,7 +4095,7 @@
                 const getKey = t => (t.id ? `id_${t.id}` : `${t.symbol}_${t.side}_${t.quantity}_${t.entry_price || 0}_${t.exit_price || t.price || 0}_${(t.timestamp || '').slice(0, 16)}`);
                 currentClosed.forEach(t => tradeMap.set(getKey(t), t));
                 tradeMap.set(getKey(closedRecord), closedRecord);
-                const mergedClosed = Array.from(tradeMap.values()).sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+                const mergedClosed = Array.from(tradeMap.values()).sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp)).slice(0, 100);
                 saveStoredClosedTrades(mergedClosed);
                 cachedClosedTrades = mergedClosed;
 
@@ -4157,7 +4161,7 @@
                             botSession.trades.push(t);
                         }
                     });
-                    const mergedClosed = Array.from(tradeMap.values()).sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+                    const mergedClosed = Array.from(tradeMap.values()).sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp)).slice(0, 100);
                     saveStoredClosedTrades(mergedClosed);
                     cachedClosedTrades = mergedClosed;
                     recalcSessionMetrics();

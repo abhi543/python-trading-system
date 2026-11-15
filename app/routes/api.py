@@ -246,6 +246,8 @@ def sync_closed_trades_from_client(client_closed_trades):
                 )
                 db.session.add(trade)
             db.session.commit()
+            from app.services.paper_trader import prune_old_trades
+            prune_old_trades(TradeHistory, 100)
     except Exception:
         pass
 
@@ -276,6 +278,8 @@ def sync_after_hours_closed_trades_from_client(client_closed_trades):
                 )
                 db.session.add(trade)
             db.session.commit()
+            from app.services.paper_trader import prune_old_trades
+            prune_old_trades(AfterHoursTradeHistory, 100)
     except Exception:
         pass
 
@@ -429,6 +433,7 @@ def get_trades():
     return jsonify(res)
 
 def _build_closed_trades_summary(trades):
+    trades = (trades or [])[:100]
     closed = []
     total_pnl = 0.0
     total_charges = 0.0
@@ -489,7 +494,9 @@ def _build_closed_trades_summary(trades):
 
 @api_bp.route('/trades/closed', methods=['GET'])
 def get_closed_trades():
-    trades = TradeHistory.query.filter(TradeHistory.side.in_(["SELL", "COVER"])).order_by(TradeHistory.timestamp.desc()).all()
+    from app.services.paper_trader import prune_old_trades
+    prune_old_trades(TradeHistory, 100)
+    trades = TradeHistory.query.filter(TradeHistory.side.in_(["SELL", "COVER"])).order_by(TradeHistory.timestamp.desc()).limit(100).all()
     return jsonify(_build_closed_trades_summary(trades))
 
 @api_bp.route('/watchlist', methods=['GET'])
@@ -818,7 +825,9 @@ def get_bot_overview():
 
     status_data = bot_instance.get_status()
     portfolio_data = PaperTradingEngine.get_portfolio_summary()
-    trades = TradeHistory.query.filter(TradeHistory.side.in_(["SELL", "COVER"])).order_by(TradeHistory.timestamp.desc()).all()
+    from app.services.paper_trader import prune_old_trades
+    prune_old_trades(TradeHistory, 100)
+    trades = TradeHistory.query.filter(TradeHistory.side.in_(["SELL", "COVER"])).order_by(TradeHistory.timestamp.desc()).limit(100).all()
     closed_data = _build_closed_trades_summary(trades)
 
     return jsonify({
@@ -1016,7 +1025,9 @@ def get_after_hours_overview():
 
     status_data = after_hours_bot_instance.get_status()
     portfolio_data = AfterHoursPaperTradingEngine.get_portfolio_summary()
-    trades = AfterHoursTradeHistory.query.filter(AfterHoursTradeHistory.side.in_(["SELL", "COVER"])).order_by(AfterHoursTradeHistory.timestamp.desc()).all()
+    from app.services.paper_trader import prune_old_trades
+    prune_old_trades(AfterHoursTradeHistory, 100)
+    trades = AfterHoursTradeHistory.query.filter(AfterHoursTradeHistory.side.in_(["SELL", "COVER"])).order_by(AfterHoursTradeHistory.timestamp.desc()).limit(100).all()
     closed_data = _build_after_hours_closed_trades_summary(trades)
 
     return jsonify({
@@ -1305,6 +1316,7 @@ def reset_and_restart_after_hours_bot():
     })
 
 def _build_after_hours_closed_trades_summary(trades):
+    trades = (trades or [])[:100]
     closed = []
     total_pnl = 0.0
     total_charges = 0.0
@@ -1361,7 +1373,9 @@ def _build_after_hours_closed_trades_summary(trades):
 @api_bp.route('/after-hours/closed-trades', methods=['GET'])
 @api_bp.route('/after-hours/trades/closed', methods=['GET'])
 def get_after_hours_closed_trades():
-    trades = AfterHoursTradeHistory.query.filter(AfterHoursTradeHistory.side.in_(["SELL", "COVER"])).order_by(AfterHoursTradeHistory.timestamp.desc()).all()
+    from app.services.paper_trader import prune_old_trades
+    prune_old_trades(AfterHoursTradeHistory, 100)
+    trades = AfterHoursTradeHistory.query.filter(AfterHoursTradeHistory.side.in_(["SELL", "COVER"])).order_by(AfterHoursTradeHistory.timestamp.desc()).limit(100).all()
     return jsonify(_build_after_hours_closed_trades_summary(trades))
 
 @api_bp.route('/after-hours/reset', methods=['POST'])

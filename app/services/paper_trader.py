@@ -6,6 +6,22 @@ from app.models.trading import (
 )
 from app.services.market_data import MarketDataService
 
+def prune_old_trades(trade_model, max_trades=100):
+    """Retains only the latest max_trades records and deletes older ones."""
+    try:
+        from app import db
+        total = trade_model.query.count()
+        if total > max_trades:
+            keep_ids = [r[0] for r in db.session.query(trade_model.id).order_by(trade_model.timestamp.desc(), trade_model.id.desc()).limit(max_trades).all()]
+            if keep_ids:
+                db.session.query(trade_model).filter(~trade_model.id.in_(keep_ids)).delete(synchronize_session=False)
+                db.session.commit()
+    except Exception:
+        try:
+            db.session.rollback()
+        except Exception:
+            pass
+
 class PaperTradingEngine:
     LEVERAGE = 5.0  # NSE Intraday MIS Leverage: 5x (20% margin requirement)
 
@@ -276,6 +292,7 @@ class PaperTradingEngine:
             )
             db.session.add(trade)
             db.session.commit()
+            prune_old_trades(TradeHistory, 100)
             return {
                 "success": True,
                 "action": "COVER",
@@ -327,6 +344,7 @@ class PaperTradingEngine:
             )
             db.session.add(trade)
             db.session.commit()
+            prune_old_trades(TradeHistory, 100)
             return {
                 "success": True,
                 "action": "SELL",
@@ -406,6 +424,7 @@ class PaperTradingEngine:
             )
             db.session.add(trade)
             db.session.commit()
+            prune_old_trades(TradeHistory, 100)
             return {
                 "success": True,
                 "action": "BUY",
@@ -485,6 +504,7 @@ class PaperTradingEngine:
             )
             db.session.add(trade)
             db.session.commit()
+            prune_old_trades(TradeHistory, 100)
             return {
                 "success": True,
                 "action": "SHORT",
@@ -698,6 +718,7 @@ class AfterHoursPaperTradingEngine:
             )
             db.session.add(trade)
             db.session.commit()
+            prune_old_trades(AfterHoursTradeHistory, 100)
             return {
                 "success": True, "action": "COVER", "price": price, "entry_price": position.average_price if position else price,
                 "realized_pnl": net_realized_pnl, "roi_pct": round((net_realized_pnl / margin_originally_blocked) * 100, 2) if margin_originally_blocked > 0 else 0.0,
@@ -728,6 +749,7 @@ class AfterHoursPaperTradingEngine:
             )
             db.session.add(trade)
             db.session.commit()
+            prune_old_trades(AfterHoursTradeHistory, 100)
             return {
                 "success": True, "action": "SELL", "price": price, "entry_price": position.average_price if position else price,
                 "realized_pnl": net_realized_pnl, "roi_pct": round((net_realized_pnl / margin_originally_blocked) * 100, 2) if margin_originally_blocked > 0 else 0.0,
@@ -765,6 +787,7 @@ class AfterHoursPaperTradingEngine:
             )
             db.session.add(trade)
             db.session.commit()
+            prune_old_trades(AfterHoursTradeHistory, 100)
             return {
                 "success": True, "action": "BUY", "price": price, "entry_price": price, "realized_pnl": 0.0,
                 "message": f"Bought {quantity} {symbol} @ ₹{price:.2f} [5x Leverage | Margin: ₹{margin_required:,.2f}]",
@@ -801,6 +824,7 @@ class AfterHoursPaperTradingEngine:
             )
             db.session.add(trade)
             db.session.commit()
+            prune_old_trades(AfterHoursTradeHistory, 100)
             return {
                 "success": True, "action": "SHORT", "price": price, "entry_price": price, "realized_pnl": 0.0,
                 "message": f"Shorted {quantity} {symbol} @ ₹{price:.2f} [5x Leverage | Margin: ₹{margin_required:,.2f}]",
