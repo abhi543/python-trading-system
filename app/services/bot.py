@@ -140,13 +140,9 @@ class AutoTradingBot:
         self.ai_signals_metadata = persisted.get("ai_signals_metadata", {})
         if not self.ai_signals:
             try:
-                base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
-                ai_json_path = os.path.join(base_dir, 'data', 'latest_ai_signals.json')
-                if os.path.exists(ai_json_path):
-                    with open(ai_json_path, 'r', encoding='utf-8') as f:
-                        cached_ai = json.load(f)
-                        self.ai_signals = cached_ai.get('signals', {})
-                        self.ai_signals_metadata = cached_ai.get('metadata', {})
+                from app.data.default_ai_signals import DEFAULT_AI_PAYLOAD
+                self.ai_signals = DEFAULT_AI_PAYLOAD.get('signals', {})
+                self.ai_signals_metadata = DEFAULT_AI_PAYLOAD.get('metadata', {})
             except Exception:
                 pass
         self.use_ai_filter = persisted.get("use_ai_filter", True)
@@ -273,14 +269,10 @@ class AutoTradingBot:
         signals = getattr(self, "ai_signals", {})
         if not signals:
             try:
-                base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
-                ai_json_path = os.path.join(base_dir, 'data', 'latest_ai_signals.json')
-                if os.path.exists(ai_json_path):
-                    with open(ai_json_path, 'r', encoding='utf-8') as f:
-                        cached_ai = json.load(f)
-                        self.ai_signals = cached_ai.get('signals', {})
-                        self.ai_signals_metadata = cached_ai.get('metadata', {})
-                        signals = self.ai_signals
+                from app.data.default_ai_signals import DEFAULT_AI_PAYLOAD
+                self.ai_signals = DEFAULT_AI_PAYLOAD.get('signals', {})
+                self.ai_signals_metadata = DEFAULT_AI_PAYLOAD.get('metadata', {})
+                signals = self.ai_signals
             except Exception:
                 pass
         bullish = sum(1 for s in signals.values() if "BULLISH" in str(s.get("bias", "")).upper())
