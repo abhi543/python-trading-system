@@ -522,6 +522,7 @@
                                         <th>CURRENT</th>
                                         <th>P&L (₹)</th>
                                         <th>P&L (%)</th>
+                                        <th style="color: #00f090;"><i class="fa-solid fa-lock"></i> PROFIT LOCKED</th>
                                         <th>STOP-LOSS</th>
                                         <th style="color: #ff6b6b;"><i class="fa-solid fa-shield-halved"></i> MAX LOSS (₹)</th>
                                         <th>TARGET</th>
@@ -530,7 +531,7 @@
                                 </thead>
                                 <tbody id="bot-holdings-tbody">
                                     <tr>
-                                        <td colspan="11" class="text-center" style="padding: 1.5rem; color: var(--text-muted);">No open positions held.</td>
+                                        <td colspan="12" class="text-center" style="padding: 1.5rem; color: var(--text-muted);">No open positions held.</td>
                                     </tr>
                                 </tbody>
                             </table>
@@ -1656,6 +1657,19 @@
             const maxLoss = Math.abs(p.average_price - sl) * p.quantity;
             const notional = (p.quantity || 0) * (p.current_price || p.average_price || 0);
 
+            let lockedText = '--';
+            if (isShort) {
+                if (sl > 0 && sl <= p.average_price) {
+                    const lk = (p.average_price - sl) * p.quantity;
+                    lockedText = lk > 0 ? `+₹${lk.toFixed(1)} 🔒` : '₹0 (Breakeven)';
+                }
+            } else {
+                if (sl >= p.average_price) {
+                    const lk = (sl - p.average_price) * p.quantity;
+                    lockedText = lk > 0 ? `+₹${lk.toFixed(1)} 🔒` : '₹0 (Breakeven)';
+                }
+            }
+
             const card = document.createElement('div');
             card.className = 'heatmap-tile';
             card.style.background = tileBg;
@@ -1683,6 +1697,7 @@
                         <div>Value: <strong style="color: #cbd5e1;">₹${notional.toFixed(0)}</strong></div>
                         <div>Avg: <strong style="color: #e2e8f0;">₹${(p.average_price||0).toFixed(1)}</strong></div>
                         <div>LTP: <strong style="color: #38bdf8;">₹${(p.current_price||0).toFixed(1)}</strong></div>
+                        <div>Locked: <strong style="color: #00f090;">${lockedText}</strong></div>
                         <div>Strict SL: <strong style="color: #f87171;">₹${sl.toFixed(1)}</strong></div>
                         <div>Max Loss: <strong style="color: #ff6b6b;">-₹${maxLoss.toFixed(1)}</strong></div>
                         <div>Target: <strong style="color: #00f090;">₹${tp.toFixed(1)}</strong></div>
@@ -3091,13 +3106,13 @@
         }
 
         if (totalCount === 0) {
-            tbody.innerHTML = '<tr><td colspan="11" class="text-center" style="padding: 1.5rem; color: var(--text-muted);">No open positions held. Bot will execute buys when signals trigger.</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="12" class="text-center" style="padding: 1.5rem; color: var(--text-muted);">No open positions held. Bot will execute buys when signals trigger.</td></tr>';
             renderHoldingsHeatmap();
             return;
         }
 
         if (filtered.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="11" class="text-center" style="padding: 1.5rem; color: var(--text-muted);"><i class="fa-solid fa-filter" style="margin-right: 6px;"></i> No holdings match filter "${window.activeHoldingsFilter}"${query ? ` and query "${query}"` : ''}. <button class="btn-sm btn-outline" onclick="resetHoldingsFilter()" style="margin-left: 8px; font-size: 0.72rem;">Clear Filter</button></td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="12" class="text-center" style="padding: 1.5rem; color: var(--text-muted);"><i class="fa-solid fa-filter" style="margin-right: 6px;"></i> No holdings match filter "${window.activeHoldingsFilter}"${query ? ` and query "${query}"` : ''}. <button class="btn-sm btn-outline" onclick="resetHoldingsFilter()" style="margin-left: 8px; font-size: 0.72rem;">Clear Filter</button></td></tr>`;
             renderHoldingsHeatmap();
             return;
         }
@@ -3128,6 +3143,50 @@
                 tpDisplay += ` <span style="font-size: 0.68rem; color: #a78bfa;">🎯 Target</span>`;
             }
 
+            // Calculate Locked Profit
+            let lockedHtml = '<span style="color: var(--text-muted); font-size: 0.74rem;">--</span>';
+            let lockedAmt = 0;
+            let lockedPct = 0;
+            let isLocked = false;
+            
+            if (p.locked_pnl !== undefined && p.locked_pnl !== null) {
+                lockedAmt = Number(p.locked_pnl) || 0;
+                lockedPct = Number(p.locked_pct) || 0;
+                isLocked = true;
+            } else if (isShort) {
+                if (p.stop_loss && p.stop_loss > 0 && p.stop_loss <= p.average_price) {
+                    lockedAmt = (p.average_price - p.stop_loss) * p.quantity;
+                    lockedPct = p.average_price > 0 ? ((p.average_price - p.stop_loss) / p.average_price * 100) : 0;
+                    isLocked = true;
+                }
+            } else {
+                if (p.stop_loss && p.stop_loss >= p.average_price) {
+                    lockedAmt = (p.stop_loss - p.average_price) * p.quantity;
+                    lockedPct = p.average_price > 0 ? ((p.stop_loss - p.average_price) / p.average_price * 100) : 0;
+                    isLocked = true;
+                }
+            }
+            
+            if (isLocked) {
+                if (lockedAmt > 0) {
+                    lockedHtml = `<span style="background: rgba(0, 240, 144, 0.18); color: var(--green); border: 1px solid rgba(0, 240, 144, 0.4); font-weight: 700; padding: 2px 7px; border-radius: 4px; font-size: 0.74rem; display: inline-flex; align-items: center; gap: 4px; font-family: var(--font-code);">
+                        <i class="fa-solid fa-lock"></i> +₹${lockedAmt.toFixed(2)} <span style="font-size: 0.68rem; opacity: 0.85;">(+${lockedPct.toFixed(1)}%)</span>
+                    </span>`;
+                } else {
+                    lockedHtml = `<span style="background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3); font-weight: 700; padding: 2px 7px; border-radius: 4px; font-size: 0.74rem; display: inline-flex; align-items: center; gap: 4px;">
+                        <i class="fa-solid fa-shield-halved"></i> ₹0.00 (Breakeven)
+                    </span>`;
+                }
+            } else if (p.trailing_active) {
+                lockedHtml = `<span style="background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3); font-weight: 700; padding: 2px 7px; border-radius: 4px; font-size: 0.74rem; display: inline-flex; align-items: center; gap: 4px;">
+                    <i class="fa-solid fa-shield-halved"></i> Breakeven Shield
+                </span>`;
+            } else if ((p.unrealized_pnl || 0) > 0) {
+                lockedHtml = `<span style="color: var(--text-muted); font-size: 0.72rem; display: inline-flex; align-items: center; gap: 3px;">
+                    <i class="fa-solid fa-lock-open" style="opacity: 0.5;"></i> Trails @ +1.0%
+                </span>`;
+            }
+
             tr.innerHTML = `
                 <td>
                     <strong>${p.symbol.replace('.NS', '')}</strong> 
@@ -3144,6 +3203,7 @@
                     ${pnlSign}${stockMovePct.toFixed(2)}%
                     <span style="font-size:0.68rem; color:var(--text-muted); display:block; font-weight: 500;">(${pnlSign}${(p.unrealized_pnl_pct || 0).toFixed(1)}% ROI 5x)</span>
                 </td>
+                <td>${lockedHtml}</td>
                 <td style="color: var(--red); font-weight: 700;">${slDisplay}</td>
                 <td style="color: #ff6b6b; font-weight: 700;">-₹${maxLoss.toFixed(2)} <span style="font-size:0.68rem; color:var(--text-muted); display:block;">(${maxLossPct.toFixed(2)}% SL)</span></td>
                 <td style="color: var(--green); font-weight: 700;">${tpDisplay}</td>
@@ -3189,7 +3249,7 @@
             );
         }
 
-        let csv = 'Stock,Symbol,Side,Quantity,AveragePrice,CurrentPrice,MarketValue,MarginUsed,UnrealizedPnL,UnrealizedPnLPct,StopLoss,TakeProfit,BreakevenShield\n';
+        let csv = 'Stock,Symbol,Side,Quantity,AveragePrice,CurrentPrice,MarketValue,MarginUsed,UnrealizedPnL,UnrealizedPnLPct,LockedProfit,StopLoss,TakeProfit,BreakevenShield\n';
         listToExport.forEach(p => {
             const isShort = (p.side === 'SHORT');
             const costBasis = (p.quantity || 0) * (p.average_price || 0);
@@ -3200,8 +3260,14 @@
             const sl = p.stop_loss || (isShort ? p.average_price * 1.025 : p.average_price * 0.975);
             const tp = p.take_profit || (isShort ? p.average_price * 0.95 : p.average_price * 1.05);
             const shield = p.trailing_active ? 'ACTIVE' : 'OFF';
+            let lockedAmt = 0;
+            if (isShort) {
+                if (sl > 0 && sl <= p.average_price) lockedAmt = (p.average_price - sl) * p.quantity;
+            } else {
+                if (sl >= p.average_price) lockedAmt = (sl - p.average_price) * p.quantity;
+            }
 
-            csv += `"${p.symbol.replace('.NS', '')}","${p.symbol}","${p.side || 'LONG'}",${p.quantity},${(p.average_price||0).toFixed(2)},${(p.current_price||0).toFixed(2)},${marketVal.toFixed(2)},${marginUsed.toFixed(2)},${pnl.toFixed(2)},"${pnlPct.toFixed(2)}%",${sl.toFixed(2)},${tp.toFixed(2)},"${shield}"\n`;
+            csv += `"${p.symbol.replace('.NS', '')}","${p.symbol}","${p.side || 'LONG'}",${p.quantity},${(p.average_price||0).toFixed(2)},${(p.current_price||0).toFixed(2)},${marketVal.toFixed(2)},${marginUsed.toFixed(2)},${pnl.toFixed(2)},"${pnlPct.toFixed(2)}%",${lockedAmt.toFixed(2)},${sl.toFixed(2)},${tp.toFixed(2)},"${shield}"\n`;
         });
 
         const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });

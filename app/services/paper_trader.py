@@ -63,6 +63,26 @@ class PaperTradingEngine:
             total_margin_used += margin_used
             total_unrealized_pnl += unrealized_pnl
             
+            # Calculate Locked Profit from Trailing Stop / Breakeven
+            sl_val = float(getattr(pos, 'stop_loss', 0.0) or 0.0)
+            is_trailing = bool(getattr(pos, 'trailing_active', False))
+            locked_pnl = None
+            locked_pct = None
+            if side == 'SHORT':
+                if sl_val > 0 and sl_val <= pos.average_price:
+                    locked_pnl = round((pos.average_price - sl_val) * pos.quantity, 2)
+                    locked_pct = round(((pos.average_price - sl_val) / pos.average_price) * 100, 2) if pos.average_price > 0 else 0.0
+                elif is_trailing:
+                    locked_pnl = 0.0
+                    locked_pct = 0.0
+            else:
+                if sl_val >= pos.average_price:
+                    locked_pnl = round((sl_val - pos.average_price) * pos.quantity, 2)
+                    locked_pct = round(((sl_val - pos.average_price) / pos.average_price) * 100, 2) if pos.average_price > 0 else 0.0
+                elif is_trailing:
+                    locked_pnl = 0.0
+                    locked_pct = 0.0
+
             portfolio_positions.append({
                 "symbol": pos.symbol,
                 "side": side,
@@ -77,7 +97,9 @@ class PaperTradingEngine:
                 "peak_price": round(getattr(pos, 'peak_price', 0.0) or pos.average_price, 2),
                 "stop_loss": round(getattr(pos, 'stop_loss', 0.0) or 0.0, 2),
                 "take_profit": round(getattr(pos, 'take_profit', 0.0) or 0.0, 2),
-                "trailing_active": bool(getattr(pos, 'trailing_active', False))
+                "trailing_active": bool(getattr(pos, 'trailing_active', False)),
+                "locked_pnl": locked_pnl,
+                "locked_pct": locked_pct
             })
             
         total_equity = account.cash_balance + total_margin_used + total_unrealized_pnl
@@ -532,6 +554,26 @@ class AfterHoursPaperTradingEngine:
             total_margin_used += margin_used
             total_unrealized_pnl += unrealized_pnl
 
+            # Calculate Locked Profit from Trailing Stop / Breakeven
+            sl_val = float(getattr(pos, 'stop_loss', 0.0) or 0.0)
+            is_trailing = bool(getattr(pos, 'trailing_active', False))
+            locked_pnl = None
+            locked_pct = None
+            if side == 'SHORT':
+                if sl_val > 0 and sl_val <= pos.average_price:
+                    locked_pnl = round((pos.average_price - sl_val) * pos.quantity, 2)
+                    locked_pct = round(((pos.average_price - sl_val) / pos.average_price) * 100, 2) if pos.average_price > 0 else 0.0
+                elif is_trailing:
+                    locked_pnl = 0.0
+                    locked_pct = 0.0
+            else:
+                if sl_val >= pos.average_price:
+                    locked_pnl = round((sl_val - pos.average_price) * pos.quantity, 2)
+                    locked_pct = round(((sl_val - pos.average_price) / pos.average_price) * 100, 2) if pos.average_price > 0 else 0.0
+                elif is_trailing:
+                    locked_pnl = 0.0
+                    locked_pct = 0.0
+
             portfolio_positions.append({
                 "symbol": pos.symbol,
                 "side": side,
@@ -546,7 +588,9 @@ class AfterHoursPaperTradingEngine:
                 "peak_price": round(getattr(pos, 'peak_price', 0.0) or pos.average_price, 2),
                 "stop_loss": round(getattr(pos, 'stop_loss', 0.0) or 0.0, 2),
                 "take_profit": round(getattr(pos, 'take_profit', 0.0) or 0.0, 2),
-                "trailing_active": bool(getattr(pos, 'trailing_active', False))
+                "trailing_active": bool(getattr(pos, 'trailing_active', False)),
+                "locked_pnl": locked_pnl,
+                "locked_pct": locked_pct
             })
 
         total_equity = account.cash_balance + total_margin_used + total_unrealized_pnl
