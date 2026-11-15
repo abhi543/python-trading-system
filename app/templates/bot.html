@@ -123,6 +123,9 @@
                 <span class="cfg-pill pill-filter" id="ribbon-vol" style="border-color: rgba(255, 209, 102, 0.4); color: #ffd166;"><i class="fa-solid fa-fire-flame-curved" style="color: #ffd166;"></i> Vol Breakout: <strong>≥1.3x</strong></span>
                 <span class="cfg-pill pill-filter" id="ribbon-trailing"><i class="fa-solid fa-anchor" style="color: var(--blue);"></i> Trailing SL: <strong>ON</strong></span>
                 <span class="cfg-pill pill-ai" id="ribbon-ai" style="border-color: rgba(167, 139, 250, 0.4); color: #c4b5fd;"><i class="fa-solid fa-wand-magic-sparkles" style="color: #c4b5fd;"></i> Kronos AI: <strong id="ribbon-ai-text">Standby</strong></span>
+                <span class="cfg-pill pill-timer" id="ribbon-elapsed-timer" onclick="resetElapsedTimer()" style="border-color: rgba(167, 139, 250, 0.4); color: #c4b5fd; font-family: var(--font-code); cursor: pointer;" title="Session uptime timer: Click to reset">
+                    <i class="fa-solid fa-stopwatch" style="color: #a78bfa;"></i> <strong id="ribbon-elapsed-text">0m 00s passed</strong>
+                </span>
                 <button type="button" class="cfg-pill pill-strict-ai" id="ribbon-strict-ai" onclick="toggleStrictAiMode()" title="Strict AI Mode: When ON, the bot will trade ONLY stocks that have a synced Kronos AI prediction. When OFF, the bot trades all stocks.">
                     <i class="fa-solid fa-microchip"></i> Strict AI: <strong id="ribbon-strict-ai-text">OFF (Hybrid)</strong>
                 </button>
@@ -285,6 +288,9 @@
                             <span class="card-caption">Pure Kronos AI model forecasts — direct trade execution without technical radar filters</span>
                         </div>
                         <div style="display: flex; gap: 0.5rem; align-items: center;">
+                            <div id="kronos-page-timer" class="badge" onclick="resetElapsedTimer()" style="background: rgba(167, 139, 250, 0.15); color: #c4b5fd; border: 1px solid rgba(167, 139, 250, 0.35); font-family: var(--font-code); font-size: 0.76rem; font-weight: 700; padding: 4px 10px; border-radius: 6px; display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; cursor: pointer;" title="Live session elapsed timer showing minutes passed. Click to restart timer.">
+                                <i class="fa-solid fa-stopwatch" style="color: #a78bfa;"></i> <span id="kronos-elapsed-time">0m 00s passed</span>
+                            </div>
                             <button type="button" class="btn-sm btn-outline" id="btn-toggle-radar-visibility" onclick="toggleRadarVisibility()" style="border-color: rgba(167, 139, 250, 0.4); color: #c4b5fd; font-size: 0.72rem; padding: 4px 10px; border-radius: 6px; cursor: pointer;">
                                 <i class="fa-solid fa-eye-slash" id="icon-toggle-radar"></i> <span id="text-toggle-radar">Hide Desk</span>
                             </button>
@@ -4055,6 +4061,7 @@
                     pnlEl.className = 'metric-value text-green';
                 }
                 resetBotSessionReport(false);
+                if (typeof resetElapsedTimer === 'function') resetElapsedTimer();
                 showToast('Bot reset and successfully restarted fresh with ₹50,000 capital!', 'success');
                 loadAccountMetrics();
                 loadBotHoldings();
@@ -4090,6 +4097,7 @@
                 }
                 showToast('Portfolio successfully reset back to ₹50,000 cash!', 'success');
                 resetBotSessionReport(false);
+                if (typeof resetElapsedTimer === 'function') resetElapsedTimer();
                 loadAccountMetrics();
                 loadBotHoldings();
                 loadClosedTrades();
@@ -4111,5 +4119,48 @@
         container.appendChild(toast);
         setTimeout(() => toast.remove(), 4000);
     }
+
+    // Live Elapsed Session Timer (Tracks how many minutes passed)
+    const DESK_SESSION_START_KEY = 'alpha_desk_session_start_v1';
+    let sessionStartTime = parseInt(localStorage.getItem(DESK_SESSION_START_KEY), 10);
+    if (!sessionStartTime || isNaN(sessionStartTime) || (Date.now() - sessionStartTime) > 24 * 60 * 60 * 1000) {
+        sessionStartTime = Date.now();
+        localStorage.setItem(DESK_SESSION_START_KEY, sessionStartTime.toString());
+    }
+
+    function resetElapsedTimer() {
+        sessionStartTime = Date.now();
+        localStorage.setItem(DESK_SESSION_START_KEY, sessionStartTime.toString());
+        updateElapsedTimer();
+        if (typeof showToast === 'function') {
+            showToast('Session timer reset: 0m 00s passed', 'info');
+        }
+    }
+
+    function updateElapsedTimer() {
+        const diffMs = Math.max(0, Date.now() - sessionStartTime);
+        const totalSecs = Math.floor(diffMs / 1000);
+        const hours = Math.floor(totalSecs / 3600);
+        const minutes = Math.floor((totalSecs % 3600) / 60);
+        const seconds = totalSecs % 60;
+
+        let displayStr = '';
+        if (hours > 0) {
+            const minPad = minutes < 10 ? '0' + minutes : minutes;
+            displayStr = `${hours}h ${minPad}m passed`;
+        } else {
+            const secPad = seconds < 10 ? '0' + seconds : seconds;
+            displayStr = `${minutes}m ${secPad}s passed`;
+        }
+
+        const elHeader = document.getElementById('kronos-elapsed-time');
+        if (elHeader) elHeader.textContent = displayStr;
+
+        const elRibbon = document.getElementById('ribbon-elapsed-text');
+        if (elRibbon) elRibbon.textContent = displayStr;
+    }
+
+    setInterval(updateElapsedTimer, 1000);
+    updateElapsedTimer();
 </script>
 {% endblock %}
