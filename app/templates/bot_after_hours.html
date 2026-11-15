@@ -120,6 +120,7 @@
                 <span class="cfg-pill pill-tp" id="ribbon-tp"><i class="fa-solid fa-bullseye"></i> TP: <strong>Measured Move</strong></span>
                 <span class="cfg-pill pill-filter" id="ribbon-ema"><i class="fa-solid fa-filter" style="color: var(--green);"></i> 200 EMA Filter: <strong>ON</strong></span>
                 <span class="cfg-pill pill-filter" id="ribbon-trailing"><i class="fa-solid fa-anchor" style="color: var(--blue);"></i> Trailing SL: <strong>ON</strong></span>
+                <span class="cfg-pill pill-ai" id="ribbon-ai" style="border-color: rgba(167, 139, 250, 0.4); color: #c4b5fd;"><i class="fa-solid fa-wand-magic-sparkles" style="color: #c4b5fd;"></i> Kronos AI: <strong id="ribbon-ai-text">Standby</strong></span>
             </div>
 
             <div class="config-grid" id="bot-config-grid" style="display: none;">
@@ -2205,6 +2206,21 @@
         if (summary.scanner_results && summary.scanner_results.length > 0) {
             allScannerData = summary.scanner_results;
             applyRadarFilters();
+        }
+
+        const aiSummary = data.ai_signals_summary || {};
+        const ribAiText = document.getElementById('ribbon-ai-text');
+        const ribAiPill = document.getElementById('ribbon-ai');
+        if (ribAiText && ribAiPill) {
+            if (aiSummary.active && aiSummary.total_synced > 0) {
+                ribAiText.innerHTML = `<span style="color:#06d6a0;">Active</span> (${aiSummary.total_synced} Synced: ${aiSummary.bullish_count}🟢 / ${aiSummary.bearish_count}🔴)`;
+                ribAiPill.style.borderColor = 'rgba(6, 214, 160, 0.5)';
+                ribAiPill.style.color = '#06d6a0';
+            } else {
+                ribAiText.innerText = 'Standby (09:00 AM Sync)';
+                ribAiPill.style.borderColor = 'rgba(167, 139, 250, 0.4)';
+                ribAiPill.style.color = '#c4b5fd';
+            }
         }
 
         syncStrategyUIHints();

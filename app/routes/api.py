@@ -47,6 +47,44 @@ def get_top_turnover():
         "stocks": stocks
     })
 
+@api_bp.route('/bot/ai-signals', methods=['GET', 'POST', 'DELETE'])
+def manage_ai_signals():
+    from app.services.bot import bot_instance, after_hours_bot_instance
+    from app.services.swing_bot import swing_bot_instance
+    if request.method == 'POST':
+        data = request.get_json(silent=True) or {}
+        signals = data.get('signals', {})
+        meta = data.get('metadata', {})
+        res_alpha = bot_instance.update_ai_signals(signals, metadata=meta)
+        res_night = after_hours_bot_instance.update_ai_signals(signals, metadata=meta)
+        res_titan = swing_bot_instance.update_ai_signals(signals, metadata=meta)
+        return jsonify({
+            "success": True,
+            "count": len(signals),
+            "summary": res_alpha,
+            "bots": {
+                "ALPHA": res_alpha,
+                "NIGHTHAWK": res_night,
+                "TITAN": res_titan
+            }
+        })
+    elif request.method == 'DELETE':
+        bot_instance.update_ai_signals({}, metadata={})
+        after_hours_bot_instance.update_ai_signals({}, metadata={})
+        swing_bot_instance.update_ai_signals({}, metadata={})
+        return jsonify({"success": True, "message": "Cleared AI signals across ALPHA, NIGHTHAWK, and TITAN"})
+    else:
+        alpha_sum = bot_instance.get_ai_signals_summary()
+        night_sum = after_hours_bot_instance.get_ai_signals_summary()
+        titan_sum = swing_bot_instance.get_ai_signals_summary()
+        result = dict(alpha_sum)
+        result["bots"] = {
+            "ALPHA": dict(alpha_sum),
+            "NIGHTHAWK": night_sum,
+            "TITAN": titan_sum
+        }
+        return jsonify(result)
+
 def sync_positions_from_client(client_positions, explicit_clear=False):
     if client_positions is None or not isinstance(client_positions, list):
         return

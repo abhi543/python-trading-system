@@ -42,6 +42,9 @@
                     <span class="bot-badge-outline" id="bot-session-badge" style="color: #00f090; border-color: rgba(0, 240, 144, 0.4);">
                         <i class="fa-solid fa-shield-halved"></i> BREAKEVEN SHIELD @ +4%
                     </span>
+                    <span class="bot-badge-outline" id="bot-ai-badge" style="color: #c4b5fd; border-color: rgba(168, 85, 247, 0.4);">
+                        <i class="fa-solid fa-wand-magic-sparkles" style="color: #c4b5fd;"></i> KRONOS AI: <strong id="bot-ai-text">Standby (09:00 AM Sync)</strong>
+                    </span>
                 </div>
                 <h1 class="bot-title" style="color: #fff;">
                     <i class="fa-solid fa-bolt" style="color: #c084fc;"></i> BOT TITAN — Unified Multi-Strategy Swing Desk
@@ -569,6 +572,7 @@ async function fetchSwingOverview() {
             swingState.maxPositions = data.status.max_positions || swingState.maxPositions;
             swingState.universe = data.status.scan_mode || swingState.universe;
             swingState.logs = data.status.logs || [];
+            swingState.aiSignalsSummary = data.status.ai_signals_summary || {};
             if (data.status.last_scan_summary && data.status.last_scan_summary.scanner_results) {
                 swingState.scannerResults = data.status.last_scan_summary.scanner_results;
             }
@@ -710,6 +714,22 @@ function renderUI() {
     const shieldEl = document.getElementById('kpi-shielded-count');
     if (shieldEl) shieldEl.textContent = `${shielded} / ${positions.length}`;
 
+    // Kronos AI Badge
+    const aiBadge = document.getElementById('bot-ai-badge');
+    const aiText = document.getElementById('bot-ai-text');
+    if (aiBadge && aiText) {
+        const ai = swingState.aiSignalsSummary || {};
+        if (ai.active && ai.total_synced > 0) {
+            aiText.innerHTML = `<span style="color:#00f090;">Active</span> (${ai.total_synced} Synced: ${ai.bullish_count}🟢 / ${ai.bearish_count}🔴)`;
+            aiBadge.style.borderColor = 'rgba(0, 240, 144, 0.5)';
+            aiBadge.style.color = '#00f090';
+        } else {
+            aiText.innerText = 'Standby (09:00 AM Sync)';
+            aiBadge.style.borderColor = 'rgba(168, 85, 247, 0.4)';
+            aiBadge.style.color = '#c4b5fd';
+        }
+    }
+
     // 4. Holdings Table
     renderHoldingsTable(positions);
 
@@ -832,11 +852,19 @@ function renderScannerTable(results) {
         const sl = r.stop_loss || 0.0;
         const tp = r.target_price || 0.0;
         const rr = r.risk_reward_ratio || 0.0;
+        const aiForecast = r.ai_forecast;
+        const aiBadgeHtml = aiForecast ? `
+            <span class="badge" style="background: ${aiForecast.bias.includes('BULLISH') ? 'rgba(0,240,144,0.15)' : 'rgba(248,113,113,0.15)'}; color: ${aiForecast.bias.includes('BULLISH') ? '#00f090' : '#f87171'}; border: 1px solid ${aiForecast.bias.includes('BULLISH') ? 'rgba(0,240,144,0.4)' : 'rgba(248,113,113,0.4)'}; font-size: 0.68rem; margin-left: 6px; padding: 2px 6px;">
+                <i class="fa-solid fa-wand-magic-sparkles"></i> AI: ${aiForecast.bias} (${aiForecast.projected_move_pct > 0 ? '+' : ''}${aiForecast.projected_move_pct.toFixed(1)}%)
+            </span>` : '';
 
         return `
             <tr style="${isBuy ? 'background: rgba(0, 240, 144, 0.03);' : ''}">
                 <td>
-                    <strong style="color: #fff; font-size: 0.95rem; font-family: var(--font-code);">${cleanSym}</strong>
+                    <div style="display: flex; align-items: center; flex-wrap: wrap; gap: 4px;">
+                        <strong style="color: #fff; font-size: 0.95rem; font-family: var(--font-code);">${cleanSym}</strong>
+                        ${aiBadgeHtml}
+                    </div>
                     <div style="font-size: 0.7rem; color: var(--text-muted);">${r.symbol}</div>
                 </td>
                 <td>

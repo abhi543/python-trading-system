@@ -213,6 +213,9 @@ class SwingTradingBot:
         }
         self.logs = []
         self.lock = threading.Lock()
+        self.ai_signals = {}
+        self.ai_signals_metadata = {}
+        self.use_ai_filter = True
         self._load_state()
 
     def _load_state(self):
@@ -224,6 +227,9 @@ class SwingTradingBot:
                     self.selected_strategy = data.get("selected_strategy", "ALL")
                     self.allocation_per_trade = float(data.get("allocation_per_trade", 20000.0))
                     self.max_positions = int(data.get("max_positions", 5))
+                    self.ai_signals = data.get("ai_signals", {})
+                    self.ai_signals_metadata = data.get("ai_signals_metadata", {})
+                    self.use_ai_filter = data.get("use_ai_filter", True)
             except Exception:
                 pass
 
@@ -234,10 +240,41 @@ class SwingTradingBot:
                     "is_running": self.is_running,
                     "selected_strategy": self.selected_strategy,
                     "allocation_per_trade": self.allocation_per_trade,
-                    "max_positions": self.max_positions
+                    "max_positions": self.max_positions,
+                    "use_ai_filter": getattr(self, "use_ai_filter", True),
+                    "ai_signals": getattr(self, "ai_signals", {}),
+                    "ai_signals_metadata": getattr(self, "ai_signals_metadata", {})
                 }, f, indent=2)
         except Exception:
             pass
+
+    def update_ai_signals(self, signals: dict, metadata: dict = None) -> dict:
+        self.ai_signals = signals or {}
+        now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        self.ai_signals_metadata = metadata or {"updated_at": now_str}
+        if "updated_at" not in self.ai_signals_metadata:
+            self.ai_signals_metadata["updated_at"] = now_str
+        self.persist_state()
+        summary = self.get_ai_signals_summary()
+        self.add_log(f"🧠 [TITAN KRONOS SYNC] Received {summary['total_synced']} 5-day forecasts: {summary['bullish_count']} Bullish 🟢 | {summary['bearish_count']} Bearish 🔴", "SUCCESS")
+        return summary
+
+    def get_ai_signals_summary(self) -> dict:
+        signals = getattr(self, "ai_signals", {})
+        bullish = sum(1 for s in signals.values() if "BULLISH" in str(s.get("bias", "")).upper())
+        bearish = sum(1 for s in signals.values() if "BEARISH" in str(s.get("bias", "")).upper())
+        neutral = len(signals) - (bullish + bearish)
+        meta = getattr(self, "ai_signals_metadata", {})
+        return {
+            "active": len(signals) > 0,
+            "total_synced": len(signals),
+            "bullish_count": bullish,
+            "bearish_count": bearish,
+            "neutral_count": neutral,
+            "updated_at": meta.get("updated_at", "Never"),
+            "model": meta.get("model", "Kronos-small"),
+            "filter_enabled": getattr(self, "use_ai_filter", True)
+        }
 
     def start(self, config: dict = None) -> Dict[str, Any]:
         if config:
@@ -374,6 +411,34 @@ class SwingTradingBot:
                 continue
 
             scan_res = UnifiedSwingScanner.scan_stock(sym, data, selected_strategy=self.selected_strategy)
+
+            # Kronos AI Neural Confluence Check
+            ai_info = self.ai_signals.get(sym) or self.ai_signals.get(sym.replace(".NS", "")) or self.ai_signals.get(f"{sym}.NS")
+            if ai_info:
+                ai_bias = str(ai_info.get("bias", "")).upper()
+                proj_high = float(ai_info.get("projected_high", 0.0) or 0.0)
+                proj_move = float(ai_info.get("expected_pct") or ai_info.get("projected_move_pct") or 0.0)
+                proj_close = float(ai_info.get("projected_close", 0.0) or 0.0)
+
+                scan_res["ai_forecast"] = {
+                    "bias": ai_bias,
+                    "projected_move_pct": proj_move,
+                    "projected_high": proj_high,
+                    "projected_close": proj_close
+                }
+
+                if scan_res.get("signal") == "BUY":
+                    if getattr(self, "use_ai_filter", True) and "BEARISH" in ai_bias:
+                        scan_res["signal"] = "HOLD"
+                        scan_res["reason"] = f"BUY Filtered: Kronos AI Bearish Projection ({proj_move:+.1f}%) | Capital Shield"
+                    elif "BULLISH" in ai_bias:
+                        scan_res["confluence_score"] = min(99, scan_res.get("confluence_score", 85) + 5)
+                        scan_res["strategy"] = f"{scan_res.get('strategy', 'SWING')} | 🔮 Kronos AI Confirmed ({proj_move:+.1f}%)"
+                        curr_p = scan_res.get("price", 0.0)
+                        if proj_high > curr_p and curr_p > 0:
+                            scan_res["target_price"] = max(scan_res.get("target_price", 0.0), round(proj_high, 2))
+                            scan_res["target_pct"] = round(((scan_res["target_price"] - curr_p) / curr_p) * 100, 1)
+
             if scan_res.get("signal") == "BUY":
                 buys_found += 1
             scanner_results.append(scan_res)
@@ -437,6 +502,7 @@ class SwingTradingBot:
             "scan_mode": self.scan_mode,
             "last_scan_time": self.last_scan_time,
             "last_scan_summary": self.last_scan_summary,
+            "ai_signals_summary": self.get_ai_signals_summary(),
             "logs": self.logs[:30]
         }
 

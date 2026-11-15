@@ -1,5 +1,6 @@
 # Local virtual environments & caches
 venv/
+venv-ml/
 __pycache__/
 *.pyc
 
@@ -16,4 +17,10 @@ trading.db
 .git/
 .github/
 README.md
+
+# ML vendor dependencies & models (keep out of Vercel serverless)
+vendor/
+requirements-ml.txt
+predict.bat
+*.bat
 

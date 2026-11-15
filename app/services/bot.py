@@ -130,6 +130,9 @@ class AutoTradingBot:
         self.leverage = float(persisted.get("leverage", 5.0))  # 5x NSE Intraday MIS Leverage
         self.slippage_pct = float(persisted.get("slippage_pct", 0.0))
         self.batch_scan_index = 0
+        self.ai_signals = persisted.get("ai_signals", {})
+        self.ai_signals_metadata = persisted.get("ai_signals_metadata", {})
+        self.use_ai_filter = persisted.get("use_ai_filter", True)
         try:
             from app.services.paper_trader import AfterHoursPaperTradingEngine
             AfterHoursPaperTradingEngine.slippage_pct = self.slippage_pct
@@ -208,6 +211,9 @@ class AutoTradingBot:
                 "nifty_market_regime": self.nifty_market_regime,
                 "use_trailing_stop": self.use_trailing_stop,
                 "use_atr_exits": self.use_atr_exits,
+                "use_ai_filter": getattr(self, "use_ai_filter", True),
+                "ai_signals": getattr(self, "ai_signals", {}),
+                "ai_signals_metadata": getattr(self, "ai_signals_metadata", {}),
                 "session_id": self.session_id,
                 "session_count": self.session_count,
                 "session_start_time": self.session_start_time,
@@ -232,6 +238,34 @@ class AutoTradingBot:
             self.logs.insert(0, entry)
             if len(self.logs) > 100:
                 self.logs.pop()
+
+    def update_ai_signals(self, signals: dict, metadata: dict = None) -> dict:
+        self.ai_signals = signals or {}
+        now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        self.ai_signals_metadata = metadata or {"updated_at": now_str}
+        if "updated_at" not in self.ai_signals_metadata:
+            self.ai_signals_metadata["updated_at"] = now_str
+        self.persist_state()
+        summary = self.get_ai_signals_summary()
+        self.add_log(f"🧠 [KRONOS AI SYNC] Received {summary['total_synced']} stock forecasts: {summary['bullish_count']} Bullish 🟢 | {summary['bearish_count']} Bearish 🔴", "SUCCESS")
+        return summary
+
+    def get_ai_signals_summary(self) -> dict:
+        signals = getattr(self, "ai_signals", {})
+        bullish = sum(1 for s in signals.values() if "BULLISH" in str(s.get("bias", "")).upper())
+        bearish = sum(1 for s in signals.values() if "BEARISH" in str(s.get("bias", "")).upper())
+        neutral = len(signals) - (bullish + bearish)
+        meta = getattr(self, "ai_signals_metadata", {})
+        return {
+            "active": len(signals) > 0,
+            "total_synced": len(signals),
+            "bullish_count": bullish,
+            "bearish_count": bearish,
+            "neutral_count": neutral,
+            "updated_at": meta.get("updated_at"),
+            "use_ai_filter": getattr(self, "use_ai_filter", True),
+            "signals": signals
+        }
 
     def record_session_trade(self, trade_data: dict):
         """Records an executed trade into the current bot session report and updates metrics"""
@@ -323,6 +357,8 @@ class AutoTradingBot:
             "nifty_market_regime": getattr(self, "nifty_market_regime", {"regime": "BULLISH", "price": 0.0, "percent_change": 0.0, "ema_200": 0.0}),
             "use_trailing_stop": self.use_trailing_stop,
             "trailing_trigger_pct": self.trailing_trigger_pct,
+            "use_ai_filter": getattr(self, "use_ai_filter", True),
+            "ai_signals_summary": self.get_ai_signals_summary(),
             "use_atr_exits": self.use_atr_exits,
             "atr_multiplier_sl": self.atr_multiplier_sl,
             "atr_multiplier_tp": self.atr_multiplier_tp,
@@ -841,6 +877,28 @@ class AutoTradingBot:
                 reason = f"SHORT Filtered: Weak Volume Surge ({vol_ratio:.2f}x < {min_vol:.1f}x threshold)"
                 filter_status = "FILTERED_VOLUME"
 
+        # Kronos AI Neural Confluence Filter (Synced from local 09:00 AM forecast)
+        ai_signals_map = getattr(self, "ai_signals", {})
+        ai_info = ai_signals_map.get(symbol) or ai_signals_map.get(display_name) or ai_signals_map.get(f"{display_name}.NS")
+        ai_bias = str(ai_info.get("bias", "")).upper() if ai_info else None
+        ai_exp_pct = float(ai_info.get("expected_pct") or ai_info.get("expected_move_pct") or 0.0) if ai_info else 0.0
+
+        if getattr(self, "use_ai_filter", True) and ai_bias and signal != "HOLD":
+            if signal == "BUY" and (not pos or getattr(pos, 'side', 'LONG') == 'SHORT'):
+                if "BEARISH" in ai_bias:
+                    signal = "HOLD"
+                    reason = f"BUY Filtered: Kronos AI Bearish Projection ({ai_exp_pct:+.2f}%) | Capital Shield"
+                    filter_status = "FILTERED_KRONOS_AI"
+                elif "BULLISH" in ai_bias:
+                    reason += f" | 🔮 Kronos AI Confirmed ({ai_exp_pct:+.2f}%)"
+            elif signal == "SELL" and not pos:
+                if "BULLISH" in ai_bias:
+                    signal = "HOLD"
+                    reason = f"SHORT Filtered: Kronos AI Bullish Projection ({ai_exp_pct:+.2f}%) | Capital Shield"
+                    filter_status = "FILTERED_KRONOS_AI"
+                elif "BEARISH" in ai_bias:
+                    reason += f" | 🔮 Kronos AI Confirmed ({ai_exp_pct:+.2f}%)"
+
         return {
             "symbol": symbol,
             "displayName": display_name,
@@ -848,6 +906,8 @@ class AutoTradingBot:
             "change_pct": change_pct,
             "signal": signal,
             "reason": reason,
+            "ai_bias": ai_bias,
+            "ai_expected_pct": ai_exp_pct,
             "fast_sma": fast_sma,
             "slow_sma": slow_sma,
             "rsi": rsi_val,
