@@ -1658,6 +1658,33 @@ body.theme-titan {
         color: #ffd166;
     }
 
+    .pill-strict-ai {
+        border-color: rgba(167, 139, 250, 0.4);
+        background: rgba(167, 139, 250, 0.08);
+        color: #c4b5fd;
+        cursor: pointer;
+        transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        user-select: none;
+    }
+
+    .pill-strict-ai:hover {
+        background: rgba(167, 139, 250, 0.18);
+        border-color: rgba(167, 139, 250, 0.7);
+        transform: translateY(-1px);
+    }
+
+    .pill-strict-ai.active {
+        background: linear-gradient(135deg, rgba(167, 139, 250, 0.25), rgba(124, 58, 237, 0.35));
+        border-color: #a78bfa;
+        color: #fff;
+        box-shadow: 0 0 14px rgba(167, 139, 250, 0.45);
+    }
+
+    .pill-strict-ai.active strong {
+        color: #38bdf8;
+        text-shadow: 0 0 8px rgba(56, 189, 248, 0.6);
+    }
+
     /* RADAR FILTER CHIPS */
     .radar-filter-bar {
         display: flex;

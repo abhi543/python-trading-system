@@ -133,6 +133,7 @@ class AutoTradingBot:
         self.ai_signals = persisted.get("ai_signals", {})
         self.ai_signals_metadata = persisted.get("ai_signals_metadata", {})
         self.use_ai_filter = persisted.get("use_ai_filter", True)
+        self.strict_ai_mode = bool(persisted.get("strict_ai_mode", False))
         try:
             from app.services.paper_trader import AfterHoursPaperTradingEngine
             AfterHoursPaperTradingEngine.slippage_pct = self.slippage_pct
@@ -212,6 +213,7 @@ class AutoTradingBot:
                 "use_trailing_stop": self.use_trailing_stop,
                 "use_atr_exits": self.use_atr_exits,
                 "use_ai_filter": getattr(self, "use_ai_filter", True),
+                "strict_ai_mode": getattr(self, "strict_ai_mode", False),
                 "ai_signals": getattr(self, "ai_signals", {}),
                 "ai_signals_metadata": getattr(self, "ai_signals_metadata", {}),
                 "session_id": self.session_id,
@@ -358,6 +360,7 @@ class AutoTradingBot:
             "use_trailing_stop": self.use_trailing_stop,
             "trailing_trigger_pct": self.trailing_trigger_pct,
             "use_ai_filter": getattr(self, "use_ai_filter", True),
+            "strict_ai_mode": getattr(self, "strict_ai_mode", False),
             "ai_signals_summary": self.get_ai_signals_summary(),
             "use_atr_exits": self.use_atr_exits,
             "atr_multiplier_sl": self.atr_multiplier_sl,
@@ -426,6 +429,12 @@ class AutoTradingBot:
             self.use_trailing_stop = bool(config["use_trailing_stop"])
         if "use_atr_exits" in config:
             self.use_atr_exits = bool(config["use_atr_exits"])
+        if "use_ai_filter" in config:
+            self.use_ai_filter = bool(config["use_ai_filter"])
+        if "strict_ai_mode" in config:
+            self.strict_ai_mode = bool(config["strict_ai_mode"])
+            self.add_log(f"🤖 Strict AI Mode: {'ON (Trading ONLY Kronos-forecasted stocks)' if self.strict_ai_mode else 'OFF (Trading all stocks)'}", "SUCCESS" if self.strict_ai_mode else "INFO")
+        self.persist_state()
 
     def start_new_session(self, config: dict = None):
         """Initializes a fresh new trading session report when the bot is started/restarted"""
@@ -882,6 +891,12 @@ class AutoTradingBot:
         ai_info = ai_signals_map.get(symbol) or ai_signals_map.get(display_name) or ai_signals_map.get(f"{display_name}.NS")
         ai_bias = str(ai_info.get("bias", "")).upper() if ai_info else None
         ai_exp_pct = float(ai_info.get("expected_pct") or ai_info.get("expected_move_pct") or 0.0) if ai_info else 0.0
+
+        # Strict AI Mode: When enabled, strictly trade ONLY stocks that have a synced Kronos AI forecast!
+        if getattr(self, "strict_ai_mode", False) and not ai_bias and signal != "HOLD":
+            signal = "HOLD"
+            reason = "Filtered: No Kronos AI Forecast (Strict AI Mode ON)"
+            filter_status = "FILTERED_STRICT_AI"
 
         if getattr(self, "use_ai_filter", True) and ai_bias and signal != "HOLD":
             if signal == "BUY" and (not pos or getattr(pos, 'side', 'LONG') == 'SHORT'):

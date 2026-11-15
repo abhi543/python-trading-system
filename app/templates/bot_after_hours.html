@@ -121,6 +121,9 @@
                 <span class="cfg-pill pill-filter" id="ribbon-ema"><i class="fa-solid fa-filter" style="color: var(--green);"></i> 200 EMA Filter: <strong>ON</strong></span>
                 <span class="cfg-pill pill-filter" id="ribbon-trailing"><i class="fa-solid fa-anchor" style="color: var(--blue);"></i> Trailing SL: <strong>ON</strong></span>
                 <span class="cfg-pill pill-ai" id="ribbon-ai" style="border-color: rgba(167, 139, 250, 0.4); color: #c4b5fd;"><i class="fa-solid fa-wand-magic-sparkles" style="color: #c4b5fd;"></i> Kronos AI: <strong id="ribbon-ai-text">Standby</strong></span>
+                <button type="button" class="cfg-pill pill-strict-ai" id="ribbon-strict-ai" onclick="toggleStrictAiMode()" title="Strict AI Mode: When ON, the bot will trade ONLY stocks that have a synced Kronos AI prediction. When OFF, the bot trades all stocks.">
+                    <i class="fa-solid fa-microchip"></i> Strict AI: <strong id="ribbon-strict-ai-text">OFF (Hybrid)</strong>
+                </button>
             </div>
 
             <div class="config-grid" id="bot-config-grid" style="display: none;">
@@ -207,6 +210,16 @@
                         <span><i class="fa-solid fa-fire-flame-curved" style="color: #ffd166;"></i> Volume Surge Check</span>
                     </label>
                     <span style="font-size: 0.68rem; color: var(--text-muted); margin-top: 3px;">Trigger only on volume &gt; 20-day avg</span>
+                </div>
+
+                <div class="config-item" style="display: flex; flex-direction: column; justify-content: center; background: rgba(167, 139, 250, 0.08); padding: 8px 12px; border-radius: 8px; border: 1px solid rgba(167, 139, 250, 0.25);">
+                    <label style="cursor: pointer; display: flex; align-items: center; justify-content: space-between;">
+                        <span style="font-weight: 700; color: #c4b5fd; display: flex; align-items: center; gap: 0.5rem; font-size: 0.78rem;">
+                            <i class="fa-solid fa-microchip" style="color: #a78bfa;"></i> Strict AI Mode
+                        </span>
+                        <input type="checkbox" id="bot-strict-ai" style="accent-color: #a78bfa; width: 17px; height: 17px; cursor: pointer;" onchange="toggleStrictAiMode(this.checked)">
+                    </label>
+                    <span style="font-size: 0.68rem; color: #94a3b8; margin-top: 3px;">ON: Trade ONLY Kronos stocks. OFF: Hybrid.</span>
                 </div>
             </div>
         </div>
@@ -2223,9 +2236,59 @@
             }
         }
 
+        if (data.strict_ai_mode !== undefined) {
+            updateStrictAiUI(!!data.strict_ai_mode);
+        }
+
         syncStrategyUIHints();
         updateConfigSummaryRibbon();
         renderLogs(data.logs || []);
+    }
+
+    let currentStrictAiMode = (localStorage.getItem('nighthawk_strict_ai_mode') === 'true');
+
+    function updateStrictAiUI(isOn) {
+        currentStrictAiMode = isOn;
+        try { localStorage.setItem('nighthawk_strict_ai_mode', isOn ? 'true' : 'false'); } catch (e) {}
+
+        const ribBtn = document.getElementById('ribbon-strict-ai');
+        const ribText = document.getElementById('ribbon-strict-ai-text');
+        const chk = document.getElementById('bot-strict-ai');
+
+        if (chk) chk.checked = isOn;
+        if (ribText) {
+            ribText.innerText = isOn ? 'ON (Kronos Only)' : 'OFF (Hybrid)';
+            ribText.style.color = isOn ? '#38bdf8' : '#94a3b8';
+        }
+        if (ribBtn) {
+            if (isOn) {
+                ribBtn.classList.add('active');
+            } else {
+                ribBtn.classList.remove('active');
+            }
+        }
+    }
+
+    async function toggleStrictAiMode(explicitVal) {
+        const newMode = (explicitVal !== undefined) ? !!explicitVal : !currentStrictAiMode;
+        updateStrictAiUI(newMode);
+
+        try {
+            const resp = await fetch('/api/after-hours/config', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ strict_ai_mode: newMode })
+            });
+            const res = await resp.json();
+            if (res && res.bot_state && res.bot_state.strict_ai_mode !== undefined) {
+                updateStrictAiUI(!!res.bot_state.strict_ai_mode);
+            }
+            if (typeof showToast === 'function') {
+                showToast(`Strict AI Mode ${newMode ? 'ACTIVATED: Trading ONLY Kronos-forecasted stocks' : 'DEACTIVATED: Hybrid scanning active'}`, newMode ? 'success' : 'info');
+            }
+        } catch (e) {
+            console.error('Failed to toggle strict AI mode:', e);
+        }
     }
 
     function toggleConfigDrawer() {
@@ -2449,7 +2512,11 @@
                 sideBadge = '<span class="side-badge side-short" style="opacity: 0.85;"><i class="fa-solid fa-arrow-trend-down"></i> SHORT</span>';
             }
 
-            if (s.filter_status === 'FILTERED_200EMA') {
+            if (s.filter_status === 'FILTERED_STRICT_AI') {
+                sigBadge = '<span class="signal-badge" style="background: rgba(167, 139, 250, 0.15); color: #c4b5fd; border: 1px solid rgba(167, 139, 250, 0.4);"><i class="fa-solid fa-microchip"></i> NO KRONOS AI</span>';
+            } else if (s.filter_status === 'FILTERED_KRONOS_AI') {
+                sigBadge = '<span class="signal-badge" style="background: rgba(239, 68, 68, 0.15); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.4);"><i class="fa-solid fa-shield-halved"></i> AI SHIELDED</span>';
+            } else if (s.filter_status === 'FILTERED_200EMA') {
                 sigBadge = '<span class="signal-badge" style="background: rgba(255, 189, 46, 0.15); color: #ffbd2e; border: 1px solid rgba(255, 189, 46, 0.4);"><i class="fa-solid fa-filter"></i> FILTERED (&lt; 200 EMA)</span>';
             } else if (s.filter_status === 'FILTERED_VOLUME') {
                 sigBadge = '<span class="signal-badge" style="background: rgba(255, 189, 46, 0.15); color: #ffbd2e; border: 1px solid rgba(255, 189, 46, 0.4);"><i class="fa-solid fa-filter"></i> FILTERED (Low Vol)</span>';

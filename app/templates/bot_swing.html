@@ -45,6 +45,9 @@
                     <span class="bot-badge-outline" id="bot-ai-badge" style="color: #c4b5fd; border-color: rgba(168, 85, 247, 0.4);">
                         <i class="fa-solid fa-wand-magic-sparkles" style="color: #c4b5fd;"></i> KRONOS AI: <strong id="bot-ai-text">Standby (09:00 AM Sync)</strong>
                     </span>
+                    <button type="button" class="bot-badge-outline pill-strict-ai" id="bot-strict-ai-btn" onclick="toggleSwingStrictAi()" style="cursor: pointer; color: #c4b5fd; border-color: rgba(168, 85, 247, 0.4); background: rgba(168, 85, 247, 0.1); font-size: 0.72rem; padding: 4px 10px; border-radius: 999px; transition: all 0.2s ease;" title="Strict AI Mode: When ON, TITAN only trades stocks that have an active Kronos AI prediction">
+                        <i class="fa-solid fa-microchip" style="color: #a78bfa;"></i> STRICT AI: <strong id="bot-strict-ai-text">OFF (Hybrid)</strong>
+                    </button>
                 </div>
                 <h1 class="bot-title" style="color: #fff;">
                     <i class="fa-solid fa-bolt" style="color: #c084fc;"></i> BOT TITAN — Unified Multi-Strategy Swing Desk
@@ -82,6 +85,13 @@
                             <option value="ALL_NIFTY_200">NIFTY 200 (Large &amp; Mid Cap)</option>
                             <option value="NIFTY_50">NIFTY 50 Blue Chips</option>
                         </select>
+                    </div>
+
+                    <div style="display: flex; flex-direction: column; gap: 3px;">
+                        <label style="font-size: 0.68rem; font-weight: 800; color: #c4b5fd; letter-spacing: 0.05em;">STRICT AI MODE:</label>
+                        <button type="button" id="config-strict-ai-btn" onclick="toggleSwingStrictAi()" style="background: rgba(168, 85, 247, 0.15); border: 1px solid rgba(168, 85, 247, 0.4); color: #fff; padding: 6px 12px; border-radius: 6px; font-size: 0.8rem; font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 6px;">
+                            <i class="fa-solid fa-microchip" style="color: #a78bfa;"></i> <span id="config-strict-ai-label">OFF (Hybrid)</span>
+                        </button>
                     </div>
 
                     <div style="margin-left: auto; display: flex; align-items: center; gap: 8px;">
@@ -573,6 +583,9 @@ async function fetchSwingOverview() {
             swingState.universe = data.status.scan_mode || swingState.universe;
             swingState.logs = data.status.logs || [];
             swingState.aiSignalsSummary = data.status.ai_signals_summary || {};
+            if (data.status.strict_ai_mode !== undefined) {
+                swingState.strict_ai_mode = !!data.status.strict_ai_mode;
+            }
             if (data.status.last_scan_summary && data.status.last_scan_summary.scanner_results) {
                 swingState.scannerResults = data.status.last_scan_summary.scanner_results;
             }
@@ -730,6 +743,10 @@ function renderUI() {
         }
     }
 
+    if (swingState.strict_ai_mode !== undefined) {
+        updateSwingStrictAiUI(!!swingState.strict_ai_mode);
+    }
+
     // 4. Holdings Table
     renderHoldingsTable(positions);
 
@@ -858,12 +875,16 @@ function renderScannerTable(results) {
                 <i class="fa-solid fa-wand-magic-sparkles"></i> AI: ${aiForecast.bias} (${aiForecast.projected_move_pct > 0 ? '+' : ''}${aiForecast.projected_move_pct.toFixed(1)}%)
             </span>` : '';
 
+        const isStrictAiFiltered = (r.filter_status === 'FILTERED_STRICT_AI' || (r.reason && r.reason.includes('Strict AI Mode ON')));
+        const strictAiBadge = isStrictAiFiltered ? `<span class="badge" style="background: rgba(167, 139, 250, 0.15); color: #c4b5fd; border: 1px solid rgba(167, 139, 250, 0.4); font-size: 0.68rem; margin-left: 6px; padding: 2px 6px;"><i class="fa-solid fa-microchip"></i> NO KRONOS AI</span>` : '';
+
         return `
             <tr style="${isBuy ? 'background: rgba(0, 240, 144, 0.03);' : ''}">
                 <td>
                     <div style="display: flex; align-items: center; flex-wrap: wrap; gap: 4px;">
                         <strong style="color: #fff; font-size: 0.95rem; font-family: var(--font-code);">${cleanSym}</strong>
                         ${aiBadgeHtml}
+                        ${strictAiBadge}
                     </div>
                     <div style="font-size: 0.7rem; color: var(--text-muted);">${r.symbol}</div>
                 </td>
@@ -890,7 +911,7 @@ function renderScannerTable(results) {
                                 BUY CNC
                             </button>
                         </div>
-                    ` : `<span style="color: var(--text-muted); font-size: 0.72rem;">WAIT</span>`}
+                    ` : (isStrictAiFiltered ? `<span style="background: rgba(167, 139, 250, 0.15); color: #c4b5fd; border: 1px solid rgba(167, 139, 250, 0.4); border-radius: 4px; padding: 2px 6px; font-size: 0.68rem; font-weight: 700; white-space: nowrap;"><i class="fa-solid fa-microchip"></i> STRICT AI</span>` : `<span style="color: var(--text-muted); font-size: 0.72rem;">WAIT</span>`)}
                 </td>
             </tr>
         `;
@@ -1025,6 +1046,65 @@ async function triggerSwingScan() {
             btn.disabled = false;
             btn.innerHTML = '<i class="fa-solid fa-radar"></i> SCAN UNIVERSE NOW';
         }
+    }
+}
+
+let swingStrictAiMode = (localStorage.getItem('titan_strict_ai_mode') === 'true');
+
+function updateSwingStrictAiUI(isOn) {
+    swingStrictAiMode = isOn;
+    try { localStorage.setItem('titan_strict_ai_mode', isOn ? 'true' : 'false'); } catch (e) {}
+
+    const btn = document.getElementById('bot-strict-ai-btn');
+    const text = document.getElementById('bot-strict-ai-text');
+    const cfgLabel = document.getElementById('config-strict-ai-label');
+    const cfgBtn = document.getElementById('config-strict-ai-btn');
+
+    if (text) {
+        text.innerText = isOn ? 'ON (Kronos Only)' : 'OFF (Hybrid)';
+        text.style.color = isOn ? '#38bdf8' : '#94a3b8';
+    }
+    if (cfgLabel) {
+        cfgLabel.innerText = isOn ? 'ON (Kronos Only)' : 'OFF (Hybrid)';
+    }
+    if (btn) {
+        if (isOn) {
+            btn.classList.add('active');
+            btn.style.borderColor = '#a78bfa';
+            btn.style.background = 'linear-gradient(135deg, rgba(167, 139, 250, 0.25), rgba(124, 58, 237, 0.35))';
+            btn.style.boxShadow = '0 0 14px rgba(167, 139, 250, 0.45)';
+        } else {
+            btn.classList.remove('active');
+            btn.style.borderColor = 'rgba(168, 85, 247, 0.4)';
+            btn.style.background = 'rgba(168, 85, 247, 0.1)';
+            btn.style.boxShadow = 'none';
+        }
+    }
+    if (cfgBtn) {
+        cfgBtn.style.background = isOn ? 'rgba(168, 85, 247, 0.3)' : 'rgba(168, 85, 247, 0.15)';
+        cfgBtn.style.borderColor = isOn ? '#a78bfa' : 'rgba(168, 85, 247, 0.4)';
+    }
+}
+
+async function toggleSwingStrictAi(explicitVal) {
+    const newMode = (explicitVal !== undefined) ? !!explicitVal : !swingStrictAiMode;
+    updateSwingStrictAiUI(newMode);
+
+    try {
+        const res = await fetch('/api/swing/config', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ strict_ai_mode: newMode })
+        });
+        const data = await res.json();
+        if (data && data.config && data.config.strict_ai_mode !== undefined) {
+            updateSwingStrictAiUI(!!data.config.strict_ai_mode);
+        }
+        if (typeof showToast === 'function') {
+            showToast(`Strict AI Mode ${newMode ? 'ACTIVATED: TITAN will trade ONLY Kronos-forecasted stocks' : 'DEACTIVATED: Hybrid scanning active'}`, newMode ? 'success' : 'info');
+        }
+    } catch (e) {
+        console.error('Failed to toggle TITAN strict AI mode:', e);
     }
 }
 

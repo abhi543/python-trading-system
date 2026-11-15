@@ -216,6 +216,7 @@ class SwingTradingBot:
         self.ai_signals = {}
         self.ai_signals_metadata = {}
         self.use_ai_filter = True
+        self.strict_ai_mode = False
         self._load_state()
 
     def _load_state(self):
@@ -230,6 +231,7 @@ class SwingTradingBot:
                     self.ai_signals = data.get("ai_signals", {})
                     self.ai_signals_metadata = data.get("ai_signals_metadata", {})
                     self.use_ai_filter = data.get("use_ai_filter", True)
+                    self.strict_ai_mode = bool(data.get("strict_ai_mode", False))
             except Exception:
                 pass
 
@@ -242,6 +244,7 @@ class SwingTradingBot:
                     "allocation_per_trade": self.allocation_per_trade,
                     "max_positions": self.max_positions,
                     "use_ai_filter": getattr(self, "use_ai_filter", True),
+                    "strict_ai_mode": getattr(self, "strict_ai_mode", False),
                     "ai_signals": getattr(self, "ai_signals", {}),
                     "ai_signals_metadata": getattr(self, "ai_signals_metadata", {})
                 }, f, indent=2)
@@ -286,6 +289,8 @@ class SwingTradingBot:
                 self.max_positions = int(config["max_positions"])
             if "scan_mode" in config:
                 self.scan_mode = str(config["scan_mode"])
+            if "strict_ai_mode" in config:
+                self.strict_ai_mode = bool(config["strict_ai_mode"])
 
         self.is_running = True
         self.persist_state()
@@ -414,6 +419,11 @@ class SwingTradingBot:
 
             # Kronos AI Neural Confluence Check
             ai_info = self.ai_signals.get(sym) or self.ai_signals.get(sym.replace(".NS", "")) or self.ai_signals.get(f"{sym}.NS")
+            if getattr(self, "strict_ai_mode", False) and not ai_info and scan_res.get("signal") == "BUY":
+                scan_res["signal"] = "HOLD"
+                scan_res["reason"] = "BUY Filtered: No Kronos AI Forecast (Strict AI Mode ON)"
+                scan_res["filter_status"] = "FILTERED_STRICT_AI"
+
             if ai_info:
                 ai_bias = str(ai_info.get("bias", "")).upper()
                 proj_high = float(ai_info.get("projected_high", 0.0) or 0.0)
@@ -500,6 +510,7 @@ class SwingTradingBot:
             "allocation_per_trade": self.allocation_per_trade,
             "max_positions": self.max_positions,
             "scan_mode": self.scan_mode,
+            "strict_ai_mode": getattr(self, "strict_ai_mode", False),
             "last_scan_time": self.last_scan_time,
             "last_scan_summary": self.last_scan_summary,
             "ai_signals_summary": self.get_ai_signals_summary(),
