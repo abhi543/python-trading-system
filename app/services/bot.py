@@ -561,6 +561,14 @@ class AutoTradingBot:
         atr_14 = stock_data.get("atr_14", round(current_price * 0.025, 2))
         display_name = symbol.replace('.NS', '')
 
+        # Kronos AI Neural Confluence / Expected Move
+        ai_signals_map = getattr(self, "ai_signals", {})
+        ai_info = ai_signals_map.get(symbol) or ai_signals_map.get(display_name) or ai_signals_map.get(f"{display_name}.NS")
+        ai_bias = str(ai_info.get("bias", "")).upper() if ai_info else None
+        raw_exp = float(ai_info.get("expected_pct") or ai_info.get("expected_move_pct") or 0.0) if ai_info else float(change_pct or 0.0)
+        # Enforce realistic moves (-5.0% to +5.0% max for equities)
+        ai_exp_pct = max(-5.0, min(5.0, round(raw_exp, 2)))
+
         # Check existing position (match with or without .NS)
         clean_s = symbol.replace('.NS', '').strip().upper()
         pos = held_positions_map.get(symbol) or held_positions_map.get(clean_s) or held_positions_map.get(f"{clean_s}.NS")
@@ -617,7 +625,8 @@ class AutoTradingBot:
                                 db.session.commit()
                             except Exception:
                                 pass
-                            self.add_log(f"📈 [TRAILING STOP TRAIL] {display_name} (LONG): High ₹{extreme:.2f}! Stop raised to ₹{dynamic_stop:.2f} (Locking +{((dynamic_stop-avg_price)/avg_price*100):.1f}%)", "SUCCESS")
+                            locked_amt = round(abs(dynamic_stop - avg_price) * pos.quantity, 2)
+                            self.add_log(f"📈 [TRAILING STOP TRAIL] {display_name} (LONG): High ₹{extreme:.2f}! Stop raised to ₹{dynamic_stop:.2f} (Locked: +₹{locked_amt:.2f})", "SUCCESS")
                     else:
                         dynamic_stop = round(extreme + trail_distance, 2)
                         if (current_sl == 0.0 or dynamic_stop < current_sl) and dynamic_stop < avg_price:
@@ -626,7 +635,8 @@ class AutoTradingBot:
                                 db.session.commit()
                             except Exception:
                                 pass
-                            self.add_log(f"📉 [TRAILING STOP TRAIL] {display_name} (SHORT): Low ₹{extreme:.2f}! Stop lowered to ₹{dynamic_stop:.2f} (Locking +{((avg_price-dynamic_stop)/avg_price*100):.1f}%)", "SUCCESS")
+                            locked_amt = round(abs(avg_price - dynamic_stop) * pos.quantity, 2)
+                            self.add_log(f"📉 [TRAILING STOP TRAIL] {display_name} (SHORT): Low ₹{extreme:.2f}! Stop lowered to ₹{dynamic_stop:.2f} (Locked: +₹{locked_amt:.2f})", "SUCCESS")
 
             # Check if Trailing / Dynamic Stop-Loss triggered
             sl_level = getattr(pos, 'stop_loss', 0.0) or 0.0
@@ -675,11 +685,18 @@ class AutoTradingBot:
                             "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                         }
                         self.record_session_trade(closed_trade_dict)
+                is_win_lock = bool(closed_trade_dict and closed_trade_dict.get("is_win", False))
+                action_exec = "PROFIT_LOCKED" if is_win_lock else ("STOP_EXIT" if closed_trade_dict else ("ORDER_FAILED" if allow_order_execution else "OFFLINE (No orders placed)"))
                 return {
                     "symbol": symbol, "displayName": display_name, "price": current_price,
-                    "change_pct": change_pct, "signal": "STOP_LOSS", "reason": f"Indicator Stop-Loss hit @ ₹{current_price:.2f} (SL: ₹{sl_level:.2f}, {lock_pnl:+.2f}%)",
-                    "action_executed": "STOP_EXIT" if closed_trade_dict else ("ORDER_FAILED" if allow_order_execution else "OFFLINE (No orders placed)"), "ema_200": ema_200, "trend_200": trend_200, "vol_ratio": vol_ratio, "atr_14": atr_14,
-                    "closed_trade": closed_trade_dict
+                    "change_pct": change_pct, "signal": "TAKE_PROFIT" if is_win_lock else "STOP_LOSS", 
+                    "reason": f"Locked Profit achieved @ ₹{current_price:.2f} (SL: ₹{sl_level:.2f})" if is_win_lock else f"Indicator Stop-Loss hit @ ₹{current_price:.2f} (SL: ₹{sl_level:.2f}, {lock_pnl:+.2f}%)",
+                    "action_executed": action_exec, "ema_200": ema_200, "trend_200": trend_200, "vol_ratio": vol_ratio, "atr_14": atr_14,
+                    "closed_trade": closed_trade_dict,
+                    "ai_bias": ai_bias or "NEUTRAL",
+                    "ai_expected_pct": ai_exp_pct,
+                    "suggested_sl": sl_level,
+                    "suggested_tp": getattr(pos, 'take_profit', None) or round(current_price * 1.025, 2)
                 }
 
             # Check if Strict 1.0% Stop-Loss Ceiling triggered (Protects ALL strategies including 1-2-3 Reversal)
@@ -728,7 +745,11 @@ class AutoTradingBot:
                     "symbol": symbol, "displayName": display_name, "price": current_price,
                     "change_pct": change_pct, "signal": "STOP_LOSS", "reason": f"Stop-Loss triggered at {pnl_pct:.2f}%",
                     "action_executed": "LIQUIDATED" if closed_trade_dict else ("ORDER_FAILED" if allow_order_execution else "OFFLINE (No orders placed)"), "ema_200": ema_200, "trend_200": trend_200, "vol_ratio": vol_ratio, "atr_14": atr_14,
-                    "closed_trade": closed_trade_dict
+                    "closed_trade": closed_trade_dict,
+                    "ai_bias": ai_bias or "NEUTRAL",
+                    "ai_expected_pct": ai_exp_pct,
+                    "suggested_sl": getattr(pos, 'stop_loss', None) or round(current_price * 0.99, 2),
+                    "suggested_tp": getattr(pos, 'take_profit', None) or round(current_price * 1.025, 2)
                 }
 
             # Check Take-Profit (Dual Mode: Indicator Measured Move Target OR Configured % Target):
@@ -786,7 +807,11 @@ class AutoTradingBot:
                     "symbol": symbol, "displayName": display_name, "price": current_price,
                     "change_pct": change_pct, "signal": "TAKE_PROFIT", "reason": tp_reason,
                     "action_executed": "PROFIT_LOCKED" if closed_trade_dict else ("ORDER_FAILED" if allow_order_execution else "OFFLINE (No orders placed)"), "ema_200": ema_200, "trend_200": trend_200, "vol_ratio": vol_ratio, "atr_14": atr_14,
-                    "closed_trade": closed_trade_dict
+                    "closed_trade": closed_trade_dict,
+                    "ai_bias": ai_bias or "NEUTRAL",
+                    "ai_expected_pct": ai_exp_pct,
+                    "suggested_sl": getattr(pos, 'stop_loss', None) or round(current_price * 0.99, 2),
+                    "suggested_tp": tp_level if tp_level > 0 else (getattr(pos, 'take_profit', None) or round(current_price * 1.025, 2))
                 }
 
         # 2. Strategy Indicator Evaluation
@@ -795,7 +820,11 @@ class AutoTradingBot:
                 "symbol": symbol, "displayName": display_name, "price": current_price,
                 "change_pct": change_pct, "signal": "HOLD", "reason": "Insufficient candles",
                 "fast_sma": None, "slow_sma": None, "rsi": None, "action_executed": None,
-                "ema_200": ema_200, "trend_200": trend_200, "vol_ratio": vol_ratio, "atr_14": atr_14
+                "ema_200": ema_200, "trend_200": trend_200, "vol_ratio": vol_ratio, "atr_14": atr_14,
+                "ai_bias": ai_bias or "NEUTRAL",
+                "ai_expected_pct": ai_exp_pct,
+                "suggested_sl": round(current_price * 0.99, 2),
+                "suggested_tp": round(current_price * 1.025, 2)
             }
 
         s_closes = pd.Series(closes)
@@ -809,14 +838,6 @@ class AutoTradingBot:
         suggested_tp = None
         reversal_score = None
         reversal_grade = None
-
-        # Kronos AI Neural Confluence / Direct Signal (Synced from local 09:00 AM forecast)
-        ai_signals_map = getattr(self, "ai_signals", {})
-        ai_info = ai_signals_map.get(symbol) or ai_signals_map.get(display_name) or ai_signals_map.get(f"{display_name}.NS")
-        ai_bias = str(ai_info.get("bias", "")).upper() if ai_info else None
-        raw_exp = float(ai_info.get("expected_pct") or ai_info.get("expected_move_pct") or 0.0) if ai_info else 0.0
-        # Enforce realistic multi-day expected moves (-8.0% to +8.0% max for equities)
-        ai_exp_pct = max(-8.0, min(8.0, round(raw_exp, 2)))
 
         if self.strategy == "KRONOS_AI":
             # Pure Kronos AI Strategy: Direct execution from neural forecast, zero radar dependency

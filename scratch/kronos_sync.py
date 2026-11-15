@@ -354,7 +354,9 @@ def generate_and_sync_signals(max_stocks=30):
             )
 
             final_proj_close = float(pred_df['close'].iloc[-1])
-            pct_move = round(((final_proj_close - last_close) / last_close) * 100, 2)
+            raw_move = round(((final_proj_close - last_close) / last_close) * 100, 2)
+            # Enforce realistic NSE equity moves (-5.0% to +5.0%)
+            pct_move = max(-5.0, min(5.0, raw_move))
             bias = "STRONG_BULLISH" if pct_move > 1.5 else ("BULLISH" if pct_move > 0 else ("STRONG_BEARISH" if pct_move < -1.5 else "BEARISH"))
             
             proj_high = round(float(pred_df['high'].max()), 2)

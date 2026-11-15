@@ -522,7 +522,7 @@
                                         <th>CURRENT</th>
                                         <th>P&L (₹)</th>
                                         <th>P&L (%)</th>
-                                        <th style="color: #00f090;"><i class="fa-solid fa-lock"></i> PROFIT LOCKED</th>
+                                        <th style="color: #00f090;"><i class="fa-solid fa-lock"></i> PROFIT LOCKED (₹)</th>
                                         <th style="color: #38bdf8;"><i class="fa-solid fa-robot"></i> BOT ACTION</th>
                                         <th>STOP-LOSS</th>
                                         <th style="color: #ff6b6b;"><i class="fa-solid fa-shield-halved"></i> MAX LOSS (₹)</th>
@@ -1658,16 +1658,16 @@
             const maxLoss = Math.abs(p.average_price - sl) * p.quantity;
             const notional = (p.quantity || 0) * (p.current_price || p.average_price || 0);
 
-            let lockedText = '--';
+            let lockedText = '₹0.00';
             if (isShort) {
                 if (sl > 0 && sl <= p.average_price) {
                     const lk = (p.average_price - sl) * p.quantity;
-                    lockedText = lk > 0 ? `+₹${lk.toFixed(1)} 🔒` : '₹0 (Breakeven)';
+                    lockedText = lk > 0 ? `+₹${lk.toFixed(2)}` : '₹0.00';
                 }
             } else {
                 if (sl >= p.average_price) {
                     const lk = (sl - p.average_price) * p.quantity;
-                    lockedText = lk > 0 ? `+₹${lk.toFixed(1)} 🔒` : '₹0 (Breakeven)';
+                    lockedText = lk > 0 ? `+₹${lk.toFixed(2)}` : '₹0.00';
                 }
             }
 
@@ -2494,8 +2494,8 @@
             let rawExp = (s.ai_expected_pct !== undefined && s.ai_expected_pct !== null && s.ai_expected_pct !== 0) 
                 ? s.ai_expected_pct 
                 : (s.change_pct || 0);
-            // Cap to realistic Indian equity moves (-8.0% to +8.0%)
-            let expPct = Math.max(-8.0, Math.min(8.0, Number(rawExp) || 0));
+            // Cap to realistic Indian equity moves (-5.0% to +5.0%)
+            let expPct = Math.max(-5.0, Math.min(5.0, Number(rawExp) || 0));
             const expClass = expPct >= 0 ? 'text-green' : 'text-red';
             const expSign = expPct >= 0 ? '+' : '';
             const expDisplay = hasAi 
@@ -3170,21 +3170,21 @@
             
             if (isLocked) {
                 if (lockedAmt > 0) {
-                    lockedHtml = `<span style="background: rgba(0, 240, 144, 0.18); color: var(--green); border: 1px solid rgba(0, 240, 144, 0.4); font-weight: 700; padding: 2px 7px; border-radius: 4px; font-size: 0.74rem; display: inline-flex; align-items: center; gap: 4px; font-family: var(--font-code);">
-                        <i class="fa-solid fa-lock"></i> +₹${lockedAmt.toFixed(2)} <span style="font-size: 0.68rem; opacity: 0.85;">(+${lockedPct.toFixed(1)}%)</span>
+                    lockedHtml = `<span style="background: rgba(0, 240, 144, 0.18); color: var(--green); border: 1px solid rgba(0, 240, 144, 0.4); font-weight: 700; padding: 2px 8px; border-radius: 4px; font-size: 0.76rem; display: inline-flex; align-items: center; gap: 4px; font-family: var(--font-code);">
+                        <i class="fa-solid fa-lock"></i> +₹${lockedAmt.toFixed(2)}
                     </span>`;
                 } else {
-                    lockedHtml = `<span style="background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3); font-weight: 700; padding: 2px 7px; border-radius: 4px; font-size: 0.74rem; display: inline-flex; align-items: center; gap: 4px;">
-                        <i class="fa-solid fa-shield-halved"></i> ₹0.00 (Breakeven)
+                    lockedHtml = `<span style="background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3); font-weight: 700; padding: 2px 8px; border-radius: 4px; font-size: 0.76rem; display: inline-flex; align-items: center; gap: 4px; font-family: var(--font-code);">
+                        <i class="fa-solid fa-shield-halved"></i> ₹0.00
                     </span>`;
                 }
             } else if (p.trailing_active) {
-                lockedHtml = `<span style="background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3); font-weight: 700; padding: 2px 7px; border-radius: 4px; font-size: 0.74rem; display: inline-flex; align-items: center; gap: 4px;">
-                    <i class="fa-solid fa-shield-halved"></i> Breakeven Shield
+                lockedHtml = `<span style="background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3); font-weight: 700; padding: 2px 8px; border-radius: 4px; font-size: 0.76rem; display: inline-flex; align-items: center; gap: 4px; font-family: var(--font-code);">
+                    <i class="fa-solid fa-shield-halved"></i> ₹0.00
                 </span>`;
-            } else if ((p.unrealized_pnl || 0) > 0) {
-                lockedHtml = `<span style="color: var(--text-muted); font-size: 0.72rem; display: inline-flex; align-items: center; gap: 3px;">
-                    <i class="fa-solid fa-lock-open" style="opacity: 0.5;"></i> Trails @ +1.0%
+            } else {
+                lockedHtml = `<span style="color: var(--text-muted); font-size: 0.74rem; font-family: var(--font-code); display: inline-flex; align-items: center; gap: 4px;">
+                    <i class="fa-solid fa-lock-open" style="opacity: 0.4;"></i> ₹0.00
                 </span>`;
             }
 
