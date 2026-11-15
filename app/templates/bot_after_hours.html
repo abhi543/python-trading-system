@@ -130,7 +130,8 @@
                 <div class="config-item">
                     <label><i class="fa-solid fa-layer-group"></i> SCANNING UNIVERSE</label>
                     <select id="bot-scan-mode" class="config-select" onchange="onScanModeChange();">
-                        <option value="ALL_NIFTY_200" selected>All NIFTY 200 Basket (Top 200 Stocks)</option>
+                        <option value="KRONOS_UNIVERSE" selected>🔮 Kronos Synced Stocks (Morning Forecast Universe)</option>
+                        <option value="ALL_NIFTY_200">All NIFTY 200 Basket (Top 200 Stocks)</option>
                         <option value="ALL_NIFTY_50">All NIFTY 50 Basket (Top 50 Stocks)</option>
                         <option value="SINGLE">Single Stock Focus</option>
                     </select>
@@ -144,7 +145,8 @@
                 <div class="config-item">
                     <label><i class="fa-solid fa-chart-line"></i> STRATEGY MODEL</label>
                     <select id="bot-strategy" class="config-select" onchange="onStrategyChange()">
-                        <option value="123_REVERSAL" selected>1-2-3 Reversal Map [AGPro Series v2.1] (Neckline Break &amp; Target)</option>
+                        <option value="KRONOS_AI" selected>🔮 Pure Kronos AI (Direct Execution — No Radar Signals)</option>
+                        <option value="123_REVERSAL">1-2-3 Reversal Map [AGPro Series v2.1] (Neckline Break &amp; Target)</option>
                         <option value="SMA_CROSSOVER">Dual SMA Golden/Death Cross (9 / 21)</option>
                         <option value="RSI_MOMENTUM">RSI Mean Reversion (14-Period, 35/65)</option>
                     </select>
@@ -356,61 +358,59 @@
                     </div>
                 </div>
 
-                <!-- NIFTY LIVE SIGNAL RADAR -->
-                <div class="bot-section-card">
+                <!-- KRONOS AI PREDICTION & EXECUTION DESK -->
+                <div class="bot-section-card" id="radar-section-card">
                     <div class="section-card-header">
                         <div>
-                            <h3 id="radar-title-text"><i class="fa-solid fa-satellite-dish" style="color: var(--blue);"></i> NIFTY Multi-Basket Signal Radar</h3>
-                            <span class="card-caption">Real-time technical indicator calculations, trend momentum &amp; automated trade signals</span>
+                            <h3 id="radar-title-text"><i class="fa-solid fa-wand-magic-sparkles" style="color: #c4b5fd;"></i> Kronos AI Neural Prediction &amp; Execution Desk</h3>
+                            <span class="card-caption">Pure Kronos AI model forecasts — direct trade execution without technical radar filters</span>
                         </div>
-                        <div class="table-search-box">
-                            <i class="fa-solid fa-search"></i>
-                            <input type="text" id="radar-search" placeholder="Filter stock (e.g. INFY, RELIANCE)..." oninput="applyRadarFilters()">
+                        <div style="display: flex; gap: 0.5rem; align-items: center;">
+                            <button type="button" class="btn-sm btn-outline" id="btn-toggle-radar-visibility" onclick="toggleRadarVisibility()" style="border-color: rgba(167, 139, 250, 0.4); color: #c4b5fd; font-size: 0.72rem; padding: 4px 10px; border-radius: 6px; cursor: pointer;">
+                                <i class="fa-solid fa-eye-slash" id="icon-toggle-radar"></i> <span id="text-toggle-radar">Hide Desk</span>
+                            </button>
+                            <div class="table-search-box">
+                                <i class="fa-solid fa-search"></i>
+                                <input type="text" id="radar-search" placeholder="Filter stock (e.g. INFY, RELIANCE)..." oninput="applyRadarFilters()">
+                            </div>
                         </div>
                     </div>
 
                     <!-- QUICK RADAR FILTER CHIPS -->
                     <div class="radar-filter-bar">
                         <button type="button" class="radar-chip active" id="chip-filter-all" onclick="setRadarFilter('ALL')">
-                            <i class="fa-solid fa-border-all"></i> All Stocks <span class="chip-count" id="count-chip-all">0</span>
+                            <i class="fa-solid fa-border-all"></i> All Forecasts <span class="chip-count" id="count-chip-all">0</span>
                         </button>
                         <button type="button" class="radar-chip chip-buy" id="chip-filter-buy" onclick="setRadarFilter('BUY')">
-                            <i class="fa-solid fa-circle-arrow-up"></i> BUY Signals <span class="chip-count" id="count-chip-buy">0</span>
+                            <i class="fa-solid fa-circle-arrow-up"></i> Bullish 🟢 <span class="chip-count" id="count-chip-buy">0</span>
                         </button>
                         <button type="button" class="radar-chip chip-sell" id="chip-filter-sell" onclick="setRadarFilter('SELL')">
-                            <i class="fa-solid fa-circle-arrow-down"></i> SELL / Exits <span class="chip-count" id="count-chip-sell">0</span>
+                            <i class="fa-solid fa-circle-arrow-down"></i> Bearish 🔴 <span class="chip-count" id="count-chip-sell">0</span>
                         </button>
                         <button type="button" class="radar-chip chip-held" id="chip-filter-held" onclick="setRadarFilter('HELD')">
                             <i class="fa-solid fa-briefcase"></i> In Portfolio <span class="chip-count" id="count-chip-held">0</span>
                         </button>
-                        <button type="button" class="radar-chip chip-gainers" id="chip-filter-gainers" onclick="setRadarFilter('GAINERS')">
-                            <i class="fa-solid fa-arrow-trend-up"></i> Top Gainers <span class="chip-count" id="count-chip-gainers">0</span>
-                        </button>
-                        <button type="button" class="radar-chip chip-dips" id="chip-filter-dips" onclick="setRadarFilter('DIPS')">
-                            <i class="fa-solid fa-arrow-trend-down"></i> Deep Dips <span class="chip-count" id="count-chip-dips">0</span>
-                        </button>
                     </div>
 
-                    <div class="table-wrapper sticky-scroll">
+                    <div class="table-wrapper sticky-scroll" id="radar-table-container">
                         <table class="data-table sticky-header" id="nifty-radar-table">
                             <thead>
                                 <tr>
                                     <th>STOCK</th>
-                                    <th style="min-width: 68px;">TREND</th>
-                                    <th>SIDE</th>
+                                    <th>KRONOS BIAS</th>
                                     <th>LTP</th>
-                                    <th>24H CHG</th>
-                                    <th>SIGNAL</th>
-                                    <th>INDICATOR METRICS</th>
+                                    <th>TARGET (PROJ HIGH)</th>
+                                    <th>STOP-LOSS (1.0%)</th>
+                                    <th>EXPECTED MOVE</th>
                                     <th>BOT ACTION</th>
-                                    <th>ACTION</th>
+                                    <th>MANUAL ORDER</th>
                                 </tr>
                             </thead>
                             <tbody id="bot-scanner-tbody">
                                 <tr>
-                                    <td colspan="9" class="text-center" style="padding: 2.5rem; color: var(--text-muted);">
-                                        <i class="fa-solid fa-satellite fa-spin" style="font-size: 1.5rem; margin-bottom: 0.75rem; color: var(--blue);"></i><br>
-                                        NIFTY Scanner Ready. Click <strong>"SIMULATE BASKET SWEEP"</strong> or start the bot to sweep the entire basket.
+                                    <td colspan="8" class="text-center" style="padding: 2.5rem; color: var(--text-muted);">
+                                        <i class="fa-solid fa-wand-magic-sparkles fa-spin" style="font-size: 1.5rem; margin-bottom: 0.75rem; color: #c4b5fd;"></i><br>
+                                        Kronos AI Prediction Desk Ready. Click <strong>"SIMULATE BASKET SWEEP"</strong> or start the bot to sweep all Kronos forecast stocks.
                                     </td>
                                 </tr>
                             </tbody>
@@ -2308,12 +2308,29 @@
         }
     }
 
+    function toggleRadarVisibility() {
+        const tableContainer = document.getElementById('radar-table-container');
+        const icon = document.getElementById('icon-toggle-radar');
+        const text = document.getElementById('text-toggle-radar');
+        if (!tableContainer) return;
+        const isHidden = (tableContainer.style.display === 'none');
+        if (isHidden) {
+            tableContainer.style.display = 'block';
+            if (icon) icon.className = 'fa-solid fa-eye-slash';
+            if (text) text.innerText = 'Hide Desk';
+        } else {
+            tableContainer.style.display = 'none';
+            if (icon) icon.className = 'fa-solid fa-eye';
+            if (text) text.innerText = 'Show Desk';
+        }
+    }
+
     function updateConfigSummaryRibbon() {
-        const stratVal = document.getElementById('bot-strategy')?.value || '123_REVERSAL';
-        const stratName = (stratVal === '123_REVERSAL') ? '1-2-3 Reversal Map' : (stratVal === 'SMA_CROSSOVER' ? 'Dual SMA (9/21)' : 'RSI Reversion');
-        const mode = document.getElementById('bot-scan-mode')?.value || 'ALL_NIFTY_200';
-        const universeName = (mode === 'ALL_NIFTY_200') ? 'NIFTY 200' : (mode === 'SINGLE' ? 'Single Focus' : 'NIFTY 50');
-        const capital = document.getElementById('bot-allocation')?.value || '5000';
+        const stratVal = document.getElementById('bot-strategy')?.value || 'KRONOS_AI';
+        const stratName = (stratVal === 'KRONOS_AI') ? 'Pure Kronos AI (No Radar Signals)' : ((stratVal === '123_REVERSAL') ? '1-2-3 Reversal Map' : (stratVal === 'SMA_CROSSOVER' ? 'Dual SMA (9/21)' : 'RSI Reversion'));
+        const mode = document.getElementById('bot-scan-mode')?.value || 'KRONOS_UNIVERSE';
+        const universeName = (mode === 'KRONOS_UNIVERSE') ? 'Kronos Forecast Stocks' : ((mode === 'ALL_NIFTY_200') ? 'NIFTY 200' : (mode === 'SINGLE' ? 'Single Focus' : 'NIFTY 50'));
+        const capital = document.getElementById('bot-allocation')?.value || '200000';
         const slVal = document.getElementById('bot-stop-loss')?.value || '1.0';
         const tpVal = document.getElementById('bot-take-profit')?.value || '1.0';
         const emaOn = document.getElementById('bot-use-ema200')?.checked ?? true;
@@ -2327,14 +2344,14 @@
         const ribEma = document.getElementById('ribbon-ema');
         const ribTrail = document.getElementById('ribbon-trailing');
 
-        if (ribStrat) ribStrat.innerHTML = `<i class="fa-solid fa-brain"></i> Strategy: <strong>${stratName}</strong>`;
+        if (ribStrat) ribStrat.innerHTML = (stratVal === 'KRONOS_AI') ? `<i class="fa-solid fa-wand-magic-sparkles" style="color: #c4b5fd;"></i> Strategy: <strong>${stratName}</strong>` : `<i class="fa-solid fa-brain"></i> Strategy: <strong>${stratName}</strong>`;
         if (ribUni) ribUni.innerHTML = `<i class="fa-solid fa-layer-group"></i> Universe: <strong>${universeName}</strong>`;
-        const marginVal = Number(capital) || 5000;
+        const marginVal = Number(capital) || 200000;
         const exposureVal = marginVal * 5;
         if (ribCap) ribCap.innerHTML = `<i class="fa-solid fa-bolt" style="color: var(--green);"></i> Margin: <strong>₹${marginVal.toLocaleString('en-IN')}</strong> <span style="opacity: 0.85;">(5x: ₹${exposureVal.toLocaleString('en-IN')})</span>`;
-        if (ribSl) ribSl.innerHTML = (stratVal === '123_REVERSAL') ? `<i class="fa-solid fa-shield-halved"></i> SL: <strong>Point 3 (Max ${slVal}%)</strong>` : `<i class="fa-solid fa-shield-halved"></i> SL: <strong>${slVal}%</strong>`;
-        if (ribTp) ribTp.innerHTML = (stratVal === '123_REVERSAL') ? `<i class="fa-solid fa-bullseye"></i> TP: <strong>Dual (${tpVal}% / Measured Move)</strong>` : `<i class="fa-solid fa-bullseye"></i> TP: <strong>${tpVal}%</strong>`;
-        if (ribEma) ribEma.innerHTML = emaOn ? `<i class="fa-solid fa-filter" style="color: var(--green);"></i> 200 EMA: <strong>ON</strong>` : `<i class="fa-solid fa-filter" style="color: var(--text-muted);"></i> 200 EMA: <strong>OFF</strong>`;
+        if (ribSl) ribSl.innerHTML = `<i class="fa-solid fa-shield-halved"></i> SL: <strong>Strict 1.0%</strong>`;
+        if (ribTp) ribTp.innerHTML = (stratVal === 'KRONOS_AI') ? `<i class="fa-solid fa-bullseye"></i> TP: <strong>Kronos Projected Target</strong>` : ((stratVal === '123_REVERSAL') ? `<i class="fa-solid fa-bullseye"></i> TP: <strong>Dual (${tpVal}% / Measured Move)</strong>` : `<i class="fa-solid fa-bullseye"></i> TP: <strong>${tpVal}%</strong>`);
+        if (ribEma) ribEma.innerHTML = (stratVal === 'KRONOS_AI') ? `<i class="fa-solid fa-filter" style="color: #c4b5fd;"></i> Radar Filters: <strong>BYPASSED (Pure AI)</strong>` : (emaOn ? `<i class="fa-solid fa-filter" style="color: var(--green);"></i> 200 EMA: <strong>ON</strong>` : `<i class="fa-solid fa-filter" style="color: var(--text-muted);"></i> 200 EMA: <strong>OFF</strong>`);
         if (ribTrail) ribTrail.innerHTML = trailOn ? `<i class="fa-solid fa-anchor" style="color: var(--blue);"></i> Trailing SL: <strong>ON</strong>` : `<i class="fa-solid fa-anchor" style="color: var(--text-muted);"></i> Trailing SL: <strong>OFF</strong>`;
     }
 
@@ -2383,26 +2400,20 @@
     function updateRadarPillCounts(data) {
         if (!data) return;
         const allCount = data.length;
-        const buyCount = data.filter(s => s.signal === 'BUY').length;
-        const sellCount = data.filter(s => s.signal === 'SELL' || s.signal === 'STOP_LOSS' || s.signal === 'TAKE_PROFIT').length;
+        const buyCount = data.filter(s => s.signal === 'BUY' || (s.ai_bias && s.ai_bias.includes('BULLISH'))).length;
+        const sellCount = data.filter(s => s.signal === 'SELL' || (s.ai_bias && s.ai_bias.includes('BEARISH'))).length;
         const heldSymbols = new Set((window.cachedActivePositions || []).map(p => p.symbol));
         const heldCount = data.filter(s => heldSymbols.has(s.symbol)).length;
-        const gainersCount = data.filter(s => (s.change_pct || 0) > 0).length;
-        const dipsCount = data.filter(s => (s.change_pct || 0) < 0).length;
 
         const elAll = document.getElementById('count-chip-all');
         const elBuy = document.getElementById('count-chip-buy');
         const elSell = document.getElementById('count-chip-sell');
         const elHeld = document.getElementById('count-chip-held');
-        const elGainers = document.getElementById('count-chip-gainers');
-        const elDips = document.getElementById('count-chip-dips');
 
         if (elAll) elAll.innerText = allCount;
         if (elBuy) elBuy.innerText = buyCount;
         if (elSell) elSell.innerText = sellCount;
         if (elHeld) elHeld.innerText = heldCount;
-        if (elGainers) elGainers.innerText = gainersCount;
-        if (elDips) elDips.innerText = dipsCount;
     }
 
     function applyRadarFilters() {
@@ -2419,16 +2430,12 @@
         }
         
         if (activeRadarFilter === 'BUY') {
-            filtered = filtered.filter(s => s.signal === 'BUY');
+            filtered = filtered.filter(s => s.signal === 'BUY' || (s.ai_bias && s.ai_bias.includes('BULLISH')));
         } else if (activeRadarFilter === 'SELL') {
-            filtered = filtered.filter(s => s.signal === 'SELL' || s.signal === 'STOP_LOSS' || s.signal === 'TAKE_PROFIT');
+            filtered = filtered.filter(s => s.signal === 'SELL' || (s.ai_bias && s.ai_bias.includes('BEARISH')));
         } else if (activeRadarFilter === 'HELD') {
             const heldSymbols = new Set((window.cachedActivePositions || []).map(p => p.symbol));
             filtered = filtered.filter(s => heldSymbols.has(s.symbol));
-        } else if (activeRadarFilter === 'GAINERS') {
-            filtered = filtered.filter(s => (s.change_pct || 0) > 0).sort((a,b) => (b.change_pct||0) - (a.change_pct||0));
-        } else if (activeRadarFilter === 'DIPS') {
-            filtered = filtered.filter(s => (s.change_pct || 0) < 0).sort((a,b) => (a.change_pct||0) - (b.change_pct||0));
         }
         
         renderRadarTable(filtered);
@@ -2495,54 +2502,26 @@
         results.forEach(s => {
             const tr = document.createElement('tr');
             
-            let sigBadge = '<span class="signal-badge signal-hold">HOLD</span>';
-            if (s.signal === 'BUY') sigBadge = '<span class="signal-badge signal-buy"><i class="fa-solid fa-arrow-up"></i> BUY</span>';
-            if (s.signal === 'SELL') sigBadge = '<span class="signal-badge signal-sell"><i class="fa-solid fa-arrow-down"></i> SELL</span>';
-            if (s.signal === 'STOP_LOSS') sigBadge = '<span class="signal-badge" style="background: rgba(255, 51, 102, 0.2); color: var(--red);"><i class="fa-solid fa-skull-crossbones"></i> STOP-LOSS</span>';
-            if (s.signal === 'TAKE_PROFIT') sigBadge = '<span class="signal-badge" style="background: rgba(0, 240, 144, 0.2); color: var(--green);"><i class="fa-solid fa-trophy"></i> TAKE-PROFIT</span>';
-
-            let sideBadge = '<span class="side-badge side-neutral">--</span>';
-            if (s.signal === 'BUY') {
-                sideBadge = '<span class="side-badge side-long"><i class="fa-solid fa-arrow-trend-up"></i> LONG</span>';
-            } else if (s.signal === 'SELL' || s.signal === 'STOP_LOSS' || s.signal === 'TAKE_PROFIT') {
-                sideBadge = '<span class="side-badge side-short"><i class="fa-solid fa-arrow-trend-down"></i> SHORT</span>';
-            } else if (s.trend_200 === 'BULLISH') {
-                sideBadge = '<span class="side-badge side-long" style="opacity: 0.85;"><i class="fa-solid fa-arrow-trend-up"></i> LONG</span>';
-            } else if (s.trend_200 === 'BEARISH') {
-                sideBadge = '<span class="side-badge side-short" style="opacity: 0.85;"><i class="fa-solid fa-arrow-trend-down"></i> SHORT</span>';
+            const bias = (s.ai_bias || '').toUpperCase();
+            let biasBadge = '<span class="signal-badge" style="background: rgba(148, 163, 184, 0.15); color: #94a3b8; border: 1px solid rgba(148, 163, 184, 0.3);">NEUTRAL</span>';
+            if (bias.includes('STRONG_BULLISH')) {
+                biasBadge = '<span class="signal-badge" style="background: rgba(0, 240, 144, 0.2); color: var(--green); border: 1px solid rgba(0, 240, 144, 0.5);"><i class="fa-solid fa-angles-up"></i> STRONG BULLISH</span>';
+            } else if (bias.includes('BULLISH')) {
+                biasBadge = '<span class="signal-badge" style="background: rgba(0, 240, 144, 0.15); color: var(--green); border: 1px solid rgba(0, 240, 144, 0.4);"><i class="fa-solid fa-arrow-up"></i> BULLISH</span>';
+            } else if (bias.includes('STRONG_BEARISH')) {
+                biasBadge = '<span class="signal-badge" style="background: rgba(255, 51, 102, 0.2); color: var(--red); border: 1px solid rgba(255, 51, 102, 0.5);"><i class="fa-solid fa-angles-down"></i> STRONG BEARISH</span>';
+            } else if (bias.includes('BEARISH')) {
+                biasBadge = '<span class="signal-badge" style="background: rgba(255, 51, 102, 0.15); color: var(--red); border: 1px solid rgba(255, 51, 102, 0.4);"><i class="fa-solid fa-arrow-down"></i> BEARISH</span>';
             }
 
-            if (s.filter_status === 'FILTERED_STRICT_AI') {
-                sigBadge = '<span class="signal-badge" style="background: rgba(167, 139, 250, 0.15); color: #c4b5fd; border: 1px solid rgba(167, 139, 250, 0.4);"><i class="fa-solid fa-microchip"></i> NO KRONOS AI</span>';
-            } else if (s.filter_status === 'FILTERED_KRONOS_AI') {
-                sigBadge = '<span class="signal-badge" style="background: rgba(239, 68, 68, 0.15); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.4);"><i class="fa-solid fa-shield-halved"></i> AI SHIELDED</span>';
-            } else if (s.filter_status === 'FILTERED_200EMA') {
-                sigBadge = '<span class="signal-badge" style="background: rgba(255, 189, 46, 0.15); color: #ffbd2e; border: 1px solid rgba(255, 189, 46, 0.4);"><i class="fa-solid fa-filter"></i> FILTERED (&lt; 200 EMA)</span>';
-            } else if (s.filter_status === 'FILTERED_VOLUME') {
-                sigBadge = '<span class="signal-badge" style="background: rgba(255, 189, 46, 0.15); color: #ffbd2e; border: 1px solid rgba(255, 189, 46, 0.4);"><i class="fa-solid fa-filter"></i> FILTERED (Low Vol)</span>';
-            }
+            const expPct = (s.ai_expected_pct !== undefined && s.ai_expected_pct !== null && s.ai_expected_pct !== 0) 
+                ? s.ai_expected_pct 
+                : (s.change_pct || 0);
+            const expClass = expPct >= 0 ? 'text-green' : 'text-red';
+            const expSign = expPct >= 0 ? '+' : '';
 
-            const changeClass = (s.change_pct || 0) >= 0 ? 'text-green' : 'text-red';
-            const changeSign = (s.change_pct || 0) >= 0 ? '+' : '';
-            
-            let indText = s.reason || '--';
-            if (s.reversal_score !== undefined && s.reversal_score !== null) {
-                const gradeColor = (s.reversal_grade === 'A+' || s.reversal_grade === 'A') ? 'var(--green)' : '#ffd166';
-                indText = `<span style="color: ${gradeColor}; font-weight: 700;"><i class="fa-solid fa-draw-polygon"></i> 1-2-3 [${s.reversal_score} ${s.reversal_grade || ''}]</span> <span style="font-size: 0.72rem; color: var(--text-muted);">${s.reason}</span>`;
-            } else if (s.fast_sma && s.slow_sma) {
-                indText = `SMA9: ₹${s.fast_sma} | SMA21: ₹${s.slow_sma}`;
-            } else if (s.rsi !== undefined && s.rsi !== null) {
-                indText = `RSI: ${s.rsi}`;
-            }
-
-            let macroBadge = '';
-            if (s.trend_200 === 'BULLISH') {
-                macroBadge = '<span style="color: var(--green); font-size: 0.72rem; font-weight: 700; margin-right: 6px;"><i class="fa-solid fa-arrow-trend-up"></i> &gt; 200 EMA</span>';
-            } else if (s.trend_200 === 'BEARISH') {
-                macroBadge = '<span style="color: #ffbd2e; font-size: 0.72rem; font-weight: 700; margin-right: 6px;"><i class="fa-solid fa-arrow-trend-down"></i> &lt; 200 EMA</span>';
-            }
-
-            let volBadge = s.vol_ratio ? `<span style="font-size: 0.72rem; color: var(--text-muted);">Vol: ${s.vol_ratio}x</span>` : '';
+            const slPrice = s.stop_loss || s.suggested_sl || (bias.includes('BEARISH') ? s.price * 1.01 : s.price * 0.99);
+            const tpPrice = s.take_profit || s.suggested_tp || (bias.includes('BEARISH') ? s.price * 0.975 : s.price * 1.025);
 
             let actionBadge = '<span style="color: var(--text-muted);">--</span>';
             if (s.action_executed) {
@@ -2553,9 +2532,11 @@
                 } else {
                     actionBadge = `<span style="color: var(--green); font-weight: 700;"><i class="fa-solid fa-check"></i> ${s.action_executed}</span>`;
                 }
+            } else if (bias.includes('BEARISH')) {
+                actionBadge = '<span style="color: #f87171; font-size: 0.76rem; font-weight: 600;"><i class="fa-solid fa-shield-halved"></i> Bearish Capital Shield</span>';
+            } else if (bias.includes('BULLISH')) {
+                actionBadge = '<span style="color: #00f090; font-size: 0.76rem; font-weight: 600;"><i class="fa-solid fa-wand-magic-sparkles"></i> AI Confirmed Buy</span>';
             }
-
-            const miniSparkline = generateMiniSparkline(s.change_pct || 0, s.trend_200 === 'BULLISH');
 
             let exitBtn = '';
             const heldPos = (window.cachedActivePositions || []).find(p => p.symbol === s.symbol);
@@ -2570,27 +2551,21 @@
 
             tr.innerHTML = `
                 <td>
-                    <div style="font-weight: 800; font-family: var(--font-code); color: #fff;">${s.displayName}</div>
-                    <div style="font-size: 0.7rem; color: var(--text-muted);">${macroBadge}${volBadge}</div>
+                    <div style="font-weight: 800; font-family: var(--font-code); color: #fff; font-size: 0.95rem;">${s.displayName}</div>
+                    <div style="font-size: 0.68rem; color: #a78bfa;"><i class="fa-solid fa-microchip"></i> Kronos Forecast</div>
                 </td>
-                <td style="vertical-align: middle;">
-                    ${miniSparkline}
-                </td>
-                <td>${sideBadge}</td>
-                <td style="font-weight: 700;">₹${s.price.toFixed(2)}</td>
-                <td class="${changeClass}" style="font-weight: 700;">${changeSign}${(s.change_pct || 0).toFixed(2)}%</td>
-                <td>${sigBadge}</td>
-                <td style="font-size: 0.78rem; color: var(--text-muted);">${indText}</td>
+                <td>${biasBadge}</td>
+                <td style="font-weight: 700; font-family: var(--font-code);">₹${s.price.toFixed(2)}</td>
+                <td style="color: #00f090; font-family: var(--font-code); font-weight: 700;">₹${tpPrice.toFixed(2)}</td>
+                <td style="color: #f87171; font-family: var(--font-code);">₹${slPrice.toFixed(2)}</td>
+                <td class="${expClass}" style="font-weight: 700; font-family: var(--font-code);">${expSign}${expPct.toFixed(2)}%</td>
                 <td>${actionBadge}</td>
                 <td>
                     <div style="display: flex; gap: 4px; align-items: center;">
-                        <button class="btn-sm btn-outline" style="padding: 4px 6px; font-size: 0.72rem; display: inline-flex; align-items: center; gap: 3px; border-color: rgba(168, 85, 247, 0.4); color: #c084fc;" onclick="openChartVisualizer('${s.symbol}', ${s.price}, ${s.stop_loss || 0}, ${s.take_profit || 0}, '${s.signal}', ${s.reversal_score || 0}, '${s.reversal_grade || ''}', '${(s.reason || '').replace(/'/g, "\\'")}')" title="1-2-3 Chart Visualizer">
-                            <i class="fa-solid fa-bezier-curve"></i> Chart
-                        </button>
-                        <button class="btn-sm btn-outline" style="padding: 4px 6px; font-size: 0.72rem; display: inline-flex; align-items: center; gap: 3px; border-color: rgba(56, 189, 248, 0.4); color: #38bdf8;" onclick="openBrokerTicket('${s.symbol}', '${s.signal === 'SELL' ? 'SHORT' : 'BUY'}', ${s.price}, ${s.stop_loss || (s.signal === 'SELL' ? s.price * 1.01 : s.price * 0.99)}, ${s.take_profit || (s.signal === 'SELL' ? s.price * 0.97 : s.price * 1.03)}, 1, ${s.reversal_score || 0}, '${s.reversal_grade || ''}')" title="1-Click Broker Order Ticket">
+                        <button class="btn-sm btn-outline" style="padding: 4px 8px; font-size: 0.72rem; display: inline-flex; align-items: center; gap: 3px; border-color: rgba(56, 189, 248, 0.4); color: #38bdf8;" onclick="openBrokerTicket('${s.symbol}', '${bias.includes('BEARISH') ? 'SHORT' : 'BUY'}', ${s.price}, ${slPrice}, ${tpPrice}, 1, 99, 'AI')" title="1-Click Broker Order Ticket">
                             <i class="fa-solid fa-ticket"></i> Ticket
                         </button>
-                        <a href="/?symbol=${s.symbol}" class="btn-sm btn-outline" style="text-decoration: none; display: inline-flex; align-items: center; gap: 4px; padding: 4px 6px; font-size: 0.72rem;">
+                        <a href="/?symbol=${s.symbol}" class="btn-sm btn-outline" style="text-decoration: none; display: inline-flex; align-items: center; gap: 4px; padding: 4px 6px; font-size: 0.72rem;" title="View Live Chart">
                             <i class="fa-solid fa-chart-line"></i>
                         </a>
                         ${exitBtn}
