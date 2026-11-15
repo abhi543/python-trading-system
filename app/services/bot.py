@@ -77,9 +77,9 @@ def get_after_hours_price(symbol: str, base_price: float, pos=None) -> float:
     st = _price_drift_state[symbol]
     st["step_count"] += 1
     
-    # Position price walk: realistic drift with momentum
-    drift_step = random.gauss(0.002 * st["trend"], 0.005)
-    st["drift_pct"] = max(-0.045, min(0.065, st["drift_pct"] + drift_step))
+    # Position price walk: realistic drift with momentum (bounded within standard NSE intraday band)
+    drift_step = random.gauss(0.001 * st["trend"], 0.003)
+    st["drift_pct"] = max(-0.035, min(0.040, st["drift_pct"] + drift_step))
     
     # 12% chance to flip drift direction
     if random.random() < 0.12:
@@ -805,7 +805,9 @@ class AutoTradingBot:
         ai_signals_map = getattr(self, "ai_signals", {})
         ai_info = ai_signals_map.get(symbol) or ai_signals_map.get(display_name) or ai_signals_map.get(f"{display_name}.NS")
         ai_bias = str(ai_info.get("bias", "")).upper() if ai_info else None
-        ai_exp_pct = float(ai_info.get("expected_pct") or ai_info.get("expected_move_pct") or 0.0) if ai_info else 0.0
+        raw_exp = float(ai_info.get("expected_pct") or ai_info.get("expected_move_pct") or 0.0) if ai_info else 0.0
+        # Enforce realistic multi-day expected moves (-8.0% to +8.0% max for equities)
+        ai_exp_pct = max(-8.0, min(8.0, round(raw_exp, 2)))
 
         if self.strategy == "KRONOS_AI":
             # Pure Kronos AI Strategy: Direct execution from neural forecast, zero radar dependency
@@ -1267,14 +1269,16 @@ class AutoTradingBot:
                 stock_data["price"] = sim_price
                 if "closes" in stock_data and len(stock_data["closes"]) > 0:
                     stock_data["closes"][-1] = sim_price
-                drift_pct = ((sim_price - orig_p) / orig_p) * 100
-                stock_data["percent_change"] = round((stock_data.get("percent_change", 0.0) or 0.0) + drift_pct, 2)
+                # Set percent change cleanly from reference price without mutating and compounding
+                drift_pct = round(((sim_price - orig_p) / orig_p) * 100, 2)
+                stock_data["percent_change"] = max(-3.5, min(4.0, drift_pct))
             elif simulation_event == "RANDOM_WALK":
                 # Micro fluctuation: random drift between -0.4% and +0.5%
                 drift = random.uniform(-0.004, +0.005)
                 walk_price = round(orig_p * (1.0 + drift), 2)
                 stock_data["price"] = walk_price
-                stock_data["percent_change"] = round((stock_data.get("percent_change", 0.0) or 0.0) + (drift * 100), 2)
+                drift_pct = round(((walk_price - orig_p) / orig_p) * 100, 2)
+                stock_data["percent_change"] = max(-3.5, min(4.0, drift_pct))
 
         scanner_results = []
         buys_found = 0

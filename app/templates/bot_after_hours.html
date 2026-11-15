@@ -2418,8 +2418,8 @@
     function updateRadarPillCounts(data) {
         if (!data) return;
         const allCount = data.length;
-        const buyCount = data.filter(s => s.signal === 'BUY' || (s.ai_bias && s.ai_bias.includes('BULLISH'))).length;
-        const sellCount = data.filter(s => s.signal === 'SELL' || (s.ai_bias && s.ai_bias.includes('BEARISH'))).length;
+        const buyCount = data.filter(s => (s.signal === 'BUY') || ((s.ai_bias || '').toUpperCase().includes('BULLISH'))).length;
+        const sellCount = data.filter(s => (s.signal === 'SELL') || ((s.ai_bias || '').toUpperCase().includes('BEARISH'))).length;
         const heldSymbols = new Set((window.cachedActivePositions || []).map(p => p.symbol));
         const heldCount = data.filter(s => heldSymbols.has(s.symbol)).length;
 
@@ -2455,6 +2455,16 @@
             const heldSymbols = new Set((window.cachedActivePositions || []).map(p => p.symbol));
             filtered = filtered.filter(s => heldSymbols.has(s.symbol));
         }
+
+        // Prioritize Kronos AI forecast stocks at top, sorted by highest realistic conviction
+        filtered.sort((a, b) => {
+            const aAi = (a.ai_bias && a.ai_bias !== 'NEUTRAL') ? 1 : 0;
+            const bAi = (b.ai_bias && b.ai_bias !== 'NEUTRAL') ? 1 : 0;
+            if (aAi !== bAi) return bAi - aAi;
+            const aExp = Math.abs(a.ai_expected_pct || a.change_pct || 0);
+            const bExp = Math.abs(b.ai_expected_pct || b.change_pct || 0);
+            return bExp - aExp;
+        });
         
         renderRadarTable(filtered);
     }
@@ -2532,14 +2542,21 @@
                 biasBadge = '<span class="signal-badge" style="background: rgba(255, 51, 102, 0.15); color: var(--red); border: 1px solid rgba(255, 51, 102, 0.4);"><i class="fa-solid fa-arrow-down"></i> BEARISH</span>';
             }
 
-            const expPct = (s.ai_expected_pct !== undefined && s.ai_expected_pct !== null && s.ai_expected_pct !== 0) 
+            const hasAi = (bias && bias !== 'NEUTRAL');
+            let rawExp = (s.ai_expected_pct !== undefined && s.ai_expected_pct !== null && s.ai_expected_pct !== 0) 
                 ? s.ai_expected_pct 
                 : (s.change_pct || 0);
+            // Cap to realistic Indian equity moves (-8.0% to +8.0%)
+            let expPct = Math.max(-8.0, Math.min(8.0, Number(rawExp) || 0));
             const expClass = expPct >= 0 ? 'text-green' : 'text-red';
             const expSign = expPct >= 0 ? '+' : '';
+            const expDisplay = hasAi 
+                ? `${expSign}${expPct.toFixed(2)}%` 
+                : `<span style="color: var(--text-muted); font-size: 0.72rem;">${expSign}${expPct.toFixed(2)}% (Day)</span>`;
 
             const slPrice = s.stop_loss || s.suggested_sl || (bias.includes('BEARISH') ? s.price * 1.01 : s.price * 0.99);
             const tpPrice = s.take_profit || s.suggested_tp || (bias.includes('BEARISH') ? s.price * 0.975 : s.price * 1.025);
+            const projTarget = (s.suggested_tp && s.suggested_tp > 0) ? s.suggested_tp : tpPrice;
 
             let actionBadge = '<span style="color: var(--text-muted);">--</span>';
             if (s.action_executed) {
@@ -2574,9 +2591,9 @@
                 </td>
                 <td>${biasBadge}</td>
                 <td style="font-weight: 700; font-family: var(--font-code);">₹${s.price.toFixed(2)}</td>
-                <td style="color: #00f090; font-family: var(--font-code); font-weight: 700;">₹${tpPrice.toFixed(2)}</td>
+                <td style="color: #00f090; font-family: var(--font-code); font-weight: 700;">₹${projTarget.toFixed(2)}</td>
                 <td style="color: #f87171; font-family: var(--font-code);">₹${slPrice.toFixed(2)}</td>
-                <td class="${expClass}" style="font-weight: 700; font-family: var(--font-code);">${expSign}${expPct.toFixed(2)}%</td>
+                <td class="${expClass}" style="font-weight: 700; font-family: var(--font-code);">${expDisplay}</td>
                 <td>${actionBadge}</td>
                 <td>
                     <div style="display: flex; gap: 4px; align-items: center;">
