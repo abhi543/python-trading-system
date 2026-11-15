@@ -112,14 +112,14 @@ class AutoTradingBot:
 
         persisted = _load_persistent_bot_state(self.state_filename)
         self.is_running = persisted.get("is_running", False)
-        default_scan = "KRONOS_UNIVERSE" if self.is_after_hours_forced else "TOP_200_TURNOVER"
-        default_strat = "KRONOS_AI" if self.is_after_hours_forced else "123_REVERSAL"
+        default_scan = "KRONOS_UNIVERSE"
+        default_strat = "KRONOS_AI"
         self.scan_mode = persisted.get("scan_mode", default_scan)
         self.single_symbol = persisted.get("single_symbol", "RELIANCE.NS")
         self.strategy = persisted.get("strategy", default_strat)
-        if self.is_after_hours_forced and self.strategy in ["123_REVERSAL", "SUPER_TREND"]:
+        if self.strategy in ["123_REVERSAL", "SUPER_TREND"]:
             self.strategy = "KRONOS_AI"
-        if self.is_after_hours_forced and self.scan_mode in ["ALL_NIFTY_200", "TOP_200_TURNOVER"]:
+        if self.scan_mode in ["ALL_NIFTY_200", "TOP_200_TURNOVER"]:
             self.scan_mode = "KRONOS_UNIVERSE"
         if self.name == "ALPHA":
             # Start stock traded from just 500 margin
@@ -146,7 +146,7 @@ class AutoTradingBot:
             except Exception:
                 pass
         self.use_ai_filter = persisted.get("use_ai_filter", True)
-        self.strict_ai_mode = bool(persisted.get("strict_ai_mode", True if self.is_after_hours_forced else False))
+        self.strict_ai_mode = bool(persisted.get("strict_ai_mode", True))
         try:
             from app.services.paper_trader import AfterHoursPaperTradingEngine
             AfterHoursPaperTradingEngine.slippage_pct = self.slippage_pct

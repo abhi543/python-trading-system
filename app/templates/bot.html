@@ -132,7 +132,8 @@
                 <div class="config-item">
                     <label><i class="fa-solid fa-layer-group"></i> SCANNING UNIVERSE</label>
                     <select id="bot-scan-mode" class="config-select" onchange="onScanModeChange();">
-                        <option value="TOP_200_TURNOVER" selected>💎 Daily Top 200 by Turnover (Highest Liquidity & Volume)</option>
+                        <option value="KRONOS_UNIVERSE" selected>🔮 Kronos Synced Stocks (Morning Forecast Universe)</option>
+                        <option value="TOP_200_TURNOVER">💎 Daily Top 200 by Turnover (Highest Liquidity & Volume)</option>
                         <option value="ALL_NSE_2000">🚀 NIFTY Total Market (Rolling 2,000+ NSE Stocks)</option>
                         <option value="ALL_NIFTY_200">All NIFTY 200 Basket (Top 200 Stocks)</option>
                         <option value="ALL_NIFTY_50">All NIFTY 50 Basket (Top 50 Stocks)</option>
@@ -148,7 +149,8 @@
                 <div class="config-item">
                     <label><i class="fa-solid fa-chart-line"></i> STRATEGY MODEL</label>
                     <select id="bot-strategy" class="config-select" onchange="onStrategyChange()">
-                        <option value="123_REVERSAL" selected>1-2-3 Reversal Map [AGPro Series v2.1] (Neckline Break &amp; Target)</option>
+                        <option value="KRONOS_AI" selected>🔮 Pure Kronos AI (Direct Execution — No Radar Signals)</option>
+                        <option value="123_REVERSAL">1-2-3 Reversal Map [AGPro Series v2.1] (Neckline Break &amp; Target)</option>
                         <option value="SMA_CROSSOVER">Dual SMA Golden/Death Cross (9 / 21)</option>
                         <option value="RSI_MOMENTUM">RSI Mean Reversion (14-Period, 35/65)</option>
                     </select>
@@ -280,7 +282,7 @@
                     <div class="section-card-header">
                         <div>
                             <h3 id="radar-title-text"><i class="fa-solid fa-wand-magic-sparkles" style="color: #c4b5fd;"></i> Kronos AI Neural Prediction &amp; Execution Desk</h3>
-                            <span class="card-caption">Pure Kronos AI model forecasts — direct trade execution with real-time neural confluence</span>
+                            <span class="card-caption">Pure Kronos AI model forecasts — direct trade execution without technical radar filters</span>
                         </div>
                         <div style="display: flex; gap: 0.5rem; align-items: center;">
                             <button type="button" class="btn-sm btn-outline" id="btn-toggle-radar-visibility" onclick="toggleRadarVisibility()" style="border-color: rgba(167, 139, 250, 0.4); color: #c4b5fd; font-size: 0.72rem; padding: 4px 10px; border-radius: 6px; cursor: pointer;">
@@ -1996,7 +1998,7 @@
         singleGroup.style.display = (mode === 'SINGLE') ? 'flex' : 'none';
         const scanBtn = document.getElementById('bot-scan-btn');
         if (scanBtn) {
-            const label = (mode === 'TOP_200_TURNOVER') ? 'TOP 200 TURNOVER' : ((mode === 'ALL_NSE_2000') ? '2,000+ STOCKS' : ((mode === 'ALL_NIFTY_200') ? 'ALL 200' : ((mode === 'SINGLE') ? 'TARGET' : 'ALL 50')));
+            const label = (mode === 'KRONOS_UNIVERSE') ? 'KRONOS AI' : ((mode === 'TOP_200_TURNOVER') ? 'TOP 200 TURNOVER' : ((mode === 'ALL_NSE_2000') ? '2,000+ STOCKS' : ((mode === 'ALL_NIFTY_200') ? 'ALL 200' : ((mode === 'SINGLE') ? 'TARGET' : 'ALL 50'))));
             scanBtn.innerHTML = `<i class="fa-solid fa-arrows-rotate"></i> SCAN ${label} NOW`;
         }
         updateConfigSummaryRibbon();
@@ -2263,10 +2265,10 @@
     }
 
     function updateConfigSummaryRibbon() {
-        const stratVal = document.getElementById('bot-strategy')?.value || '123_REVERSAL';
-        const stratName = (stratVal === '123_REVERSAL') ? '1-2-3 Reversal Map' : (stratVal === 'SMA_CROSSOVER' ? 'Dual SMA (9/21)' : 'RSI Reversion');
-        const mode = document.getElementById('bot-scan-mode')?.value || 'TOP_200_TURNOVER';
-        const universeName = (mode === 'TOP_200_TURNOVER') ? 'Top 200 Turnover' : ((mode === 'ALL_NSE_2000') ? 'Total Market (2,000+)' : ((mode === 'ALL_NIFTY_200') ? 'NIFTY 200' : (mode === 'SINGLE' ? 'Single Focus' : 'NIFTY 50')));
+        const stratVal = document.getElementById('bot-strategy')?.value || 'KRONOS_AI';
+        const stratName = (stratVal === 'KRONOS_AI') ? 'Pure Kronos AI (No Radar Signals)' : ((stratVal === '123_REVERSAL') ? '1-2-3 Reversal Map' : (stratVal === 'SMA_CROSSOVER' ? 'Dual SMA (9/21)' : 'RSI Reversion'));
+        const mode = document.getElementById('bot-scan-mode')?.value || 'KRONOS_UNIVERSE';
+        const universeName = (mode === 'KRONOS_UNIVERSE') ? 'Kronos Forecast Stocks' : ((mode === 'TOP_200_TURNOVER') ? 'Top 200 Turnover' : ((mode === 'ALL_NSE_2000') ? 'Total Market (2,000+)' : ((mode === 'ALL_NIFTY_200') ? 'NIFTY 200' : (mode === 'SINGLE' ? 'Single Focus' : 'NIFTY 50'))));
         const capital = document.getElementById('bot-allocation')?.value || '500';
         const slVal = document.getElementById('bot-stop-loss')?.value || '1.0';
         const tpVal = document.getElementById('bot-take-profit')?.value || '1.0';
