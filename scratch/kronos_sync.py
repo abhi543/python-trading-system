@@ -477,10 +477,17 @@ def generate_and_sync_signals(max_stocks=30):
 
     # Also save local backup cache
     cache_file = os.path.join(CURRENT_DIR, 'latest_ai_signals.json')
+    app_data_file = os.path.join(ROOT_DIR, 'app', 'data', 'latest_ai_signals.json')
     try:
         with open(cache_file, 'w', encoding='utf-8') as f:
             json.dump(upload_body, f, indent=2)
         print(f"      💾 Saved JSON:     {cache_file}")
+    except Exception:
+        pass
+    try:
+        with open(app_data_file, 'w', encoding='utf-8') as f:
+            json.dump(upload_body, f, indent=2)
+        print(f"      📦 App Data:       {app_data_file}")
     except Exception:
         pass
 

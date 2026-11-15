@@ -2073,12 +2073,17 @@
         try {
             const storedPos = (typeof getStoredActivePositions === 'function') ? getStoredActivePositions() : [];
             const storedClosed = (typeof getStoredClosedTrades === 'function') ? getStoredClosedTrades() : [];
+            let storedAiSignals = null;
+            try {
+                storedAiSignals = JSON.parse(localStorage.getItem('kronos_ai_signals_v1') || 'null');
+            } catch(e) {}
             const res = await fetch('/api/after-hours/overview', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     client_positions: storedPos,
                     client_closed_trades: storedClosed,
+                    client_ai_signals: storedAiSignals,
                     is_running: isBotActive
                 })
             });
@@ -2226,13 +2231,26 @@
         const ribAiPill = document.getElementById('ribbon-ai');
         if (ribAiText && ribAiPill) {
             if (aiSummary.active && aiSummary.total_synced > 0) {
+                try {
+                    localStorage.setItem('kronos_ai_signals_v1', JSON.stringify(aiSummary));
+                } catch(e){}
                 ribAiText.innerHTML = `<span style="color:#06d6a0;">Active</span> (${aiSummary.total_synced} Synced: ${aiSummary.bullish_count}🟢 / ${aiSummary.bearish_count}🔴)`;
                 ribAiPill.style.borderColor = 'rgba(6, 214, 160, 0.5)';
                 ribAiPill.style.color = '#06d6a0';
             } else {
-                ribAiText.innerText = 'Standby (09:00 AM Sync)';
-                ribAiPill.style.borderColor = 'rgba(167, 139, 250, 0.4)';
-                ribAiPill.style.color = '#c4b5fd';
+                let cachedSummary = null;
+                try {
+                    cachedSummary = JSON.parse(localStorage.getItem('kronos_ai_signals_v1') || 'null');
+                } catch(e){}
+                if (cachedSummary && cachedSummary.total_synced > 0) {
+                    ribAiText.innerHTML = `<span style="color:#06d6a0;">Active</span> (${cachedSummary.total_synced} Synced: ${cachedSummary.bullish_count}🟢 / ${cachedSummary.bearish_count}🔴)`;
+                    ribAiPill.style.borderColor = 'rgba(6, 214, 160, 0.5)';
+                    ribAiPill.style.color = '#06d6a0';
+                } else {
+                    ribAiText.innerText = 'Standby (09:00 AM Sync)';
+                    ribAiPill.style.borderColor = 'rgba(167, 139, 250, 0.4)';
+                    ribAiPill.style.color = '#c4b5fd';
+                }
             }
         }
 
@@ -2768,6 +2786,25 @@
             // Immediately merge any automated SL/TP closed trades from this scan sweep to prevent vanishing
             const sweepClosed = (data.result && Array.isArray(data.result.closed_trades)) ? data.result.closed_trades : [];
             if (sweepClosed.length > 0) {
+                // 1. Immediately remove closed symbols from stored active positions
+                const closedSymbols = new Set(sweepClosed.map(t => t.symbol));
+                let currentActive = (typeof getStoredActivePositions === 'function') ? getStoredActivePositions() : [];
+                currentActive = currentActive.filter(p => !closedSymbols.has(p.symbol));
+                saveStoredActivePositions(currentActive);
+                window.cachedActivePositions = currentActive;
+
+                // 2. Remove from pos entry lock
+                try {
+                    let cache = JSON.parse(localStorage.getItem(POS_ENTRY_LOCK_KEY) || '{}');
+                    sweepClosed.forEach(t => delete cache[t.symbol]);
+                    localStorage.setItem(POS_ENTRY_LOCK_KEY, JSON.stringify(cache));
+                } catch(e){}
+
+                // 3. If desk is now clear, flag explicit square off so cold-start doesn't resurrect them
+                if (currentActive.length === 0) {
+                    window.explicitSquareOffDone = true;
+                }
+
                 const currentClosed = getStoredClosedTrades();
                 const tradeMap = new Map();
                 const getKey = t => (t.id ? `id_${t.id}` : `${t.symbol}_${t.side}_${t.quantity}_${t.entry_price || 0}_${t.exit_price || t.price || 0}_${(t.timestamp || '').slice(0, 16)}`);
@@ -2984,6 +3021,14 @@
 
         let serverPositions = (data && Array.isArray(data.positions)) ? data.positions : [];
         let storedPositions = (typeof getStoredActivePositions === 'function') ? getStoredActivePositions() : [];
+        const closedTrades = (typeof getStoredClosedTrades === 'function') ? getStoredClosedTrades() : [];
+        const recentlyClosedSymbols = new Set(closedTrades.slice(0, 50).map(t => t.symbol));
+
+        // Always remove positions from storedPositions that have already been closed
+        if (recentlyClosedSymbols.size > 0 && storedPositions.length > 0) {
+            storedPositions = storedPositions.filter(p => !recentlyClosedSymbols.has(p.symbol));
+            saveStoredActivePositions(storedPositions);
+        }
 
         // Protection against cold-start serverless instance returning empty positions:
         // If server returns [] but client has stored active positions (and user did NOT square off),

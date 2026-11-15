@@ -55,6 +55,20 @@ def manage_ai_signals():
         data = request.get_json(silent=True) or {}
         signals = data.get('signals', {})
         meta = data.get('metadata', {})
+        try:
+            base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+            ai_json_path = os.path.join(base_dir, 'data', 'latest_ai_signals.json')
+            with open(ai_json_path, 'w', encoding='utf-8') as f:
+                json.dump(data, f, indent=2)
+        except Exception:
+            pass
+        try:
+            import tempfile
+            tmp_path = os.path.join(tempfile.gettempdir(), 'latest_ai_signals.json')
+            with open(tmp_path, 'w', encoding='utf-8') as f:
+                json.dump(data, f, indent=2)
+        except Exception:
+            pass
         res_alpha = bot_instance.update_ai_signals(signals, metadata=meta)
         res_night = after_hours_bot_instance.update_ai_signals(signals, metadata=meta)
         res_titan = swing_bot_instance.update_ai_signals(signals, metadata=meta)
@@ -994,6 +1008,11 @@ def get_after_hours_overview():
         client_running = body.get('is_running')
         if client_running is not None:
             after_hours_bot_instance.is_running = bool(client_running)
+        client_ai_signals = body.get('client_ai_signals')
+        if client_ai_signals and isinstance(client_ai_signals, dict) and not getattr(after_hours_bot_instance, "ai_signals", None):
+            sig_dict = client_ai_signals.get('signals') or client_ai_signals
+            if sig_dict and isinstance(sig_dict, dict):
+                after_hours_bot_instance.update_ai_signals(sig_dict, metadata=client_ai_signals.get('metadata'))
 
     status_data = after_hours_bot_instance.get_status()
     portfolio_data = AfterHoursPaperTradingEngine.get_portfolio_summary()

@@ -14,6 +14,7 @@ predict.bat
 *.pdf
 *.png
 *.json
+!app/data/*.json
 report_assets/
 
 
