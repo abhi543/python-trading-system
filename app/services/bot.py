@@ -141,7 +141,7 @@ class AutoTradingBot:
                 self.ai_signals_metadata = DEFAULT_AI_PAYLOAD.get('metadata', {})
             except Exception:
                 pass
-        self.use_ai_filter = persisted.get("use_ai_filter", True)
+        self.use_ai_filter = persisted.get("use_ai_filter", False)
         self.strict_ai_mode = bool(persisted.get("strict_ai_mode", False))
         try:
             from app.services.paper_trader import AfterHoursPaperTradingEngine
@@ -452,6 +452,10 @@ class AutoTradingBot:
             self.use_ai_filter = bool(config["use_ai_filter"])
         if "strict_ai_mode" in config:
             self.strict_ai_mode = bool(config["strict_ai_mode"])
+            if not self.strict_ai_mode and "use_ai_filter" not in config:
+                self.use_ai_filter = False
+            elif self.strict_ai_mode and "use_ai_filter" not in config:
+                self.use_ai_filter = True
             self.add_log(f"🤖 Strict AI Mode: {'ON (Trading ONLY Kronos-forecasted stocks)' if self.strict_ai_mode else 'OFF (Trading all stocks)'}", "SUCCESS" if self.strict_ai_mode else "INFO")
         self.persist_state()
 
@@ -983,7 +987,8 @@ class AutoTradingBot:
                 reason = "Filtered: No Kronos AI Forecast (Strict AI Mode ON)"
                 filter_status = "FILTERED_STRICT_AI"
 
-            if getattr(self, "use_ai_filter", True) and ai_bias and signal != "HOLD":
+            ai_filter_active = getattr(self, "use_ai_filter", False) and (getattr(self, "strict_ai_mode", False) or self.strategy == "KRONOS_AI")
+            if ai_filter_active and ai_bias and signal != "HOLD":
                 if signal == "BUY" and (not pos or getattr(pos, 'side', 'LONG') == 'SHORT'):
                     if "BEARISH" in ai_bias:
                         signal = "HOLD"

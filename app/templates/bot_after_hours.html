@@ -2767,6 +2767,7 @@
         return {
             is_running: isBotActive,
             strict_ai_mode: currentStrictAiMode,
+            use_ai_filter: currentStrictAiMode,
             scan_mode: document.getElementById('bot-scan-mode')?.value || 'ALL_NIFTY_200',
             single_symbol: document.getElementById('bot-symbol')?.value?.trim()?.toUpperCase() || 'RELIANCE.NS',
             strategy: document.getElementById('bot-strategy')?.value || '123_REVERSAL',

@@ -209,7 +209,7 @@
 
                 <div class="config-item" style="display: flex; flex-direction: column; justify-content: center;">
                     <label style="cursor: pointer; display: flex; align-items: center; gap: 0.5rem;">
-                        <input type="checkbox" id="bot-use-vol" checked style="accent-color: #ffd166; width: 16px; height: 16px;" onchange="updateConfigSummaryRibbon()">
+                        <input type="checkbox" id="bot-use-vol" style="accent-color: #ffd166; width: 16px; height: 16px;" onchange="onStrategyChange()">
                         <span><i class="fa-solid fa-fire-flame-curved" style="color: #ffd166;"></i> Volume Breakout (≥1.3x)</span>
                     </label>
                     <span style="font-size: 0.68rem; color: var(--text-muted); margin-top: 3px;">Filter false moves: volume ≥ 1.3x 20-day SMA</span>
@@ -2669,6 +2669,7 @@
         return {
             is_running: isBotActive,
             strict_ai_mode: currentStrictAiMode,
+            use_ai_filter: currentStrictAiMode,
             scan_mode: document.getElementById('bot-scan-mode')?.value || 'TOP_200_TURNOVER',
             single_symbol: document.getElementById('bot-symbol')?.value?.trim()?.toUpperCase() || 'RELIANCE.NS',
             strategy: document.getElementById('bot-strategy')?.value || '123_REVERSAL',
