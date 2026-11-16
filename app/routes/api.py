@@ -1532,7 +1532,6 @@ def update_swing_config():
         swing_bot_instance.scan_mode = str(data["scan_mode"])
     if "strict_ai_mode" in data:
         swing_bot_instance.strict_ai_mode = bool(data["strict_ai_mode"])
-        swing_bot_instance.add_log(f"🤖 Strict AI Mode: {'ON (Trading ONLY Kronos-forecasted stocks)' if swing_bot_instance.strict_ai_mode else 'OFF (Trading all stocks)'}", "SUCCESS" if swing_bot_instance.strict_ai_mode else "INFO")
 
     swing_bot_instance.persist_state()
     return jsonify({

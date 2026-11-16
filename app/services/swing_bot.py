@@ -266,32 +266,18 @@ class SwingTradingBot:
             self.ai_signals_metadata["updated_at"] = now_str
         self.persist_state()
         summary = self.get_ai_signals_summary()
-        self.add_log(f"🧠 [TITAN KRONOS SYNC] Received {summary['total_synced']} 5-day forecasts: {summary['bullish_count']} Bullish 🟢 | {summary['bearish_count']} Bearish 🔴", "SUCCESS")
         return summary
 
     def get_ai_signals_summary(self) -> dict:
-        signals = getattr(self, "ai_signals", {})
-        if not signals:
-            try:
-                from app.data.default_ai_signals import DEFAULT_AI_PAYLOAD
-                self.ai_signals = DEFAULT_AI_PAYLOAD.get('signals', {})
-                self.ai_signals_metadata = DEFAULT_AI_PAYLOAD.get('metadata', {})
-                signals = self.ai_signals
-            except Exception:
-                pass
-        bullish = sum(1 for s in signals.values() if "BULLISH" in str(s.get("bias", "")).upper())
-        bearish = sum(1 for s in signals.values() if "BEARISH" in str(s.get("bias", "")).upper())
-        neutral = len(signals) - (bullish + bearish)
-        meta = getattr(self, "ai_signals_metadata", {})
         return {
-            "active": len(signals) > 0,
-            "total_synced": len(signals),
-            "bullish_count": bullish,
-            "bearish_count": bearish,
-            "neutral_count": neutral,
-            "updated_at": meta.get("updated_at", "Never"),
-            "model": meta.get("model", "Kronos-small"),
-            "filter_enabled": getattr(self, "use_ai_filter", True)
+            "active": False,
+            "total_synced": 0,
+            "bullish_count": 0,
+            "bearish_count": 0,
+            "neutral_count": 0,
+            "updated_at": "Never",
+            "model": "None",
+            "filter_enabled": False
         }
 
     def start(self, config: dict = None) -> Dict[str, Any]:
@@ -431,38 +417,6 @@ class SwingTradingBot:
                 continue
 
             scan_res = UnifiedSwingScanner.scan_stock(sym, data, selected_strategy=self.selected_strategy)
-
-            # Kronos AI Neural Confluence Check
-            ai_info = self.ai_signals.get(sym) or self.ai_signals.get(sym.replace(".NS", "")) or self.ai_signals.get(f"{sym}.NS")
-            if getattr(self, "strict_ai_mode", False) and not ai_info and scan_res.get("signal") == "BUY":
-                scan_res["signal"] = "HOLD"
-                scan_res["reason"] = "BUY Filtered: No Kronos AI Forecast (Strict AI Mode ON)"
-                scan_res["filter_status"] = "FILTERED_STRICT_AI"
-
-            if ai_info:
-                ai_bias = str(ai_info.get("bias", "")).upper()
-                proj_high = float(ai_info.get("projected_high", 0.0) or 0.0)
-                proj_move = float(ai_info.get("expected_pct") or ai_info.get("projected_move_pct") or 0.0)
-                proj_close = float(ai_info.get("projected_close", 0.0) or 0.0)
-
-                scan_res["ai_forecast"] = {
-                    "bias": ai_bias,
-                    "projected_move_pct": proj_move,
-                    "projected_high": proj_high,
-                    "projected_close": proj_close
-                }
-
-                if scan_res.get("signal") == "BUY":
-                    if getattr(self, "use_ai_filter", True) and "BEARISH" in ai_bias:
-                        scan_res["signal"] = "HOLD"
-                        scan_res["reason"] = f"BUY Filtered: Kronos AI Bearish Projection ({proj_move:+.1f}%) | Capital Shield"
-                    elif "BULLISH" in ai_bias:
-                        scan_res["confluence_score"] = min(99, scan_res.get("confluence_score", 85) + 5)
-                        scan_res["strategy"] = f"{scan_res.get('strategy', 'SWING')} | 🔮 Kronos AI Confirmed ({proj_move:+.1f}%)"
-                        curr_p = scan_res.get("price", 0.0)
-                        if proj_high > curr_p and curr_p > 0:
-                            scan_res["target_price"] = max(scan_res.get("target_price", 0.0), round(proj_high, 2))
-                            scan_res["target_pct"] = round(((scan_res["target_price"] - curr_p) / curr_p) * 100, 1)
 
             if scan_res.get("signal") == "BUY":
                 buys_found += 1

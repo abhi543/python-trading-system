@@ -112,11 +112,15 @@ class AutoTradingBot:
 
         persisted = _load_persistent_bot_state(self.state_filename)
         self.is_running = persisted.get("is_running", False)
-        default_scan = "KRONOS_UNIVERSE"
-        default_strat = "KRONOS_AI"
+        default_scan = "TOP_200_TURNOVER"
+        default_strat = "123_REVERSAL"
         self.scan_mode = persisted.get("scan_mode", default_scan)
+        if self.scan_mode == "KRONOS_UNIVERSE":
+            self.scan_mode = "TOP_200_TURNOVER"
         self.single_symbol = persisted.get("single_symbol", "RELIANCE.NS")
         self.strategy = persisted.get("strategy", default_strat)
+        if self.strategy == "KRONOS_AI":
+            self.strategy = "123_REVERSAL"
         if self.name == "ALPHA":
             # Start stock traded from just 500 margin
             persisted_alloc = persisted.get("allocation_per_trade")
@@ -132,17 +136,10 @@ class AutoTradingBot:
         self.leverage = float(persisted.get("leverage", 5.0))  # 5x NSE Intraday MIS Leverage
         self.slippage_pct = float(persisted.get("slippage_pct", 0.0))
         self.batch_scan_index = 0
-        self.ai_signals = persisted.get("ai_signals", {})
-        self.ai_signals_metadata = persisted.get("ai_signals_metadata", {})
-        if not self.ai_signals:
-            try:
-                from app.data.default_ai_signals import DEFAULT_AI_PAYLOAD
-                self.ai_signals = DEFAULT_AI_PAYLOAD.get('signals', {})
-                self.ai_signals_metadata = DEFAULT_AI_PAYLOAD.get('metadata', {})
-            except Exception:
-                pass
-        self.use_ai_filter = persisted.get("use_ai_filter", False)
-        self.strict_ai_mode = bool(persisted.get("strict_ai_mode", False))
+        self.ai_signals = {}
+        self.ai_signals_metadata = {}
+        self.use_ai_filter = False
+        self.strict_ai_mode = False
         try:
             from app.services.paper_trader import AfterHoursPaperTradingEngine
             AfterHoursPaperTradingEngine.slippage_pct = self.slippage_pct
@@ -258,32 +255,18 @@ class AutoTradingBot:
             self.ai_signals_metadata["updated_at"] = now_str
         self.persist_state()
         summary = self.get_ai_signals_summary()
-        self.add_log(f"🧠 [KRONOS AI SYNC] Received {summary['total_synced']} stock forecasts: {summary['bullish_count']} Bullish 🟢 | {summary['bearish_count']} Bearish 🔴", "SUCCESS")
         return summary
 
     def get_ai_signals_summary(self) -> dict:
-        signals = getattr(self, "ai_signals", {})
-        if not signals:
-            try:
-                from app.data.default_ai_signals import DEFAULT_AI_PAYLOAD
-                self.ai_signals = DEFAULT_AI_PAYLOAD.get('signals', {})
-                self.ai_signals_metadata = DEFAULT_AI_PAYLOAD.get('metadata', {})
-                signals = self.ai_signals
-            except Exception:
-                pass
-        bullish = sum(1 for s in signals.values() if "BULLISH" in str(s.get("bias", "")).upper())
-        bearish = sum(1 for s in signals.values() if "BEARISH" in str(s.get("bias", "")).upper())
-        neutral = len(signals) - (bullish + bearish)
-        meta = getattr(self, "ai_signals_metadata", {})
         return {
-            "active": len(signals) > 0,
-            "total_synced": len(signals),
-            "bullish_count": bullish,
-            "bearish_count": bearish,
-            "neutral_count": neutral,
-            "updated_at": meta.get("updated_at"),
-            "use_ai_filter": getattr(self, "use_ai_filter", True),
-            "signals": signals
+            "active": False,
+            "total_synced": 0,
+            "bullish_count": 0,
+            "bearish_count": 0,
+            "neutral_count": 0,
+            "updated_at": None,
+            "use_ai_filter": False,
+            "signals": {}
         }
 
     def record_session_trade(self, trade_data: dict):
@@ -449,14 +432,9 @@ class AutoTradingBot:
         if "use_atr_exits" in config:
             self.use_atr_exits = bool(config["use_atr_exits"])
         if "use_ai_filter" in config:
-            self.use_ai_filter = bool(config["use_ai_filter"])
+            self.use_ai_filter = False
         if "strict_ai_mode" in config:
-            self.strict_ai_mode = bool(config["strict_ai_mode"])
-            if not self.strict_ai_mode and "use_ai_filter" not in config:
-                self.use_ai_filter = False
-            elif self.strict_ai_mode and "use_ai_filter" not in config:
-                self.use_ai_filter = True
-            self.add_log(f"🤖 Strict AI Mode: {'ON (Trading ONLY Kronos-forecasted stocks)' if self.strict_ai_mode else 'OFF (Trading all stocks)'}", "SUCCESS" if self.strict_ai_mode else "INFO")
+            self.strict_ai_mode = False
         self.persist_state()
 
     def start_new_session(self, config: dict = None):
@@ -561,7 +539,7 @@ class AutoTradingBot:
         atr_14 = stock_data.get("atr_14", round(current_price * 0.025, 2))
         display_name = symbol.replace('.NS', '')
 
-        # Kronos AI Neural Confluence / Expected Move
+        # Confluence / Expected Move
         ai_signals_map = getattr(self, "ai_signals", {})
         ai_info = ai_signals_map.get(symbol) or ai_signals_map.get(display_name) or ai_signals_map.get(f"{display_name}.NS")
         ai_bias = str(ai_info.get("bias", "")).upper() if ai_info else None
@@ -839,42 +817,7 @@ class AutoTradingBot:
         reversal_score = None
         reversal_grade = None
 
-        if self.strategy == "KRONOS_AI":
-            # Pure Kronos AI Strategy: Direct execution from neural forecast, zero radar dependency
-            if ai_bias and "BULLISH" in ai_bias:
-                signal = "BUY"
-                suggested_sl = round(current_price * 0.99, 2)
-                suggested_tp = round(float(ai_info.get("projected_high") or (current_price * (1.0 + max(0.015, abs(ai_exp_pct) / 100.0)))), 2)
-                reason = f"🔮 Kronos AI Direct Signal ({ai_exp_pct:+.2f}%) | Target: ₹{suggested_tp:.2f}"
-            elif ai_bias and "BEARISH" in ai_bias:
-                signal = "SELL"
-                suggested_sl = round(current_price * 1.01, 2)
-                suggested_tp = round(float(ai_info.get("projected_low") or (current_price * (1.0 - max(0.015, abs(ai_exp_pct) / 100.0)))), 2)
-                reason = f"🔮 Kronos AI Direct Short ({ai_exp_pct:+.2f}%) | Target: ₹{suggested_tp:.2f}"
-            elif not getattr(self, "strict_ai_mode", False):
-                # When Strict AI is OFF, dynamically project directional moves across universe stocks
-                if trend_200 == "BULLISH" and change_pct > 0:
-                    signal = "BUY"
-                    ai_exp_pct = max(0.8, min(3.5, round(change_pct * 1.25, 2)))
-                    ai_bias = "BULLISH"
-                    suggested_sl = round(current_price * 0.99, 2)
-                    suggested_tp = round(current_price * (1.0 + ai_exp_pct / 100.0), 2)
-                    reason = f"🔮 Kronos Dynamic Trend Buy (+{ai_exp_pct:.2f}%) | Target: ₹{suggested_tp:.2f}"
-                elif trend_200 == "BEARISH" and change_pct < 0:
-                    signal = "SELL"
-                    ai_exp_pct = max(-3.5, min(-0.8, round(change_pct * 1.25, 2)))
-                    ai_bias = "BEARISH"
-                    suggested_sl = round(current_price * 1.01, 2)
-                    suggested_tp = round(current_price * (1.0 + ai_exp_pct / 100.0), 2)
-                    reason = f"🔮 Kronos Dynamic Trend Short ({ai_exp_pct:.2f}%) | Target: ₹{suggested_tp:.2f}"
-                else:
-                    signal = "HOLD"
-                    reason = "Kronos AI: Neutral momentum consolidation"
-            else:
-                signal = "HOLD"
-                reason = "Kronos AI: No active directional projection"
-
-        elif self.strategy == "123_REVERSAL":
+        if self.strategy == "123_REVERSAL":
             from app.services.reversal_123 import Reversal123Engine
             highs = stock_data.get("highs") or closes
             lows = stock_data.get("lows") or closes
@@ -947,62 +890,38 @@ class AutoTradingBot:
             else:
                 reason = f"Neutral Momentum (RSI: {current_rsi:.1f})"
 
-        # OPTION A: Filter BUY/SELL signals with 200 EMA Macro Trend, NIFTY 50 Regime & Volume Breakout (Skipped in pure KRONOS_AI mode)
+        # Filter BUY/SELL signals with 200 EMA Macro Trend, NIFTY 50 Regime & Volume Breakout
         filter_status = None
         nifty_reg = getattr(self, "nifty_market_regime", {}).get("regime", "BULLISH")
         min_vol = getattr(self, "min_volume_ratio", 1.3)
 
-        if self.strategy != "KRONOS_AI":
-            if signal == "BUY" and (not pos or getattr(pos, 'side', 'LONG') == 'SHORT'):
-                if getattr(self, 'use_nifty_filter', False) and nifty_reg == "BEARISH":
-                    signal = "HOLD"
-                    reason = f"BUY Filtered: NIFTY 50 is BEARISH ({nifty_reg}) | Macro Market Trend Filter"
-                    filter_status = "FILTERED_NIFTY_REGIME"
-                elif self.use_ema200_filter and trend_200 == "BEARISH":
-                    signal = "HOLD"
-                    reason = f"BUY Filtered: Bearish Stock Trend (Price ₹{current_price:.1f} < 200 EMA ₹{ema_200})"
-                    filter_status = "FILTERED_200EMA"
-                elif self.use_volume_filter and vol_ratio < min_vol:
-                    signal = "HOLD"
-                    reason = f"BUY Filtered: Weak Volume Surge ({vol_ratio:.2f}x < {min_vol:.1f}x threshold)"
-                    filter_status = "FILTERED_VOLUME"
-            elif signal == "SELL" and not pos:
-                # For new SHORT entries:
-                if getattr(self, 'use_nifty_filter', False) and nifty_reg == "BULLISH":
-                    signal = "HOLD"
-                    reason = f"SHORT Filtered: NIFTY 50 is BULLISH ({nifty_reg}) | Macro Market Trend Filter"
-                    filter_status = "FILTERED_NIFTY_REGIME"
-                elif self.use_ema200_filter and trend_200 == "BULLISH":
-                    signal = "HOLD"
-                    reason = f"SHORT Filtered: Bullish Stock Trend (Price ₹{current_price:.1f} > 200 EMA ₹{ema_200})"
-                    filter_status = "FILTERED_200EMA"
-                elif self.use_volume_filter and vol_ratio < min_vol:
-                    signal = "HOLD"
-                    reason = f"SHORT Filtered: Weak Volume Surge ({vol_ratio:.2f}x < {min_vol:.1f}x threshold)"
-                    filter_status = "FILTERED_VOLUME"
-
-            # Strict AI Mode: When enabled, strictly trade ONLY stocks that have a synced Kronos AI forecast!
-            if getattr(self, "strict_ai_mode", False) and not ai_bias and signal != "HOLD":
+        if signal == "BUY" and (not pos or getattr(pos, 'side', 'LONG') == 'SHORT'):
+            if getattr(self, 'use_nifty_filter', False) and nifty_reg == "BEARISH":
                 signal = "HOLD"
-                reason = "Filtered: No Kronos AI Forecast (Strict AI Mode ON)"
-                filter_status = "FILTERED_STRICT_AI"
-
-            ai_filter_active = getattr(self, "use_ai_filter", False) and (getattr(self, "strict_ai_mode", False) or self.strategy == "KRONOS_AI")
-            if ai_filter_active and ai_bias and signal != "HOLD":
-                if signal == "BUY" and (not pos or getattr(pos, 'side', 'LONG') == 'SHORT'):
-                    if "BEARISH" in ai_bias:
-                        signal = "HOLD"
-                        reason = f"BUY Filtered: Kronos AI Bearish Projection ({ai_exp_pct:+.2f}%) | Capital Shield"
-                        filter_status = "FILTERED_KRONOS_AI"
-                    elif "BULLISH" in ai_bias:
-                        reason += f" | 🔮 Kronos AI Confirmed ({ai_exp_pct:+.2f}%)"
-                elif signal == "SELL" and not pos:
-                    if "BULLISH" in ai_bias:
-                        signal = "HOLD"
-                        reason = f"SHORT Filtered: Kronos AI Bullish Projection ({ai_exp_pct:+.2f}%) | Capital Shield"
-                        filter_status = "FILTERED_KRONOS_AI"
-                    elif "BEARISH" in ai_bias:
-                        reason += f" | 🔮 Kronos AI Confirmed ({ai_exp_pct:+.2f}%)"
+                reason = f"BUY Filtered: NIFTY 50 is BEARISH ({nifty_reg}) | Macro Market Trend Filter"
+                filter_status = "FILTERED_NIFTY_REGIME"
+            elif self.use_ema200_filter and trend_200 == "BEARISH":
+                signal = "HOLD"
+                reason = f"BUY Filtered: Bearish Stock Trend (Price ₹{current_price:.1f} < 200 EMA ₹{ema_200})"
+                filter_status = "FILTERED_200EMA"
+            elif self.use_volume_filter and vol_ratio < min_vol:
+                signal = "HOLD"
+                reason = f"BUY Filtered: Weak Volume Surge ({vol_ratio:.2f}x < {min_vol:.1f}x threshold)"
+                filter_status = "FILTERED_VOLUME"
+        elif signal == "SELL" and not pos:
+            # For new SHORT entries:
+            if getattr(self, 'use_nifty_filter', False) and nifty_reg == "BULLISH":
+                signal = "HOLD"
+                reason = f"SHORT Filtered: NIFTY 50 is BULLISH ({nifty_reg}) | Macro Market Trend Filter"
+                filter_status = "FILTERED_NIFTY_REGIME"
+            elif self.use_ema200_filter and trend_200 == "BULLISH":
+                signal = "HOLD"
+                reason = f"SHORT Filtered: Bullish Stock Trend (Price ₹{current_price:.1f} > 200 EMA ₹{ema_200})"
+                filter_status = "FILTERED_200EMA"
+            elif self.use_volume_filter and vol_ratio < min_vol:
+                signal = "HOLD"
+                reason = f"SHORT Filtered: Weak Volume Surge ({vol_ratio:.2f}x < {min_vol:.1f}x threshold)"
+                filter_status = "FILTERED_VOLUME"
 
         return {
             "symbol": symbol,
@@ -1251,9 +1170,8 @@ class AutoTradingBot:
             target_stocks = batch_stocks
             batch_label = f"Batch {curr_batch}/{total_batches} (200 of 2,391 Stocks)"
         elif self.scan_mode == "KRONOS_UNIVERSE" or self.strategy == "KRONOS_AI":
-            kronos_syms = list(getattr(self, "ai_signals", {}).keys())
-            target_stocks = kronos_syms if kronos_syms else NIFTY_50_DEFAULT[:20]
-            batch_label = f"Kronos AI Synced Stocks ({len(target_stocks)} Stocks)"
+            target_stocks = NIFTY_50_DEFAULT
+            batch_label = "NIFTY 50 Universe (50 Stocks)"
         elif self.scan_mode == "ALL_NIFTY_200":
             target_stocks = NIFTY_200_DEFAULT
         elif self.scan_mode == "ALL_NIFTY_50":
@@ -1446,7 +1364,7 @@ class AutoTradingBot:
                                         pass
 
                                 chg_amt = exec_res.get("charges", {}).get("total_charges", 0.0) if isinstance(exec_res.get("charges"), dict) else 0.0
-                                strat_tag = "Kronos AI Pure Signal" if self.strategy == "KRONOS_AI" else ("1-2-3 Neckline Break" if self.strategy == "123_REVERSAL" else ("Dual SMA Cross" if self.strategy == "SMA_CROSSOVER" else "RSI Reversal"))
+                                strat_tag = "1-2-3 Neckline Break" if self.strategy == "123_REVERSAL" else ("Dual SMA Cross" if self.strategy == "SMA_CROSSOVER" else "RSI Reversal")
                                 self.record_session_trade({
                                     "symbol": symbol,
                                     "displayName": display_name,
@@ -1580,7 +1498,7 @@ class AutoTradingBot:
                                         pass
 
                                 chg_amt = exec_res.get("charges", {}).get("total_charges", 0.0) if isinstance(exec_res.get("charges"), dict) else 0.0
-                                strat_tag = "Kronos AI Pure Short" if self.strategy == "KRONOS_AI" else ("1-2-3 Neckline Breakdown" if self.strategy == "123_REVERSAL" else ("Dual SMA Death Cross" if self.strategy == "SMA_CROSSOVER" else "RSI Overbought"))
+                                strat_tag = "1-2-3 Neckline Breakdown" if self.strategy == "123_REVERSAL" else ("Dual SMA Death Cross" if self.strategy == "SMA_CROSSOVER" else "RSI Overbought")
                                 self.record_session_trade({
                                     "symbol": symbol,
                                     "displayName": display_name,
