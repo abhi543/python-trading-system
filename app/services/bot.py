@@ -1478,7 +1478,17 @@ class AutoTradingBot:
                                     take_profit=pos_rec.take_profit if pos_rec else 0.0
                                 )
                             else:
-                                self.add_log(f"BUY signal on {display_name}, but insufficient cash (Needed ₹{margin_needed:,.2f}, Avail ₹{available_cash:,.2f})", "WARNING")
+                                err_msg = exec_res.get("message") or "Order Rejected"
+                                eval_res["action_executed"] = f"ORDER REJECTED ({err_msg})"
+                                self.add_log(f"BUY order on {display_name} rejected: {err_msg}", "WARNING")
+                        else:
+                            eval_res["action_executed"] = f"SKIPPED (Margin ₹{margin_needed:,.0f} > Avail ₹{available_cash:,.0f})"
+                            self.add_log(f"⚡ [MARGIN LIMIT] BUY on {display_name} skipped: Needed margin ₹{margin_needed:,.2f}, Available cash ₹{available_cash:,.2f}", "WARNING")
+                    elif symbol not in held_map and not has_position_slot:
+                        eval_res["action_executed"] = f"SKIPPED (Max Positions {max_limit} Reached)"
+                        self.add_log(f"⚡ [MAX POSITIONS] BUY on {display_name} skipped: Max slots ({max_limit}) reached", "WARNING")
+                    elif symbol in held_map:
+                        eval_res["action_executed"] = f"ACTIVE ({getattr(held_map[symbol], 'side', 'LONG')})"
                 else:
                     eval_res["action_executed"] = "OFFLINE (Bot Stopped)"
 
@@ -1602,7 +1612,17 @@ class AutoTradingBot:
                                     take_profit=pos_rec.take_profit if pos_rec else 0.0
                                 )
                             else:
-                                self.add_log(f"SELL/SHORT signal on {display_name}, but insufficient cash (Needed ₹{margin_needed:,.2f}, Avail ₹{available_cash:,.2f})", "WARNING")
+                                err_msg = exec_res.get("message") or "Order Rejected"
+                                eval_res["action_executed"] = f"ORDER REJECTED ({err_msg})"
+                                self.add_log(f"SHORT order on {display_name} rejected: {err_msg}", "WARNING")
+                        else:
+                            eval_res["action_executed"] = f"SKIPPED (Margin ₹{margin_needed:,.0f} > Avail ₹{available_cash:,.0f})"
+                            self.add_log(f"⚡ [MARGIN LIMIT] SHORT on {display_name} skipped: Needed margin ₹{margin_needed:,.2f}, Available cash ₹{available_cash:,.2f}", "WARNING")
+                    elif symbol not in held_map and not has_position_slot:
+                        eval_res["action_executed"] = f"SKIPPED (Max Positions {max_limit} Reached)"
+                        self.add_log(f"⚡ [MAX POSITIONS] SHORT on {display_name} skipped: Max slots ({max_limit}) reached", "WARNING")
+                    elif symbol in held_map:
+                        eval_res["action_executed"] = f"ACTIVE ({getattr(held_map[symbol], 'side', 'SHORT')})"
                 else:
                     eval_res["action_executed"] = "OFFLINE (Bot Stopped)"
 
