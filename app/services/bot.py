@@ -165,7 +165,7 @@ class AutoTradingBot:
         self.use_ema200_filter = persisted.get("use_ema200_filter", True)
         self.use_volume_filter = persisted.get("use_volume_filter", True)
         self.min_volume_ratio = float(persisted.get("min_volume_ratio", 1.3))
-        self.use_nifty_filter = persisted.get("use_nifty_filter", True)
+        self.use_nifty_filter = persisted.get("use_nifty_filter", False)
         self.nifty_market_regime = persisted.get("nifty_market_regime", {"regime": "BULLISH", "price": 0.0, "percent_change": 0.0, "ema_200": 0.0})
         
         # Option B: Trailing Stop-Loss & Dynamic ATR Exits
@@ -378,7 +378,7 @@ class AutoTradingBot:
             "use_ema200_filter": self.use_ema200_filter,
             "use_volume_filter": self.use_volume_filter,
             "min_volume_ratio": getattr(self, "min_volume_ratio", 1.3),
-            "use_nifty_filter": getattr(self, "use_nifty_filter", True),
+            "use_nifty_filter": getattr(self, "use_nifty_filter", False),
             "nifty_market_regime": getattr(self, "nifty_market_regime", {"regime": "BULLISH", "price": 0.0, "percent_change": 0.0, "ema_200": 0.0}),
             "use_trailing_stop": self.use_trailing_stop,
             "trailing_trigger_pct": self.trailing_trigger_pct,
@@ -935,7 +935,7 @@ class AutoTradingBot:
 
         if self.strategy != "KRONOS_AI":
             if signal == "BUY" and (not pos or getattr(pos, 'side', 'LONG') == 'SHORT'):
-                if getattr(self, 'use_nifty_filter', True) and nifty_reg == "BEARISH":
+                if getattr(self, 'use_nifty_filter', False) and nifty_reg == "BEARISH":
                     signal = "HOLD"
                     reason = f"BUY Filtered: NIFTY 50 is BEARISH ({nifty_reg}) | Macro Market Trend Filter"
                     filter_status = "FILTERED_NIFTY_REGIME"
@@ -949,7 +949,7 @@ class AutoTradingBot:
                     filter_status = "FILTERED_VOLUME"
             elif signal == "SELL" and not pos:
                 # For new SHORT entries:
-                if getattr(self, 'use_nifty_filter', True) and nifty_reg == "BULLISH":
+                if getattr(self, 'use_nifty_filter', False) and nifty_reg == "BULLISH":
                     signal = "HOLD"
                     reason = f"SHORT Filtered: NIFTY 50 is BULLISH ({nifty_reg}) | Macro Market Trend Filter"
                     filter_status = "FILTERED_NIFTY_REGIME"
