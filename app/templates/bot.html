@@ -1825,6 +1825,12 @@
         const stratEl = document.getElementById('bot-strategy');
         if (stratEl) stratEl.value = savedStrat;
 
+        const savedScan = localStorage.getItem('nifty_bot_scan_mode');
+        if (savedScan) {
+            const scanEl = document.getElementById('bot-scan-mode');
+            if (scanEl) scanEl.value = savedScan;
+        }
+
         // Detect initial NSE market status (Mon-Fri 09:15 - 15:30 IST)
         const now = new Date();
         const utc = now.getTime() + (now.getTimezoneOffset() * 60000);
@@ -1990,16 +1996,26 @@
         }, 1000);
     }
 
-    function onScanModeChange() {
+    async function onScanModeChange() {
         const mode = document.getElementById('bot-scan-mode').value;
+        try { localStorage.setItem('nifty_bot_scan_mode', mode); } catch(e){}
         const singleGroup = document.getElementById('single-symbol-group');
-        singleGroup.style.display = (mode === 'SINGLE') ? 'flex' : 'none';
+        if (singleGroup) singleGroup.style.display = (mode === 'SINGLE') ? 'flex' : 'none';
         const scanBtn = document.getElementById('bot-scan-btn');
         if (scanBtn) {
             const label = (mode === 'KRONOS_UNIVERSE') ? 'KRONOS AI' : ((mode === 'TOP_200_TURNOVER') ? 'TOP 200 TURNOVER' : ((mode === 'ALL_NSE_2000') ? '2,000+ STOCKS' : ((mode === 'ALL_NIFTY_200') ? 'ALL 200' : ((mode === 'SINGLE') ? 'TARGET' : 'ALL 50'))));
             scanBtn.innerHTML = `<i class="fa-solid fa-arrows-rotate"></i> SCAN ${label} NOW`;
         }
         updateConfigSummaryRibbon();
+        try {
+            const cfg = getCurrentBotConfig();
+            cfg.scan_mode = mode;
+            await fetch('/api/bot/config', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(cfg)
+            });
+        } catch(e) {}
     }
 
     async function fetchBotOverview(silent = false) {
@@ -2079,7 +2095,10 @@
             }
         }
 
-        if (data.scan_mode && !document.getElementById('bot-scan-mode').matches(':focus')) {
+        const savedScan = localStorage.getItem('nifty_bot_scan_mode');
+        if (savedScan) {
+            document.getElementById('bot-scan-mode').value = savedScan;
+        } else if (data.scan_mode && !document.getElementById('bot-scan-mode').matches(':focus')) {
             document.getElementById('bot-scan-mode').value = data.scan_mode;
             onScanModeChange();
         }
@@ -2187,7 +2206,10 @@
             }
         }
 
-        if (data.strict_ai_mode !== undefined) {
+        const localStrictAi = localStorage.getItem('alpha_strict_ai_mode');
+        if (localStrictAi !== null) {
+            updateStrictAiUI(localStrictAi === 'true');
+        } else if (data.strict_ai_mode !== undefined) {
             updateStrictAiUI(!!data.strict_ai_mode);
         }
 
@@ -2646,6 +2668,7 @@
     function getCurrentBotConfig() {
         return {
             is_running: isBotActive,
+            strict_ai_mode: currentStrictAiMode,
             scan_mode: document.getElementById('bot-scan-mode')?.value || 'TOP_200_TURNOVER',
             single_symbol: document.getElementById('bot-symbol')?.value?.trim()?.toUpperCase() || 'RELIANCE.NS',
             strategy: document.getElementById('bot-strategy')?.value || '123_REVERSAL',

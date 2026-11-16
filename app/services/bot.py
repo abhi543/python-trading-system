@@ -117,10 +117,6 @@ class AutoTradingBot:
         self.scan_mode = persisted.get("scan_mode", default_scan)
         self.single_symbol = persisted.get("single_symbol", "RELIANCE.NS")
         self.strategy = persisted.get("strategy", default_strat)
-        if self.strategy in ["123_REVERSAL", "SUPER_TREND"]:
-            self.strategy = "KRONOS_AI"
-        if self.scan_mode in ["ALL_NIFTY_200", "TOP_200_TURNOVER"]:
-            self.scan_mode = "KRONOS_UNIVERSE"
         if self.name == "ALPHA":
             # Start stock traded from just 500 margin
             persisted_alloc = persisted.get("allocation_per_trade")
@@ -146,7 +142,7 @@ class AutoTradingBot:
             except Exception:
                 pass
         self.use_ai_filter = persisted.get("use_ai_filter", True)
-        self.strict_ai_mode = bool(persisted.get("strict_ai_mode", True))
+        self.strict_ai_mode = bool(persisted.get("strict_ai_mode", False))
         try:
             from app.services.paper_trader import AfterHoursPaperTradingEngine
             AfterHoursPaperTradingEngine.slippage_pct = self.slippage_pct
@@ -851,6 +847,25 @@ class AutoTradingBot:
                 suggested_sl = round(current_price * 1.01, 2)
                 suggested_tp = round(float(ai_info.get("projected_low") or (current_price * (1.0 - max(0.015, abs(ai_exp_pct) / 100.0)))), 2)
                 reason = f"🔮 Kronos AI Direct Short ({ai_exp_pct:+.2f}%) | Target: ₹{suggested_tp:.2f}"
+            elif not getattr(self, "strict_ai_mode", False):
+                # When Strict AI is OFF, dynamically project directional moves across universe stocks
+                if trend_200 == "BULLISH" and change_pct > 0:
+                    signal = "BUY"
+                    ai_exp_pct = max(0.8, min(3.5, round(change_pct * 1.25, 2)))
+                    ai_bias = "BULLISH"
+                    suggested_sl = round(current_price * 0.99, 2)
+                    suggested_tp = round(current_price * (1.0 + ai_exp_pct / 100.0), 2)
+                    reason = f"🔮 Kronos Dynamic Trend Buy (+{ai_exp_pct:.2f}%) | Target: ₹{suggested_tp:.2f}"
+                elif trend_200 == "BEARISH" and change_pct < 0:
+                    signal = "SELL"
+                    ai_exp_pct = max(-3.5, min(-0.8, round(change_pct * 1.25, 2)))
+                    ai_bias = "BEARISH"
+                    suggested_sl = round(current_price * 1.01, 2)
+                    suggested_tp = round(current_price * (1.0 + ai_exp_pct / 100.0), 2)
+                    reason = f"🔮 Kronos Dynamic Trend Short ({ai_exp_pct:.2f}%) | Target: ₹{suggested_tp:.2f}"
+                else:
+                    signal = "HOLD"
+                    reason = "Kronos AI: Neutral momentum consolidation"
             else:
                 signal = "HOLD"
                 reason = "Kronos AI: No active directional projection"
