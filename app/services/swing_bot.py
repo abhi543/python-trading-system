@@ -30,7 +30,7 @@ SWING_STATE_FILE = os.path.join("/tmp", "swing_bot_state.json") if is_serverless
 
 class SwingPaperTradingEngine:
     @staticmethod
-    def get_or_create_account(initial_cash: float = 100000.0) -> SwingAccount:
+    def get_or_create_account(initial_cash: float = 1000000.0) -> SwingAccount:
         acc = SwingAccount.query.first()
         if not acc:
             acc = SwingAccount(cash_balance=initial_cash)
@@ -40,6 +40,12 @@ class SwingPaperTradingEngine:
             except Exception:
                 db.session.rollback()
                 acc = SwingAccount.query.first()
+        elif acc.cash_balance < 300000.0:
+            acc.cash_balance = 1000000.0
+            try:
+                db.session.commit()
+            except Exception:
+                db.session.rollback()
         return acc
 
     @classmethod
@@ -113,7 +119,12 @@ class SwingPaperTradingEngine:
 
         if side == "BUY":
             if acc.cash_balance < (turnover + charges):
-                return {"success": False, "message": f"Insufficient cash (Needed ₹{turnover+charges:,.2f}, Available ₹{acc.cash_balance:,.2f})"}
+                # Auto-expand paper cash balance so Titan can execute every setup without artificial block
+                acc.cash_balance = round(acc.cash_balance + max(500000.0, (turnover + charges) * 10), 2)
+                try:
+                    db.session.commit()
+                except Exception:
+                    db.session.rollback()
             acc.cash_balance = round(acc.cash_balance - (turnover + charges), 2)
 
             pos = SwingPosition.query.filter_by(symbol=symbol).first()
@@ -202,8 +213,8 @@ class SwingTradingBot:
         self.name = "TITAN_SWING"
         self.is_running = False
         self.selected_strategy = "ALL" # ALL, VORTEX, ANCHOR, TITAN, SURGE
-        self.allocation_per_trade = 20000.0 # ₹20,000 per swing position (5 max positions = ₹100,000)
-        self.max_positions = 5
+        self.allocation_per_trade = 15000.0 # Min ₹15,000 per swing position (Unlimited positions default)
+        self.max_positions = 0 # 0 = Unlimited positions (no limiter)
         self.scan_mode = "ALL_NIFTY_200"
         self.last_scan_time = None
         self.last_scan_summary = {
@@ -226,8 +237,8 @@ class SwingTradingBot:
                     data = json.load(f)
                     self.is_running = data.get("is_running", False)
                     self.selected_strategy = data.get("selected_strategy", "ALL")
-                    self.allocation_per_trade = float(data.get("allocation_per_trade", 20000.0))
-                    self.max_positions = int(data.get("max_positions", 5))
+                    self.allocation_per_trade = max(15000.0, float(data.get("allocation_per_trade", 15000.0)))
+                    self.max_positions = int(data.get("max_positions", 0))
                     self.ai_signals = data.get("ai_signals", {})
                     self.ai_signals_metadata = data.get("ai_signals_metadata", {})
                     self.use_ai_filter = data.get("use_ai_filter", True)
@@ -285,9 +296,9 @@ class SwingTradingBot:
             if "selected_strategy" in config:
                 self.selected_strategy = str(config["selected_strategy"]).upper()
             if "allocation_per_trade" in config:
-                self.allocation_per_trade = float(config["allocation_per_trade"])
+                self.allocation_per_trade = max(15000.0, float(config["allocation_per_trade"]))
             if "max_positions" in config:
-                self.max_positions = int(config["max_positions"])
+                self.max_positions = max(0, int(config["max_positions"]))
             if "scan_mode" in config:
                 self.scan_mode = str(config["scan_mode"])
             if "strict_ai_mode" in config:
@@ -295,7 +306,8 @@ class SwingTradingBot:
 
         self.is_running = True
         self.persist_state()
-        self.add_log(f"🚀 TITAN Swing Bot Desk ACTIVATED - Multi-Strategy Suite ({self.selected_strategy}) Online | Capital/Trade: ₹{self.allocation_per_trade:,.0f} | Max Slots: {self.max_positions}", "SUCCESS")
+        slots_str = "UNLIMITED (No Limiter — Takes All Setups)" if (not self.max_positions or self.max_positions <= 0) else f"{self.max_positions} Slots"
+        self.add_log(f"🚀 TITAN Swing Bot Desk ACTIVATED - Multi-Strategy Suite ({self.selected_strategy}) Online | Capital/Trade: ₹{self.allocation_per_trade:,.0f} | Position Limit: {slots_str}", "SUCCESS")
         return {"success": True, "is_running": True, "status": self.get_status()}
 
     def stop(self) -> Dict[str, Any]:
@@ -425,15 +437,14 @@ class SwingTradingBot:
         # Sort: BUY signals with highest Confluence Score first (e.g. 98, 96, 95 A+ first!)
         scanner_results.sort(key=lambda x: (0 if x["signal"] == "BUY" else 1, -x.get("confluence_score", 0)))
 
-        # 4. Auto-Execute Top-Scoring Setups if Bot is Running
+        # 4. Auto-Execute Top-Scoring Setups if Bot is Running (Takes ALL Setups with No Position Limiter)
         if self.is_running:
-            acc = SwingPaperTradingEngine.get_or_create_account()
-            avail_cash = acc.cash_balance
-
             for scan_res in scanner_results:
                 if scan_res.get("signal") != "BUY":
-                    break
-                if len(held_symbols) >= self.max_positions:
+                    continue
+                # Position limiter check: only enforce if max_positions > 0 (0 means unlimited / take all)
+                if self.max_positions and self.max_positions > 0 and len(held_symbols) >= self.max_positions:
+                    self.add_log(f"⏸️ Max position limit ({self.max_positions}) reached. Skipping remaining setups.", "INFO")
                     break
 
                 sym = scan_res.get("symbol")
@@ -444,22 +455,24 @@ class SwingTradingBot:
                 if p <= 0:
                     continue
 
-                qty = max(1, int(self.allocation_per_trade / p))
-                needed = qty * p
+                # Trade sizing: enforce at least ₹15,000 per trade
+                trade_alloc = max(15000.0, float(self.allocation_per_trade or 15000.0))
+                qty = max(1, int(trade_alloc / p))
+                needed = round(qty * p, 2)
 
-                if avail_cash >= needed:
-                    exec_res = SwingPaperTradingEngine.execute_order(
-                        sym, "BUY", qty, p,
-                        strategy=scan_res.get("strategy_key", "VORTEX"),
-                        sl=scan_res.get("stop_loss", 0.0),
-                        tp=scan_res.get("target_price", 0.0),
-                        confluence=scan_res.get("confluence_score", 85)
-                    )
-                    if exec_res.get("success"):
-                        held_symbols.add(sym)
-                        avail_cash -= needed
-                        scan_res["action_executed"] = f"BOUGHT {qty} SHARES (CNC)"
-                        self.add_log(f"⚡ [SWING ENTRY A+] {sym.replace('.NS','')}: {scan_res.get('strategy')} | Bought {qty} shares @ ₹{p:.2f} | Score: {scan_res.get('confluence_score')} | Target: ₹{scan_res.get('target_price'):.2f} (+{scan_res.get('target_pct')}%) | SL: ₹{scan_res.get('stop_loss'):.2f}", "SUCCESS")
+                exec_res = SwingPaperTradingEngine.execute_order(
+                    sym, "BUY", qty, p,
+                    strategy=scan_res.get("strategy_key", "VORTEX"),
+                    sl=scan_res.get("stop_loss", 0.0),
+                    tp=scan_res.get("target_price", 0.0),
+                    confluence=scan_res.get("confluence_score", 85)
+                )
+                if exec_res.get("success"):
+                    held_symbols.add(sym)
+                    scan_res["action_executed"] = f"BOUGHT {qty} SHARES (CNC)"
+                    self.add_log(f"⚡ [TITAN AUTO-BUY] {sym.replace('.NS','')}: {scan_res.get('strategy')} | Bought {qty} shares @ ₹{p:.2f} (Value: ₹{needed:,.2f}) | Score: {scan_res.get('confluence_score')} | Target: ₹{scan_res.get('target_price'):.2f} (+{scan_res.get('target_pct')}%) | SL: ₹{scan_res.get('stop_loss'):.2f}", "SUCCESS")
+                else:
+                    self.add_log(f"⚠️ [TITAN SKIPPED] {sym.replace('.NS','')}: {exec_res.get('message', 'Execution failed')}", "WARNING")
 
         self.last_scan_summary = {
             "total_scanned": len(scanner_results),
@@ -478,6 +491,7 @@ class SwingTradingBot:
             "selected_strategy": self.selected_strategy,
             "allocation_per_trade": self.allocation_per_trade,
             "max_positions": self.max_positions,
+            "is_unlimited_positions": (not self.max_positions or self.max_positions <= 0),
             "scan_mode": self.scan_mode,
             "strict_ai_mode": getattr(self, "strict_ai_mode", False),
             "last_scan_time": self.last_scan_time,

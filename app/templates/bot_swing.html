@@ -65,12 +65,12 @@
 
                     <div style="display: flex; flex-direction: column; gap: 3px;">
                         <label style="font-size: 0.68rem; font-weight: 800; color: var(--text-muted); letter-spacing: 0.05em;">CAPITAL / TRADE:</label>
-                        <input type="number" id="config-capital-input" value="20000" step="5000" min="5000" max="100000" onchange="updateSwingConfig()" style="width: 110px; background: rgba(15, 23, 42, 0.9); border: 1px solid rgba(255,255,255,0.15); color: #00f090; font-family: var(--font-code); font-weight: 800; padding: 6px 8px; border-radius: 6px; font-size: 0.8rem; outline: none;">
+                        <input type="number" id="config-capital-input" value="15000" step="5000" min="15000" max="500000" onchange="updateSwingConfig()" style="width: 110px; background: rgba(15, 23, 42, 0.9); border: 1px solid rgba(255,255,255,0.15); color: #00f090; font-family: var(--font-code); font-weight: 800; padding: 6px 8px; border-radius: 6px; font-size: 0.8rem; outline: none;">
                     </div>
 
                     <div style="display: flex; flex-direction: column; gap: 3px;">
                         <label style="font-size: 0.68rem; font-weight: 800; color: var(--text-muted); letter-spacing: 0.05em;">MAX POSITIONS:</label>
-                        <input type="number" id="config-max-positions" value="5" min="1" max="10" onchange="updateSwingConfig()" style="width: 70px; background: rgba(15, 23, 42, 0.9); border: 1px solid rgba(255,255,255,0.15); color: #38bdf8; font-family: var(--font-code); font-weight: 800; padding: 6px 8px; border-radius: 6px; font-size: 0.8rem; outline: none;">
+                        <input type="number" id="config-max-positions" value="0" min="0" max="100" placeholder="0 = Unlimited" title="0 = Unlimited (take all setups)" onchange="updateSwingConfig()" style="width: 80px; background: rgba(15, 23, 42, 0.9); border: 1px solid rgba(255,255,255,0.15); color: #38bdf8; font-family: var(--font-code); font-weight: 800; padding: 6px 8px; border-radius: 6px; font-size: 0.8rem; outline: none;">
                     </div>
 
                     <div style="display: flex; flex-direction: column; gap: 3px;">
@@ -514,13 +514,13 @@ let isSwingBotActive = (localStorage.getItem('titan_swing_is_active') === 'true'
 let swingState = {
     isRunning: isSwingBotActive,
     selectedStrategy: 'ALL',
-    capitalPerTrade: 20000.0,
-    maxPositions: 5,
+    capitalPerTrade: 15000.0,
+    maxPositions: 0,
     universe: 'ALL_NIFTY_200',
     portfolio: {
-        cash_balance: 100000.0,
+        cash_balance: 1000000.0,
         market_value: 0.0,
-        total_equity: 100000.0,
+        total_equity: 1000000.0,
         unrealized_pnl: 0.0,
         positions: []
     },
@@ -565,8 +565,8 @@ async function fetchSwingOverview() {
         if (data.status) {
             swingState.isRunning = isSwingBotActive;
             swingState.selectedStrategy = data.status.selected_strategy || swingState.selectedStrategy;
-            swingState.capitalPerTrade = data.status.allocation_per_trade || swingState.capitalPerTrade;
-            swingState.maxPositions = data.status.max_positions || swingState.maxPositions;
+            swingState.capitalPerTrade = data.status.allocation_per_trade !== undefined ? data.status.allocation_per_trade : swingState.capitalPerTrade;
+            swingState.maxPositions = data.status.max_positions !== undefined ? data.status.max_positions : 0;
             swingState.universe = data.status.scan_mode || swingState.universe;
             swingState.logs = data.status.logs || [];
             if (data.status.last_scan_summary && data.status.last_scan_summary.scanner_results) {
@@ -628,7 +628,7 @@ function renderUI() {
     const elCap = document.getElementById('config-capital-input');
     if (elCap && swingState.capitalPerTrade) elCap.value = swingState.capitalPerTrade;
     const elMaxPos = document.getElementById('config-max-positions');
-    if (elMaxPos && swingState.maxPositions) elMaxPos.value = swingState.maxPositions;
+    if (elMaxPos && swingState.maxPositions !== undefined) elMaxPos.value = swingState.maxPositions;
     const elUniv = document.getElementById('config-universe-select');
     if (elUniv && swingState.universe) elUniv.value = swingState.universe;
 
@@ -667,7 +667,12 @@ function renderUI() {
     const mValEl = document.getElementById('kpi-holdings-val');
     if (mValEl) mValEl.textContent = formatCurrency(mVal);
     const countEl = document.getElementById('kpi-holdings-count');
-    if (countEl) countEl.textContent = `${positions.length} of ${swingState.maxPositions} Slots Occupied`;
+    if (countEl) {
+        const isUnlimited = (!swingState.maxPositions || swingState.maxPositions <= 0);
+        countEl.textContent = isUnlimited 
+            ? `${positions.length} Active Holdings (Unlimited / No Limit)` 
+            : `${positions.length} of ${swingState.maxPositions} Slots Occupied`;
+    }
 
     const unPnlEl = document.getElementById('kpi-unrealized-pnl');
     if (unPnlEl) {
@@ -1004,9 +1009,14 @@ async function triggerSwingScan() {
 
 async function updateSwingConfig() {
     const strat = document.getElementById('config-strategy-select').value;
-    const capital = parseFloat(document.getElementById('config-capital-input').value) || 20000;
-    const maxPos = parseInt(document.getElementById('config-max-positions').value) || 5;
+    const capital = Math.max(15000, parseFloat(document.getElementById('config-capital-input').value) || 15000);
+    const maxPosVal = parseInt(document.getElementById('config-max-positions').value);
+    const maxPos = isNaN(maxPosVal) ? 0 : Math.max(0, maxPosVal);
     const universe = document.getElementById('config-universe-select').value;
+
+    swingState.capitalPerTrade = capital;
+    swingState.maxPositions = maxPos;
+    renderUI();
 
     try {
         const res = await fetch('/api/swing/config', {
@@ -1031,7 +1041,7 @@ async function updateSwingConfig() {
 }
 
 async function manualBuySwing(symbol, price, strategy, sl, tp, score) {
-    const capital = swingState.capitalPerTrade || 20000.0;
+    const capital = Math.max(15000.0, swingState.capitalPerTrade || 15000.0);
     const qty = Math.max(1, Math.floor(capital / price));
 
     if (!confirm(`Buy ${qty} shares of ${symbol.replace('.NS','')} (CNC Delivery) @ ₹${price.toFixed(2)}?\nTarget: ₹${tp.toFixed(2)} | SL: ₹${sl.toFixed(2)}`)) {
@@ -1157,7 +1167,7 @@ function openSwingTicketFromPosition(pos) {
 
 function openSwingTicketFromScan(scan) {
     const cleanSym = (scan.symbol || '').replace('.NS', '').replace('.BO', '');
-    const capital = swingState.capitalPerTrade || 20000.0;
+    const capital = Math.max(15000.0, swingState.capitalPerTrade || 15000.0);
     const p = scan.price || 100.0;
     const qty = Math.max(1, Math.floor(capital / p));
 

@@ -1525,9 +1525,9 @@ def update_swing_config():
     if "selected_strategy" in data:
         swing_bot_instance.selected_strategy = str(data["selected_strategy"]).upper()
     if "allocation_per_trade" in data:
-        swing_bot_instance.allocation_per_trade = float(data["allocation_per_trade"])
+        swing_bot_instance.allocation_per_trade = max(15000.0, float(data["allocation_per_trade"]))
     if "max_positions" in data:
-        swing_bot_instance.max_positions = int(data["max_positions"])
+        swing_bot_instance.max_positions = max(0, int(data["max_positions"]))
     if "scan_mode" in data:
         swing_bot_instance.scan_mode = str(data["scan_mode"])
     if "strict_ai_mode" in data:
@@ -1540,6 +1540,7 @@ def update_swing_config():
             "selected_strategy": swing_bot_instance.selected_strategy,
             "allocation_per_trade": swing_bot_instance.allocation_per_trade,
             "max_positions": swing_bot_instance.max_positions,
+            "is_unlimited_positions": (not swing_bot_instance.max_positions or swing_bot_instance.max_positions <= 0),
             "scan_mode": swing_bot_instance.scan_mode,
             "strict_ai_mode": getattr(swing_bot_instance, "strict_ai_mode", False)
         }
