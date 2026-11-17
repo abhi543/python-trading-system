@@ -1797,6 +1797,7 @@
     }
 
     let isBotActive = false;
+    let currentStrictAiMode = false;
     let botPoller = null;
     let botTickTimer = null;
     let countdownTimer = null;
@@ -2509,7 +2510,9 @@
                 const res = await fetch('/api/bot/stop', { method: 'POST' });
                 const data = await res.json();
                 if (data.status) updateBotUI(data.status);
-            } catch (err) {}
+            } catch (err) {
+                console.error('Stop bot error:', err);
+            }
             showToast(`NIFTY 50 Auto-Bot paused. Session #${botSession.session_count || 1} report preserved (${botSession.trades.length} trades)!`, 'warning');
         } else {
             // User restarted/started the bot: start with a fresh new session report only!
@@ -2552,7 +2555,11 @@
                     return;
                 }
                 if (data.status) updateBotUI(data.status);
-            } catch (err) {}
+            } catch (err) {
+                setBotActiveState(false);
+                showToast('Failed to reach server to start Bot ALPHA', 'error');
+                return;
+            }
 
             setBotActiveState(true);
             showToast(`BOT ALPHA Activated! Started Session #${botSession.session_count || 1} fresh report`, 'success');
@@ -2563,8 +2570,8 @@
     function getCurrentBotConfig() {
         return {
             is_running: isBotActive,
-            strict_ai_mode: currentStrictAiMode,
-            use_ai_filter: currentStrictAiMode,
+            strict_ai_mode: (typeof currentStrictAiMode !== 'undefined' ? currentStrictAiMode : false),
+            use_ai_filter: (typeof currentStrictAiMode !== 'undefined' ? currentStrictAiMode : false),
             scan_mode: document.getElementById('bot-scan-mode')?.value || 'TOP_200_TURNOVER',
             single_symbol: document.getElementById('bot-symbol')?.value?.trim()?.toUpperCase() || 'RELIANCE.NS',
             strategy: document.getElementById('bot-strategy')?.value || '123_REVERSAL',

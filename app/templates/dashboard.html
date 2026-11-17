@@ -764,6 +764,11 @@ function setupEventListeners() {
     // Initial bot status fetch
     fetchBotStatus();
     setInterval(fetchBotStatus, 6000);
+    window.addEventListener('storage', (e) => {
+        if (e.key === 'nifty_bot_active') {
+            fetchBotStatus();
+        }
+    });
 
     document.getElementById('backtest-form').addEventListener('submit', async (e) => {
         e.preventDefault();
@@ -1081,11 +1086,12 @@ async function fetchBotStatus() {
 }
 
 function updateBotUI(data) {
-    const localActive = localStorage.getItem('nifty_bot_active') === 'true';
-    if (localActive !== null && localActive !== undefined) {
-        isBotActive = localActive;
+    if (!data) return;
+    if (typeof data.is_running === 'boolean') {
+        isBotActive = data.is_running;
+        localStorage.setItem('nifty_bot_active', isBotActive ? 'true' : 'false');
     } else {
-        isBotActive = !!data.is_running;
+        isBotActive = localStorage.getItem('nifty_bot_active') === 'true';
     }
     
     // Update badge & pills
@@ -1187,8 +1193,12 @@ async function toggleBot() {
         try {
             const res = await fetch('/api/bot/stop', { method: 'POST' });
             const data = await res.json();
+            isBotActive = false;
+            localStorage.setItem('nifty_bot_active', 'false');
+            if (typeof updateKillswitchUI === 'function') updateKillswitchUI();
             showToast('NIFTY 50 Auto-bot paused', 'success');
-            updateBotUI(data.status);
+            if (data && data.status) updateBotUI(data.status);
+            else updateBotUI({ is_running: false });
         } catch (err) {
             showToast('Failed to stop bot', 'error');
         }
@@ -1212,11 +1222,15 @@ async function toggleBot() {
             });
             const data = await res.json();
             if (data.success) {
+                isBotActive = true;
+                localStorage.setItem('nifty_bot_active', 'true');
+                if (typeof updateKillswitchUI === 'function') updateKillswitchUI();
                 showToast(`NIFTY 50 Auto-Bot Activated!`, 'success');
-                updateBotUI(data.status);
+                if (data.status) updateBotUI(data.status);
+                else updateBotUI({ is_running: true });
                 tickBotNow();
             } else {
-                showToast('Failed to start bot', 'error');
+                showToast(data.error || 'Failed to start bot', 'warning');
             }
         } catch (err) {
             showToast('Start bot request failed', 'error');
