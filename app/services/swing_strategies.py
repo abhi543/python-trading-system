@@ -303,15 +303,70 @@ class SurgeMeanReversionStrategy(SwingStrategyBase):
         return {"active": False, "reason": "Price not oversold for mean reversion"}
 
 
+class VolumeShockerStrategy(SwingStrategyBase):
+    """
+    ⚡ VOLUME SHOCKER STRATEGY (Institutional Accumulation Footprint)
+    Identifies abnormal relative volume (RVOL >= 1.75x) combined with 
+    bullish price expansion, signaling institutional FII/DII accumulation.
+    """
+    @classmethod
+    def evaluate(cls, symbol: str, data: Dict[str, Any]) -> Dict[str, Any]:
+        vol_ratio = float(data.get("vol_ratio") or 1.0)
+        current_price = float(data.get("price") or 0.0)
+        change_pct = float(data.get("percent_change") or 0.0)
+        closes = data.get("closes", [])
+        highs = data.get("highs", [])
+        lows = data.get("lows", [])
+
+        if len(closes) < 20 or current_price <= 0:
+            return {"active": False, "reason": "Insufficient data"}
+
+        ema_20 = cls.calc_ema(closes, 20) or current_price
+        recent_3d_high = max(highs[-4:-1]) if len(highs) >= 4 else closes[-2]
+
+        is_volume_shock = (vol_ratio >= 1.75)
+        is_bullish_expansion = (0.35 <= change_pct <= 10.5)
+        is_trend_confirmed = (current_price >= ema_20 * 0.99) and (current_price >= recent_3d_high * 0.99)
+
+        if is_volume_shock and is_bullish_expansion and is_trend_confirmed:
+            recent_low = min(lows[-3:]) if len(lows) >= 3 else current_price * 0.97
+            sl_price = round(max(current_price * 0.965, recent_low * 0.995), 2)
+            sl_pct = round(((current_price - sl_price) / current_price) * 100, 1)
+
+            target_pct = min(20.0, max(9.0, sl_pct * 3.2))
+            target_price = round(current_price * (1.0 + (target_pct / 100.0)), 2)
+            rr = round((target_price - current_price) / max(0.1, current_price - sl_price), 2)
+
+            score = min(99, int(88 + min(11, (vol_ratio - 1.5) * 5)))
+
+            return {
+                "active": True,
+                "strategy": "VOLUME_SHOCKER",
+                "label": "⚡ VOLUME SHOCKER",
+                "score": score,
+                "target_price": target_price,
+                "target_pct": target_pct,
+                "stop_loss": sl_price,
+                "stop_loss_pct": sl_pct,
+                "risk_reward": f"1 : {rr}",
+                "holding_days": "5 – 15 Days",
+                "vol_ratio": round(vol_ratio, 2),
+                "reason": f"⚡ Volume Shocker: {vol_ratio:.1f}x normal volume with aggressive institutional buying (+{change_pct:.2f}%)"
+            }
+
+        return {"active": False, "reason": f"RVOL {vol_ratio:.1f}x below shock threshold (1.75x) or trend unconfirmed"}
+
+
 # ==============================================================================
 # UNIFIED CONFLUENCE ENGINE & MULTI-STRATEGY SCANNER
 # ==============================================================================
 class UnifiedSwingScanner:
     """
-    Runs all 4 strategies on a stock, determines triggers,
+    Runs all 5 strategies on a stock, determines triggers,
     and calculates Multi-Strategy Confluence when multiple engines align.
     """
     STRATEGIES = {
+        "VOLUME_SHOCKER": VolumeShockerStrategy,
         "VORTEX": VortexBreakoutStrategy,
         "ANCHOR": AnchorPullbackStrategy,
         "TITAN": TitanRelativeStrengthStrategy,
@@ -342,6 +397,7 @@ class UnifiedSwingScanner:
                 "displayName": display_name,
                 "price": current_price,
                 "change_pct": change_pct,
+                "vol_ratio": round(float(data.get("vol_ratio") or 1.0), 2),
                 "signal": "HOLD",
                 "strategy": selected_strategy,
                 "confluence_score": 50,
@@ -366,6 +422,7 @@ class UnifiedSwingScanner:
                 "displayName": display_name,
                 "price": current_price,
                 "change_pct": change_pct,
+                "vol_ratio": round(float(data.get("vol_ratio") or 1.0), 2),
                 "signal": "BUY",
                 "strategy": f"CONFLUENCE ({strat_names})",
                 "strategy_key": "CONFLUENCE",
@@ -387,6 +444,7 @@ class UnifiedSwingScanner:
                 "displayName": display_name,
                 "price": current_price,
                 "change_pct": change_pct,
+                "vol_ratio": round(float(data.get("vol_ratio") or 1.0), 2),
                 "signal": "BUY",
                 "strategy": best["label"],
                 "strategy_key": best["strategy"],

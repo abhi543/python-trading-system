@@ -890,6 +890,19 @@ class AutoTradingBot:
             else:
                 reason = f"Neutral Momentum (RSI: {current_rsi:.1f})"
 
+        elif self.strategy == "VOLUME_SHOCKER":
+            # ⚡ VOLUME SHOCKER STRATEGY: Institutional Accumulation (RVOL >= 1.75x)
+            is_shocker_buy = (vol_ratio >= 1.75) and (0.35 <= change_pct <= 9.5) and (current_price >= (ema_200 * 0.98 if ema_200 else current_price * 0.95))
+            if is_shocker_buy:
+                signal = "BUY"
+                reason = f"⚡ Volume Shocker: {vol_ratio:.1f}x volume surge with +{change_pct:.2f}% institutional expansion"
+                reversal_score = min(99, int(88 + min(11, (vol_ratio - 1.5) * 5)))
+                reversal_grade = "A+"
+                suggested_tp = round(current_price * 1.045, 2)
+                suggested_sl = round(current_price * 0.98, 2)
+            else:
+                reason = f"RVOL {vol_ratio:.1f}x below volume shock threshold (1.75x) or waiting for price confirmation"
+
         # Filter BUY/SELL signals with 200 EMA Macro Trend, NIFTY 50 Regime & Volume Breakout
         filter_status = None
         nifty_reg = getattr(self, "nifty_market_regime", {}).get("regime", "BULLISH")
@@ -928,6 +941,7 @@ class AutoTradingBot:
             "displayName": display_name,
             "price": current_price,
             "change_pct": change_pct,
+            "vol_ratio": round(float(vol_ratio), 2),
             "signal": signal,
             "reason": reason,
             "ai_bias": ai_bias,
@@ -1159,16 +1173,16 @@ class AutoTradingBot:
             pass
 
         batch_label = None
-        if self.scan_mode == "TOP_200_TURNOVER":
-            from app.models.nse_universe import get_top_turnover_stocks
-            target_stocks = get_top_turnover_stocks(200)
-            batch_label = "Top 200 by Daily Turnover & Liquidity"
+        if self.scan_mode in ["TOP_200_TURNOVER", "VOLUME_SHOCKERS_200"]:
+            from app.models.nse_universe import get_volume_shocker_stocks
+            target_stocks = get_volume_shocker_stocks(200)
+            batch_label = "⚡ Top 200 Volume Shockers & Institutional Momentum"
         elif self.scan_mode == "ALL_NSE_2000":
             from app.models.nse_universe import get_nse_universe_batch
             batch_stocks, curr_batch, total_batches = get_nse_universe_batch(self.batch_scan_index, batch_size=200)
             self.batch_scan_index = (self.batch_scan_index + 1) % total_batches
             target_stocks = batch_stocks
-            batch_label = f"Batch {curr_batch}/{total_batches} (200 of 2,391 Stocks)"
+            batch_label = f"Smart Sieve Batch {curr_batch}/{total_batches} (50 Core + 150 Discovery Stocks)"
         elif self.scan_mode == "KRONOS_UNIVERSE" or self.strategy == "KRONOS_AI":
             target_stocks = NIFTY_50_DEFAULT
             batch_label = "NIFTY 50 Universe (50 Stocks)"
@@ -1549,8 +1563,12 @@ class AutoTradingBot:
 
             scanner_results.append(eval_res)
 
-        # Sort results: BUY signals first, then SELL, then highest volume/changes
-        scanner_results.sort(key=lambda x: (0 if x["signal"] == "BUY" else (1 if x["signal"] in ("SELL", "STOP_LOSS", "TAKE_PROFIT") else 2), -abs(x.get("change_pct") or 0)))
+        # Sort results: BUY signals first, then SELL, then highest RVOL volume shockers & day changes
+        scanner_results.sort(key=lambda x: (
+            0 if x["signal"] == "BUY" else (1 if x["signal"] in ("SELL", "STOP_LOSS", "TAKE_PROFIT") else 2), 
+            -float(x.get("vol_ratio") or 1.0), 
+            -abs(x.get("change_pct") or 0)
+        ))
 
         sweep_closed_trades = [r["closed_trade"] for r in scanner_results if r.get("closed_trade")]
 

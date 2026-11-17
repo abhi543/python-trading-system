@@ -95,6 +95,8 @@ class MarketDataService:
             change = current_price - prev_close
             percent_change = (change / prev_close * 100) if prev_close else 0.0
             
+        # Hard circuit-limit sanity filter for Indian equities (max ±20% daily limit)
+        percent_change = max(-20.0, min(20.0, percent_change))
         currency = meta.get('currency', 'INR')
 
         return {
@@ -164,6 +166,9 @@ class MarketDataService:
             recalc = ((current_price - valid_closes[-2]) / valid_closes[-2] * 100) if valid_closes[-2] else 0.0
             if abs(recalc) < abs(percent_change):
                 percent_change = recalc
+
+        # Enforce realistic NSE circuit limit cap (max ±20.0% single-day change)
+        percent_change = max(-20.0, min(20.0, percent_change))
 
         # Option A: 200 EMA Macro Trend
         ema_200 = None

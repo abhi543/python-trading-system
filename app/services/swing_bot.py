@@ -330,6 +330,7 @@ class SwingTradingBot:
         """Calculates win rate, total P&L and average holding days for each of the 4 swing strategies"""
         trades = SwingTradeHistory.query.all()
         scorecard = {
+            "VOLUME_SHOCKER": {"trades": 0, "wins": 0, "pnl": 0.0, "days": []},
             "VORTEX": {"trades": 0, "wins": 0, "pnl": 0.0, "days": []},
             "ANCHOR": {"trades": 0, "wins": 0, "pnl": 0.0, "days": []},
             "TITAN": {"trades": 0, "wins": 0, "pnl": 0.0, "days": []},
@@ -400,7 +401,13 @@ class SwingTradingBot:
                 continue
 
         # 2. Parallel Data Fetch for Target Stocks
-        target_stocks = NIFTY_200_DEFAULT if self.scan_mode == "ALL_NIFTY_200" else NIFTY_50_DEFAULT
+        if self.scan_mode == "VOLUME_SHOCKERS_200":
+            from app.models.nse_universe import get_top_turnover_stocks
+            target_stocks = get_top_turnover_stocks(200)
+        elif self.scan_mode == "ALL_NIFTY_200":
+            target_stocks = NIFTY_200_DEFAULT
+        else:
+            target_stocks = NIFTY_50_DEFAULT
         stock_data_map = {}
         with concurrent.futures.ThreadPoolExecutor(max_workers=30) as executor:
             future_to_stock = {
@@ -434,8 +441,12 @@ class SwingTradingBot:
                 buys_found += 1
             scanner_results.append(scan_res)
 
-        # Sort: BUY signals with highest Confluence Score first (e.g. 98, 96, 95 A+ first!)
-        scanner_results.sort(key=lambda x: (0 if x["signal"] == "BUY" else 1, -x.get("confluence_score", 0)))
+        # Sort: BUY signals with highest Volume Shock & Confluence Score first (e.g. 8.2x, 4.5x RVOL shockers first!)
+        scanner_results.sort(key=lambda x: (
+            0 if x["signal"] == "BUY" else 1, 
+            -float(x.get("vol_ratio") or 1.0), 
+            -x.get("confluence_score", 0)
+        ))
 
         # 4. Auto-Execute Top-Scoring Setups if Bot is Running (Takes ALL Setups with No Position Limiter)
         if self.is_running:

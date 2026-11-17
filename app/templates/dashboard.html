@@ -1025,8 +1025,13 @@ function renderRadarUI() {
                     actionBadge = `<span style="color: var(--green); font-weight: 700;"><i class="fa-solid fa-check"></i> ${s.action_executed}</span>`;
                 }
 
+                const vr = Number(s.vol_ratio || 1.0);
+                const volBadge = vr >= 2.0 
+                    ? `<span class="badge" style="background: rgba(255, 75, 43, 0.2); color: #ff4b2b; border: 1px solid rgba(255, 75, 43, 0.4); font-size: 0.65rem; padding: 1px 4px; border-radius: 3px; margin-left: 4px;" title="Volume Surge: ${vr.toFixed(1)}x">🔥 ${vr.toFixed(1)}x</span>`
+                    : (vr >= 1.5 ? `<span class="badge" style="background: rgba(255, 170, 0, 0.15); color: #ffaa00; border: 1px solid rgba(255, 170, 0, 0.3); font-size: 0.65rem; padding: 1px 4px; border-radius: 3px; margin-left: 4px;" title="Volume Surge: ${vr.toFixed(1)}x">${vr.toFixed(1)}x</span>` : '');
+
                 tr.innerHTML = `
-                    <td><strong>${s.displayName || s.symbol.replace('.NS', '')}</strong></td>
+                    <td><strong>${s.displayName || s.symbol.replace('.NS', '')}</strong>${volBadge}</td>
                     <td>₹${(s.price || 0).toFixed(2)}</td>
                     <td class="${changeClass}">${changeSign}${(s.change_pct || 0).toFixed(2)}%</td>
                     <td>${sigBadge}</td>

@@ -130,6 +130,7 @@
                 <div class="config-item">
                     <label><i class="fa-solid fa-layer-group"></i> SCANNING UNIVERSE</label>
                     <select id="bot-scan-mode" class="config-select" onchange="onScanModeChange();">
+                        <option value="VOLUME_SHOCKERS_200">⚡ Top 200 Volume Shockers &amp; Momentum</option>
                         <option value="TOP_200_TURNOVER" selected>💎 Daily Top 200 by Turnover (Highest Liquidity &amp; Volume)</option>
                         <option value="ALL_NSE_2000">🚀 NIFTY Total Market (Rolling 2,000+ NSE Stocks)</option>
                         <option value="ALL_NIFTY_200">All NIFTY 200 Basket (Top 200 Stocks)</option>
@@ -146,6 +147,7 @@
                 <div class="config-item">
                     <label><i class="fa-solid fa-chart-line"></i> STRATEGY MODEL</label>
                     <select id="bot-strategy" class="config-select" onchange="onStrategyChange()">
+                        <option value="VOLUME_SHOCKER">⚡ Volume Shocker Breakout (Institutional RVOL &ge; 1.75x)</option>
                         <option value="123_REVERSAL" selected>1-2-3 Reversal Map [AGPro Series v2.1] (Neckline Break &amp; Target)</option>
                         <option value="SMA_CROSSOVER">Dual SMA Golden/Death Cross (9 / 21)</option>
                         <option value="RSI_MOMENTUM">RSI Mean Reversion (14-Period, 35/65)</option>
@@ -2444,9 +2446,17 @@
                 `;
             }
 
+            const vr = Number(s.vol_ratio || 1.0);
+            const volBadge = vr >= 2.5 
+                ? `<span class="badge" style="background: rgba(255, 75, 43, 0.2); color: #ff4b2b; border: 1px solid rgba(255, 75, 43, 0.4); font-size: 0.65rem; padding: 1px 4px; border-radius: 3px;" title="Institutional Volume Surge: ${vr.toFixed(1)}x normal volume">🔥 ${vr.toFixed(1)}x VOL</span>`
+                : (vr >= 1.75 ? `<span class="badge" style="background: rgba(255, 170, 0, 0.15); color: #ffaa00; border: 1px solid rgba(255, 170, 0, 0.3); font-size: 0.65rem; padding: 1px 4px; border-radius: 3px;" title="Elevated Volume: ${vr.toFixed(1)}x normal volume">${vr.toFixed(1)}x vol</span>` : '');
+
             tr.innerHTML = `
                 <td>
-                    <div style="font-weight: 800; font-family: var(--font-code); color: #fff; font-size: 0.95rem;">${s.displayName}</div>
+                    <div style="display: flex; align-items: center; gap: 4px;">
+                        <span style="font-weight: 800; font-family: var(--font-code); color: #fff; font-size: 0.95rem;">${s.displayName}</span>
+                        ${volBadge}
+                    </div>
                     <div style="font-size: 0.68rem; color: var(--text-muted);">${s.symbol}</div>
                 </td>
                 <td>${signalBadge}</td>

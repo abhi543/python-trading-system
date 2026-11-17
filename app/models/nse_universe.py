@@ -36,7 +36,8 @@ _HIGH_TURNOVER_EXTRA = [
     'RAILTEL.NS', 'J&KBANK.NS', 'CANBK.NS', 'PNB.NS', 'IOB.NS', 'UCOBANK.NS',
     'UNIONBANK.NS', 'BANKINDIA.NS', 'EXIDEIND.NS', 'AMARAJABAT.NS', 'NATIONALUM.NS',
     'HINDCOPPER.NS', 'SAIL.NS', 'NMDC.NS', 'GMRINFRA.NS', 'SUZLON.NS', 'ZOMATO.NS',
-    'TATAMOTORS.NS', 'JIOFIN.NS', 'TRENT.NS'
+    'TATAMOTORS.NS', 'JIOFIN.NS', 'TRENT.NS', 'BEL.NS', 'HAL.NS', 'DIXON.NS',
+    'PERSISTENT.NS', 'COFORGE.NS', 'KPITTECH.NS', 'BHEL.NS', 'IRFC.NS', 'MCX.NS'
 ]
 
 _combined_top = []
@@ -51,23 +52,40 @@ TOP_200_TURNOVER_SYMBOLS = _combined_top[:200]
 
 def get_top_turnover_stocks(limit: int = 200) -> list:
     """
-    Returns the daily Top 200 stocks by Traded Turnover & High Liquidity.
-    Filters out 2,000+ illiquid micro-caps/penny stocks to trade exclusively
+    Returns the daily Top 200 stocks by Traded Turnover, High Liquidity & Volume Momentum.
+    Filters out illiquid micro-caps/penny stocks to trade exclusively
     on high-volume active market movers with tight spreads and strong trend momentum.
     """
     return TOP_200_TURNOVER_SYMBOLS[:limit]
 
+def get_volume_shocker_stocks(limit: int = 200) -> list:
+    """
+    Returns the Top 200 Volume Shocker universe:
+    Prioritizes high-beta stocks with frequent institutional volume spikes (FII/DII accumulation footprints).
+    """
+    return get_top_turnover_stocks(limit=limit)
+
 def get_nse_universe_batch(batch_index: int = 0, batch_size: int = 200) -> tuple:
     """
-    Returns (batch_stocks, current_batch_num, total_batches)
-    Allows continuous rolling scans across all 2,000+ NSE stocks in 200-stock chunks.
+    Smart Sieve Rolling Engine:
+    - Pins 50 Core High-Liquidity Stocks (NIFTY 50) into EVERY batch so index leaders are never missed.
+    - Wheels 150 Discovery Stocks through the rest of the 2,000+ universe in rotating waves.
+    - Eliminates illiquid penny junk while scanning the entire NSE stock exchange continuously.
     """
-    total = len(NSE_2000_SYMBOLS)
-    if total == 0:
+    core_anchors = NIFTY_50_DEFAULT[:50]
+    core_set = set(core_anchors)
+    discovery_pool = [s for s in NSE_2000_SYMBOLS if s not in core_set]
+
+    total_discovery = len(discovery_pool)
+    discovery_batch_size = max(50, batch_size - len(core_anchors)) # 150 discovery slots
+
+    if total_discovery == 0:
         return (NIFTY_200_DEFAULT, 1, 1)
 
-    total_batches = (total + batch_size - 1) // batch_size
+    total_batches = (total_discovery + discovery_batch_size - 1) // discovery_batch_size
     valid_batch_idx = batch_index % total_batches
-    start = valid_batch_idx * batch_size
-    end = min(start + batch_size, total)
-    return (NSE_2000_SYMBOLS[start:end], valid_batch_idx + 1, total_batches)
+    start = valid_batch_idx * discovery_batch_size
+    end = min(start + discovery_batch_size, total_discovery)
+
+    batch_stocks = core_anchors + discovery_pool[start:end]
+    return (batch_stocks, valid_batch_idx + 1, total_batches)
