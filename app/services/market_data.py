@@ -68,22 +68,33 @@ class MarketDataService:
 
         meta = chart_res.get('meta', {})
         current_price = meta.get('regularMarketPrice')
-        prev_close = meta.get('chartPreviousClose') or meta.get('previousClose')
+        
+        quotes = chart_res.get('indicators', {}).get('quote', [{}])[0]
+        closes = [c for c in quotes.get('close', []) if c is not None]
         
         if current_price is None:
-            quotes = chart_res.get('indicators', {}).get('quote', [{}])[0]
-            closes = [c for c in quotes.get('close', []) if c is not None]
             if closes:
                 current_price = closes[-1]
-                prev_close = closes[-2] if len(closes) > 1 else current_price
             else:
                 return {"error": f"No price available for {resolved_symbol}"}
                 
-        if not prev_close:
-            prev_close = current_price
+        # True previous trading day close (closes[-2] in daily bars; never chartPreviousClose from multi-day/year start)
+        prev_close = closes[-2] if len(closes) > 1 else current_price
             
-        change = current_price - prev_close
-        percent_change = (change / prev_close * 100) if prev_close else 0.0
+        if meta.get('regularMarketChangePercent') is not None:
+            percent_change = float(meta['regularMarketChangePercent'])
+            change = float(meta.get('regularMarketChange', current_price - prev_close))
+            if prev_close == current_price and change != 0:
+                prev_close = current_price - change
+        elif meta.get('fulldayChangePercent') is not None:
+            percent_change = float(meta['fulldayChangePercent'])
+            change = float(meta.get('fulldayChange', current_price - prev_close))
+            if prev_close == current_price and change != 0:
+                prev_close = current_price - change
+        else:
+            change = current_price - prev_close
+            percent_change = (change / prev_close * 100) if prev_close else 0.0
+            
         currency = meta.get('currency', 'INR')
 
         return {
@@ -105,7 +116,6 @@ class MarketDataService:
 
         meta = chart_res.get('meta', {})
         current_price = meta.get('regularMarketPrice')
-        prev_close = meta.get('chartPreviousClose') or meta.get('previousClose')
         
         quotes = chart_res.get('indicators', {}).get('quote', [{}])[0]
         raw_closes = quotes.get('close', [])
@@ -137,13 +147,23 @@ class MarketDataService:
 
         if current_price is None:
             current_price = valid_closes[-1]
-            prev_close = valid_closes[-2] if len(valid_closes) > 1 else current_price
 
-        if not prev_close:
-            prev_close = valid_closes[-2] if len(valid_closes) > 1 else current_price
+        # Use true previous trading day close (valid_closes[-2]), NEVER 1y chartPreviousClose
+        prev_close = valid_closes[-2] if len(valid_closes) > 1 else current_price
 
-        change = current_price - prev_close
-        percent_change = (change / prev_close * 100) if prev_close else 0.0
+        if meta.get('regularMarketChangePercent') is not None:
+            percent_change = float(meta['regularMarketChangePercent'])
+        elif meta.get('fulldayChangePercent') is not None:
+            percent_change = float(meta['fulldayChangePercent'])
+        else:
+            change = current_price - prev_close
+            percent_change = (change / prev_close * 100) if prev_close else 0.0
+
+        # Safety sanity check against split/dividend anomalies: if percent_change > 20%, recalculate from valid_closes[-2]
+        if abs(percent_change) > 20.0 and len(valid_closes) > 1:
+            recalc = ((current_price - valid_closes[-2]) / valid_closes[-2] * 100) if valid_closes[-2] else 0.0
+            if abs(recalc) < abs(percent_change):
+                percent_change = recalc
 
         # Option A: 200 EMA Macro Trend
         ema_200 = None
