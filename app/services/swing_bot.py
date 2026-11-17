@@ -216,6 +216,11 @@ class SwingTradingBot:
         self.allocation_per_trade = 15000.0 # Min ₹15,000 per swing position (Unlimited positions default)
         self.max_positions = 0 # 0 = Unlimited positions (no limiter)
         self.scan_mode = "ALL_NIFTY_200"
+        self.survival_mode = True
+        self.survival_breakeven_pct = 2.0  # +2.0% locks stop-loss to entry + fees
+        self.enable_partial_profits = True # Bank 50% cash at +5.0%
+        self.portfolio_drawdown_limit_pct = 3.0 # -3.0% maximum portfolio drawdown halt
+        self.circuit_tripped = False
         self.last_scan_time = None
         self.last_scan_summary = {
             "total_scanned": 0,
@@ -243,6 +248,10 @@ class SwingTradingBot:
                     self.ai_signals_metadata = data.get("ai_signals_metadata", {})
                     self.use_ai_filter = data.get("use_ai_filter", True)
                     self.strict_ai_mode = bool(data.get("strict_ai_mode", False))
+                    self.survival_mode = bool(data.get("survival_mode", True))
+                    self.survival_breakeven_pct = float(data.get("survival_breakeven_pct", 2.0))
+                    self.enable_partial_profits = bool(data.get("enable_partial_profits", True))
+                    self.portfolio_drawdown_limit_pct = float(data.get("portfolio_drawdown_limit_pct", 3.0))
             except Exception:
                 pass
         if not self.ai_signals:
@@ -263,6 +272,16 @@ class SwingTradingBot:
                     "max_positions": self.max_positions,
                     "use_ai_filter": getattr(self, "use_ai_filter", True),
                     "strict_ai_mode": getattr(self, "strict_ai_mode", False),
+            "survival_mode": getattr(self, "survival_mode", True),
+            "survival_breakeven_pct": getattr(self, "survival_breakeven_pct", 2.0),
+            "enable_partial_profits": getattr(self, "enable_partial_profits", True),
+            "portfolio_drawdown_limit_pct": getattr(self, "portfolio_drawdown_limit_pct", 3.0),
+            "circuit_tripped": getattr(self, "circuit_tripped", False),
+                    "survival_mode": getattr(self, "survival_mode", True),
+                    "survival_breakeven_pct": getattr(self, "survival_breakeven_pct", 2.0),
+                    "enable_partial_profits": getattr(self, "enable_partial_profits", True),
+                    "portfolio_drawdown_limit_pct": getattr(self, "portfolio_drawdown_limit_pct", 3.0),
+                    "circuit_tripped": getattr(self, "circuit_tripped", False),
                     "ai_signals": getattr(self, "ai_signals", {}),
                     "ai_signals_metadata": getattr(self, "ai_signals_metadata", {})
                 }, f, indent=2)
@@ -303,6 +322,14 @@ class SwingTradingBot:
                 self.scan_mode = str(config["scan_mode"])
             if "strict_ai_mode" in config:
                 self.strict_ai_mode = bool(config["strict_ai_mode"])
+            if "survival_mode" in config:
+                self.survival_mode = bool(config["survival_mode"])
+            if "survival_breakeven_pct" in config:
+                self.survival_breakeven_pct = float(config["survival_breakeven_pct"])
+            if "enable_partial_profits" in config:
+                self.enable_partial_profits = bool(config["enable_partial_profits"])
+            if "portfolio_drawdown_limit_pct" in config:
+                self.portfolio_drawdown_limit_pct = float(config["portfolio_drawdown_limit_pct"])
 
         self.is_running = True
         self.persist_state()
@@ -379,12 +406,24 @@ class SwingTradingBot:
             curr_p = q.get("price", pos.average_price)
             pnl_pct = ((curr_p - pos.average_price) / pos.average_price) * 100
 
-            # Breakeven Shield (+4.0% gain locks Stop-Loss to Entry Price)
-            if pnl_pct >= 4.0 and not pos.trailing_active:
-                pos.stop_loss = max(pos.stop_loss, pos.average_price)
+            # Breakeven Shield (+2.0% in Survival Mode, +4.0% normal)
+            be_threshold = self.survival_breakeven_pct if getattr(self, "survival_mode", True) else 4.0
+            if pnl_pct >= be_threshold and not pos.trailing_active:
+                be_price = round(pos.average_price * 1.002, 2)
+                pos.stop_loss = max(pos.stop_loss, be_price)
                 pos.trailing_active = True
                 db.session.commit()
-                self.add_log(f"🛡️ [SWING BREAKEVEN] {pos.symbol.replace('.NS','')}: +{pnl_pct:.1f}% reached. Stop-Loss moved to Entry (₹{pos.average_price:.2f})", "SUCCESS")
+                self.add_log(f"🛡️ [SWING BREAKEVEN SHIELD] {pos.symbol.replace('.NS','')}: +{pnl_pct:.1f}% reached. Stop-Loss raised to Breakeven+Fees (₹{be_price:.2f}). 100% Risk-Free!", "SUCCESS")
+
+            # Partial Profit Banking (Bank 50% profit at +5.0%)
+            if getattr(self, "enable_partial_profits", True) and pnl_pct >= 5.0 and pos.quantity >= 2 and not getattr(pos, 'partial_taken', False):
+                half_qty = int(pos.quantity // 2)
+                if half_qty > 0:
+                    self.add_log(f"💰 [SWING PARTIAL PROFIT] {pos.symbol.replace('.NS','')}: +{pnl_pct:.1f}% surge reached! Selling 50% ({half_qty} shares) to lock in profit.", "SUCCESS")
+                    SwingPaperTradingEngine.execute_order(pos.symbol, "SELL", half_qty, curr_p, strategy=pos.strategy)
+                    pos.partial_taken = True
+                    pos.stop_loss = max(pos.stop_loss, round(pos.average_price * 1.002, 2))
+                    db.session.commit()
 
             # Check Take-Profit
             if pos.take_profit > 0 and curr_p >= pos.take_profit:
@@ -448,8 +487,19 @@ class SwingTradingBot:
             -x.get("confluence_score", 0)
         ))
 
+        # Check Portfolio Drawdown Circuit Breaker
+        summary = SwingPaperTradingEngine.get_portfolio_summary()
+        current_equity = summary.get("total_equity", 1000000.0)
+        base_swing_equity = 1000000.0
+        drawdown_pct = round(((current_equity - base_swing_equity) / base_swing_equity) * 100, 2)
+        if getattr(self, "survival_mode", True) and drawdown_pct <= -abs(getattr(self, "portfolio_drawdown_limit_pct", 3.0)):
+            self.circuit_tripped = True
+            self.add_log(f"🛡️ [SWING CIRCUIT BREAKER TRIPPED] Portfolio drawdown reached {drawdown_pct:+.2f}% (Limit: -{self.portfolio_drawdown_limit_pct}%). Halting new swing buys to protect capital!", "ERROR")
+        else:
+            self.circuit_tripped = False
+
         # 4. Auto-Execute Top-Scoring Setups if Bot is Running (Takes ALL Setups with No Position Limiter)
-        if self.is_running:
+        if self.is_running and not getattr(self, "circuit_tripped", False):
             for scan_res in scanner_results:
                 if scan_res.get("signal") != "BUY":
                     continue
@@ -505,6 +555,11 @@ class SwingTradingBot:
             "is_unlimited_positions": (not self.max_positions or self.max_positions <= 0),
             "scan_mode": self.scan_mode,
             "strict_ai_mode": getattr(self, "strict_ai_mode", False),
+            "survival_mode": getattr(self, "survival_mode", True),
+            "survival_breakeven_pct": getattr(self, "survival_breakeven_pct", 2.0),
+            "enable_partial_profits": getattr(self, "enable_partial_profits", True),
+            "portfolio_drawdown_limit_pct": getattr(self, "portfolio_drawdown_limit_pct", 3.0),
+            "circuit_tripped": getattr(self, "circuit_tripped", False),
             "last_scan_time": self.last_scan_time,
             "last_scan_summary": self.last_scan_summary,
             "ai_signals_summary": self.get_ai_signals_summary(),
