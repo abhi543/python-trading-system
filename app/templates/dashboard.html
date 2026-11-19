@@ -264,16 +264,30 @@
     <div id="tab-backtester" class="tab-content">
         <form id="backtest-form" class="backtest-form">
             <div class="form-inline">
-                <label>Symbol:</label>
-                <input type="text" id="bt-symbol" class="sm-input" value="RELIANCE.NS" required style="width: 130px;">
+                <label>Strategy:</label>
+                <select id="bt-strategy" class="sm-input" style="width: 155px;" onchange="onBtStrategyChange()">
+                    <option value="DMA_200" selected>📈 200 DMA Regime</option>
+                    <option value="SMA_CROSSOVER">Dual SMA Cross</option>
+                </select>
             </div>
             <div class="form-inline">
+                <label>Symbol:</label>
+                <input type="text" id="bt-symbol" class="sm-input" value="RELIANCE.NS" required style="width: 125px;">
+            </div>
+            <div class="form-inline" id="bt-short-group" style="display: none;">
                 <label>Fast SMA:</label>
                 <input type="number" id="bt-short" class="sm-input" value="20" min="5" max="100">
             </div>
-            <div class="form-inline">
+            <div class="form-inline" id="bt-long-group" style="display: none;">
                 <label>Slow SMA:</label>
                 <input type="number" id="bt-long" class="sm-input" value="50" min="20" max="200">
+            </div>
+            <div class="form-inline" id="bt-ma-type-group" style="display: flex;">
+                <label>MA Type:</label>
+                <select id="bt-ma-type" class="sm-input" style="width: 85px;">
+                    <option value="SMA" selected>SMA</option>
+                    <option value="EMA">EMA</option>
+                </select>
             </div>
             <div class="form-inline">
                 <label>Capital (₹):</label>
@@ -281,10 +295,10 @@
             </div>
             <div class="form-inline">
                 <label>Period:</label>
-                <select id="bt-period" class="sm-input" style="width: 95px;">
-                    <option value="6mo">6M</option>
-                    <option value="1y" selected>1Y</option>
-                    <option value="2y">2Y</option>
+                <select id="bt-period" class="sm-input" style="width: 85px;">
+                    <option value="1y">1Y</option>
+                    <option value="2y" selected>2Y</option>
+                    <option value="5y">5Y</option>
                 </select>
             </div>
             <button type="submit" class="btn-simulate"><i class="fa-solid fa-play"></i> Run Simulation</button>
@@ -770,11 +784,29 @@ function setupEventListeners() {
         }
     });
 
+    window.onBtStrategyChange = function() {
+        const strat = document.getElementById('bt-strategy')?.value || 'DMA_200';
+        const shortGrp = document.getElementById('bt-short-group');
+        const longGrp = document.getElementById('bt-long-group');
+        const maTypeGrp = document.getElementById('bt-ma-type-group');
+        if (strat === 'DMA_200') {
+            if (shortGrp) shortGrp.style.display = 'none';
+            if (longGrp) longGrp.style.display = 'none';
+            if (maTypeGrp) maTypeGrp.style.display = 'flex';
+        } else {
+            if (shortGrp) shortGrp.style.display = 'flex';
+            if (longGrp) longGrp.style.display = 'flex';
+            if (maTypeGrp) maTypeGrp.style.display = 'none';
+        }
+    };
+
     document.getElementById('backtest-form').addEventListener('submit', async (e) => {
         e.preventDefault();
         const symbol = document.getElementById('bt-symbol').value.trim().toUpperCase();
-        const short_window = parseInt(document.getElementById('bt-short').value);
-        const long_window = parseInt(document.getElementById('bt-long').value);
+        const strategy = document.getElementById('bt-strategy')?.value || 'DMA_200';
+        const ma_type = document.getElementById('bt-ma-type')?.value || 'SMA';
+        const short_window = parseInt(document.getElementById('bt-short')?.value || '20');
+        const long_window = parseInt(document.getElementById('bt-long')?.value || '50');
         const capital = parseFloat(document.getElementById('bt-capital').value);
         const period = document.getElementById('bt-period').value;
 
@@ -784,7 +816,7 @@ function setupEventListeners() {
             const res = await fetch('/api/backtest', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ symbol, short_window, long_window, capital, period })
+                body: JSON.stringify({ symbol, strategy, ma_type, short_window, long_window, capital, period })
             });
             const data = await res.json();
             if (data.error) {

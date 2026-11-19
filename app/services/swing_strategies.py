@@ -357,15 +357,73 @@ class VolumeShockerStrategy(SwingStrategyBase):
         return {"active": False, "reason": f"RVOL {vol_ratio:.1f}x below shock threshold (1.75x) or trend unconfirmed"}
 
 
+class DMA200BreakoutStrategy(SwingStrategyBase):
+    """
+    📈 200-DAY MOVING AVERAGE BREAKOUT & REGIME STRATEGY
+    - BUY when price trades above 200 DMA (Stop Loss = Exact 200 DMA)
+    - Daily trailing stop: Stop Loss tracks the exact 200 DMA line upwards.
+    - If price falls below 200 DMA, liquidate to 100% Cash for capital preservation.
+    """
+    @classmethod
+    def evaluate(cls, symbol: str, data: Dict[str, Any]) -> Dict[str, Any]:
+        current_price = float(data.get("price") or 0.0)
+        closes = data.get("closes", [])
+        dma_200 = float(data.get("ema_200") or 0.0)
+
+        # Compute 200-day simple moving average if closes available
+        if len(closes) >= 200:
+            dma_200 = round(float(np.mean(closes[-200:])), 2)
+        elif not dma_200 and len(closes) >= 50:
+            dma_200 = round(float(np.mean(closes)), 2)
+
+        if dma_200 <= 0 or current_price <= 0:
+            return {"active": False, "reason": "Insufficient candles to compute 200 DMA"}
+
+        distance_pct = round(((current_price - dma_200) / dma_200) * 100, 2)
+        is_above_200 = current_price >= dma_200
+        is_optimal_entry = 0.20 <= distance_pct <= 7.5
+
+        if is_above_200 and is_optimal_entry:
+            exact_sl = dma_200
+            sl_pct = max(0.5, round(((current_price - exact_sl) / current_price) * 100, 2))
+            
+            target_pct = min(25.0, max(8.0, round(sl_pct * 3.0, 1)))
+            target_price = round(current_price * (1.0 + (target_pct / 100.0)), 2)
+            rr = round((target_price - current_price) / max(0.1, current_price - exact_sl), 1)
+
+            score = min(98, int(92 - min(14, distance_pct * 2)))
+
+            return {
+                "active": True,
+                "strategy": "DMA_200",
+                "label": "📈 200 DMA REGIME",
+                "score": score,
+                "target_price": target_price,
+                "target_pct": target_pct,
+                "stop_loss": exact_sl,
+                "stop_loss_pct": sl_pct,
+                "risk_reward": f"1 : {rr}",
+                "holding_days": "10 – 45 Days (Macro Trend)",
+                "dma_200": exact_sl,
+                "distance_pct": distance_pct,
+                "reason": f"📈 200 DMA Breakout: Price ₹{current_price:.2f} is +{distance_pct:.1f}% above 200 DMA (₹{exact_sl:.2f}). Exact 200 DMA Trailing SL active."
+            }
+        elif is_above_200 and distance_pct > 7.5:
+            return {"active": False, "reason": f"Extended (+{distance_pct:.1f}% above 200 DMA ₹{dma_200:.2f}) - wait for pullback to 200 DMA"}
+        else:
+            return {"active": False, "reason": f"Bearish: Price ₹{current_price:.2f} is below 200 DMA (₹{dma_200:.2f}, {distance_pct:.1f}%)"}
+
+
 # ==============================================================================
 # UNIFIED CONFLUENCE ENGINE & MULTI-STRATEGY SCANNER
 # ==============================================================================
 class UnifiedSwingScanner:
     """
-    Runs all 5 strategies on a stock, determines triggers,
+    Runs all strategies on a stock, determines triggers,
     and calculates Multi-Strategy Confluence when multiple engines align.
     """
     STRATEGIES = {
+        "DMA_200": DMA200BreakoutStrategy,
         "VOLUME_SHOCKER": VolumeShockerStrategy,
         "VORTEX": VortexBreakoutStrategy,
         "ANCHOR": AnchorPullbackStrategy,

@@ -983,6 +983,27 @@ class AutoTradingBot:
             else:
                 reason = f"RVOL {vol_ratio:.1f}x below volume shock threshold (1.75x) or waiting for price confirmation"
 
+        elif self.strategy == "DMA_200":
+            # 📈 200-DAY MOVING AVERAGE BREAKOUT & REGIME STRATEGY
+            dma_val = ema_200 or (current_price * 0.98)
+            dist_pct = round(((current_price - dma_val) / dma_val) * 100, 2)
+            if current_price >= dma_val:
+                signal = "BUY"
+                suggested_sl = round(dma_val, 2)
+                sl_dist = max(current_price * 0.005, current_price - suggested_sl)
+                suggested_tp = round(current_price + (sl_dist * 2.8), 2)
+                reason = f"📈 200 DMA Bullish: Price ₹{current_price:.2f} above 200 DMA (₹{suggested_sl:.2f}, +{dist_pct:.1f}%) | Stop Loss = Exact 200 DMA"
+                reversal_score = 92
+                reversal_grade = "A+"
+            else:
+                signal = "SELL"
+                suggested_sl = round(dma_val, 2)
+                sl_dist = max(current_price * 0.005, suggested_sl - current_price)
+                suggested_tp = round(current_price - (sl_dist * 2.8), 2)
+                reason = f"📉 200 DMA Bearish Breakdown: Price ₹{current_price:.2f} below 200 DMA (₹{suggested_sl:.2f}, {dist_pct:.1f}%) | Stop Loss = Exact 200 DMA"
+                reversal_score = 90
+                reversal_grade = "A"
+
         # Filter BUY/SELL signals with 200 EMA Macro Trend, NIFTY 50 Regime & Volume Breakout
         filter_status = None
         nifty_reg = getattr(self, "nifty_market_regime", {}).get("regime", "BULLISH")

@@ -537,13 +537,38 @@ def remove_watchlist(symbol):
 @api_bp.route('/backtest', methods=['POST'])
 def backtest():
     body = request.get_json() or {}
-    symbol = body.get('symbol', 'AAPL')
-    short_w = int(body.get('short_window', 20))
-    long_w = int(body.get('long_window', 50))
-    period = body.get('period', '1y')
-    capital = float(body.get('capital', 10000.0))
+    symbol = body.get('symbol', 'RELIANCE.NS')
+    strat = str(body.get('strategy', 'SMA_CROSSOVER')).upper()
     
-    result = StrategyBacktester.sma_crossover(symbol, short_w, long_w, period, capital)
+    if strat in ['DMA_200', '200_DMA', 'DMA200', '200_DAY']:
+        period = body.get('period', '2y')
+        capital = float(body.get('capital', 100000.0))
+        ma_type = body.get('ma_type', 'SMA')
+        allow_short = bool(body.get('allow_short', False))
+        result = StrategyBacktester.dma_200_strategy(symbol, period=period, initial_capital=capital, ma_type=ma_type, allow_short=allow_short)
+    else:
+        short_w = int(body.get('short_window', 20))
+        long_w = int(body.get('long_window', 50))
+        period = body.get('period', '1y')
+        capital = float(body.get('capital', 10000.0))
+        result = StrategyBacktester.sma_crossover(symbol, short_w, long_w, period, capital)
+
+    if "error" in result:
+        return jsonify(result), 400
+    return jsonify(result)
+
+@api_bp.route('/backtest/dma200', methods=['GET', 'POST'])
+def backtest_dma200():
+    if request.method == 'POST':
+        body = request.get_json() or {}
+    else:
+        body = request.args.to_dict()
+    symbol = body.get('symbol', 'RELIANCE.NS')
+    period = body.get('period', '2y')
+    capital = float(body.get('capital', 100000.0))
+    ma_type = body.get('ma_type', 'SMA')
+    allow_short = str(body.get('allow_short', 'false')).lower() in ['true', '1', 'yes']
+    result = StrategyBacktester.dma_200_strategy(symbol, period=period, initial_capital=capital, ma_type=ma_type, allow_short=allow_short)
     if "error" in result:
         return jsonify(result), 400
     return jsonify(result)
