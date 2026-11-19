@@ -415,6 +415,84 @@ class DMA200BreakoutStrategy(SwingStrategyBase):
 
 
 # ==============================================================================
+# 5. TRIPLE CONFLUENCE: VWAP + 9/21 EMA + RSI-14
+# ==============================================================================
+class VWAPEMARSIStrategy(SwingStrategyBase):
+    """
+    ⚡ TRIPLE CONFLUENCE STRATEGY: VWAP + 9/21 EMA + RSI
+    Multi-Day Institutional Swing Setup:
+    - Anchor: Price trades above 20-day Volume Weighted Average Price (VWAP)
+    - Trend: 9 EMA > 21 EMA (Bullish trend continuation)
+    - Timing: RSI-14 in 48 – 68 zone (Healthy thrust & pullback without being overbought)
+    - Dynamic Stop-Loss = Exact VWAP Line (Trailing with volume anchor)
+    - Target: 1:2.5 RR (+8% to +18%)
+    """
+    @classmethod
+    def evaluate(cls, symbol: str, data: Dict[str, Any]) -> Dict[str, Any]:
+        closes = data.get("closes", [])
+        highs = data.get("highs", closes)
+        lows = data.get("lows", closes)
+        volumes = data.get("volumes", [])
+        current_price = data.get("price", closes[-1] if closes else 0.0)
+
+        if len(closes) < 25:
+            return {"active": False, "reason": "Insufficient daily candle history"}
+
+        vwap_val = data.get("vwap")
+        if not vwap_val and len(volumes) >= 20:
+            tp = [(highs[i] + lows[i] + closes[i]) / 3.0 for i in range(len(closes))]
+            recent_tp = tp[-20:]
+            recent_v = volumes[-20:]
+            sum_v = sum(recent_v)
+            if sum_v > 0:
+                vwap_val = round(sum(p * v for p, v in zip(recent_tp, recent_v)) / sum_v, 2)
+        if not vwap_val:
+            vwap_val = cls.calc_sma(closes, 20) or (current_price * 0.98)
+
+        ema_9 = data.get("ema_9") or cls.calc_ema(closes, 9) or current_price
+        ema_21 = data.get("ema_21") or cls.calc_ema(closes, 21) or current_price
+        rsi_14 = data.get("rsi_14") or cls.calc_rsi(closes, 14) or 50.0
+
+        is_above_vwap = current_price >= vwap_val
+        is_bullish_ema = ema_9 >= ema_21
+        is_bullish_rsi = (48.0 <= rsi_14 <= 68.0)
+
+        exact_sl = round(vwap_val, 2)
+        sl_pct = round(((current_price - exact_sl) / current_price) * 100, 2)
+
+        if is_above_vwap and is_bullish_ema and is_bullish_rsi:
+            risk_dist = max(current_price * 0.015, current_price - exact_sl)
+            target_price = round(current_price + (risk_dist * 2.5), 2)
+            target_pct = round(((target_price - current_price) / current_price) * 100, 1)
+            rr = round((target_price - current_price) / max(0.1, current_price - exact_sl), 2)
+            score = 93 if rsi_14 >= 52.0 else 88
+
+            return {
+                "active": True,
+                "strategy": "VWAP_EMA_RSI",
+                "label": "⚡ VWAP + EMA + RSI Confluence",
+                "score": score,
+                "target_price": target_price,
+                "target_pct": target_pct,
+                "stop_loss": exact_sl,
+                "stop_loss_pct": sl_pct,
+                "risk_reward": f"1 : {rr}",
+                "holding_days": "4 – 14 Days",
+                "vwap": exact_sl,
+                "ema_9": round(ema_9, 2),
+                "ema_21": round(ema_21, 2),
+                "rsi": round(rsi_14, 1),
+                "reason": f"⚡ Triple Confluence: Above VWAP (₹{exact_sl:.2f}) | 9 EMA > 21 EMA | RSI {rsi_14:.1f} Bullish Support. Exact VWAP Stop-Loss."
+            }
+        elif not is_above_vwap:
+            return {"active": False, "reason": f"Sub-VWAP: Price ₹{current_price:.2f} below VWAP (₹{exact_sl:.2f})"}
+        elif not is_bullish_ema:
+            return {"active": False, "reason": f"EMA Bearish: 9 EMA (₹{ema_9:.2f}) < 21 EMA (₹{ema_21:.2f})"}
+        else:
+            return {"active": False, "reason": f"RSI Neutral / Extended: RSI {rsi_14:.1f} outside 48–68 entry corridor"}
+
+
+# ==============================================================================
 # UNIFIED CONFLUENCE ENGINE & MULTI-STRATEGY SCANNER
 # ==============================================================================
 class UnifiedSwingScanner:
@@ -423,6 +501,7 @@ class UnifiedSwingScanner:
     and calculates Multi-Strategy Confluence when multiple engines align.
     """
     STRATEGIES = {
+        "VWAP_EMA_RSI": VWAPEMARSIStrategy,
         "DMA_200": DMA200BreakoutStrategy,
         "VOLUME_SHOCKER": VolumeShockerStrategy,
         "VORTEX": VortexBreakoutStrategy,

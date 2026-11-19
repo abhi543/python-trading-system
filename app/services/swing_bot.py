@@ -357,6 +357,7 @@ class SwingTradingBot:
         """Calculates win rate, total P&L and average holding days for each of the 4 swing strategies"""
         trades = SwingTradeHistory.query.all()
         scorecard = {
+            "VWAP_EMA_RSI": {"trades": 0, "wins": 0, "pnl": 0.0, "days": []},
             "DMA_200": {"trades": 0, "wins": 0, "pnl": 0.0, "days": []},
             "VOLUME_SHOCKER": {"trades": 0, "wins": 0, "pnl": 0.0, "days": []},
             "VORTEX": {"trades": 0, "wins": 0, "pnl": 0.0, "days": []},

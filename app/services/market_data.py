@@ -207,6 +207,35 @@ class MarketDataService:
             if not pd.isna(atr_calc) and atr_calc > 0:
                 atr_14 = round(float(atr_calc), 2)
 
+        # Triple Confluence Indicators: VWAP, EMA-9, EMA-21, RSI-14
+        vwap = None
+        if len(df) >= 2 and 'volume' in df.columns:
+            typical_price = (df['high'] + df['low'] + df['close']) / 3.0
+            rolling_window = min(20, len(df))
+            roll_tp_vol = (typical_price * df['volume']).rolling(rolling_window).sum()
+            roll_vol = df['volume'].rolling(rolling_window).sum()
+            if not roll_vol.empty and float(roll_vol.iloc[-1] or 0.0) > 0:
+                vwap = round(float(roll_tp_vol.iloc[-1] / roll_vol.iloc[-1]), 2)
+            else:
+                vwap = round(float(typical_price.iloc[-1]), 2)
+
+        ema_9 = None
+        ema_21 = None
+        if len(df) >= 9:
+            ema_9 = round(float(df['close'].ewm(span=9, adjust=False).mean().iloc[-1]), 2)
+        if len(df) >= 21:
+            ema_21 = round(float(df['close'].ewm(span=21, adjust=False).mean().iloc[-1]), 2)
+
+        rsi_14 = 50.0
+        if len(df) >= 15:
+            delta = df['close'].diff()
+            gain = (delta.where(delta > 0, 0)).rolling(14).mean()
+            loss = (-delta.where(delta < 0, 0)).rolling(14).mean()
+            rs = gain / (loss + 1e-9)
+            calc_rsi = 100 - (100 / (1 + rs))
+            if not pd.isna(calc_rsi.iloc[-1]):
+                rsi_14 = round(float(calc_rsi.iloc[-1]), 2)
+
         return {
             "symbol": resolved_symbol,
             "price": round(float(current_price), 2),
@@ -219,7 +248,11 @@ class MarketDataService:
             "ema_200": ema_200,
             "trend_200": trend_200,
             "vol_ratio": vol_ratio,
-            "atr_14": atr_14
+            "atr_14": atr_14,
+            "vwap": vwap or round(current_price * 0.995, 2),
+            "ema_9": ema_9 or current_price,
+            "ema_21": ema_21 or current_price,
+            "rsi_14": rsi_14
         }
 
     @staticmethod

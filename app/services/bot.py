@@ -1004,6 +1004,40 @@ class AutoTradingBot:
                 reversal_score = 90
                 reversal_grade = "A"
 
+        elif self.strategy == "VWAP_EMA_RSI":
+            # ⚡ TRIPLE CONFLUENCE STRATEGY: VWAP + EMA + RSI
+            vwap_val = stock_data.get("vwap") or (current_price * 0.995)
+            ema9_val = stock_data.get("ema_9") or current_price
+            ema21_val = stock_data.get("ema_21") or current_price
+            rsi_curr = stock_data.get("rsi_14", 50.0)
+            rsi_val = round(rsi_curr, 1)
+
+            # Long Setup: Price >= VWAP, 9 EMA > 21 EMA, RSI Bullish Support (48 to 68)
+            is_confluence_buy = (current_price >= vwap_val) and (ema9_val >= ema21_val) and (48.0 <= rsi_curr <= 68.0)
+            
+            # Short Setup: Price < VWAP, 9 EMA < 21 EMA, RSI Bearish Breakdown (32 to 52)
+            is_confluence_sell = (current_price < vwap_val) and (ema9_val < ema21_val) and (32.0 <= rsi_curr <= 52.0)
+
+            if is_confluence_buy:
+                signal = "BUY"
+                suggested_sl = round(vwap_val, 2)
+                risk_dist = max(current_price * 0.005, current_price - suggested_sl)
+                suggested_tp = round(current_price + (risk_dist * 2.2), 2)
+                reason = f"⚡ Triple Confluence BUY: Above VWAP (₹{vwap_val:.2f}) | 9 EMA > 21 EMA | RSI {rsi_curr:.1f} (Bullish Thrust) | Stop Loss = Exact VWAP"
+                reversal_score = 94
+                reversal_grade = "A+"
+            elif is_confluence_sell:
+                signal = "SELL"
+                suggested_sl = round(vwap_val, 2)
+                risk_dist = max(current_price * 0.005, suggested_sl - current_price)
+                suggested_tp = round(current_price - (risk_dist * 2.2), 2)
+                reason = f"⚡ Triple Confluence SHORT: Below VWAP (₹{vwap_val:.2f}) | 9 EMA < 21 EMA | RSI {rsi_curr:.1f} (Bearish Pullback) | Stop Loss = Exact VWAP"
+                reversal_score = 92
+                reversal_grade = "A+"
+            else:
+                bias_hint = "Price vs VWAP" if (current_price >= vwap_val) else "Sub-VWAP"
+                reason = f"Triple Confluence Neutral: {bias_hint} | 9 EMA: ₹{ema9_val:.2f}, 21 EMA: ₹{ema21_val:.2f}, RSI: {rsi_curr:.1f}"
+
         # Filter BUY/SELL signals with 200 EMA Macro Trend, NIFTY 50 Regime & Volume Breakout
         filter_status = None
         nifty_reg = getattr(self, "nifty_market_regime", {}).get("regime", "BULLISH")
@@ -1063,6 +1097,9 @@ class AutoTradingBot:
             "fast_sma": fast_sma,
             "slow_sma": slow_sma,
             "rsi": rsi_val,
+            "vwap": stock_data.get("vwap"),
+            "ema_9": stock_data.get("ema_9"),
+            "ema_21": stock_data.get("ema_21"),
             "reversal_score": reversal_score,
             "reversal_grade": reversal_grade,
             "suggested_sl": suggested_sl,

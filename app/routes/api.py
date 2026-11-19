@@ -546,6 +546,14 @@ def backtest():
         ma_type = body.get('ma_type', 'SMA')
         allow_short = bool(body.get('allow_short', False))
         result = StrategyBacktester.dma_200_strategy(symbol, period=period, initial_capital=capital, ma_type=ma_type, allow_short=allow_short)
+    elif strat in ['VWAP_EMA_RSI', 'VWAP', 'TRIPLE_CONFLUENCE', 'CONFLUENCE']:
+        period = body.get('period', '2y')
+        capital = float(body.get('capital', 100000.0))
+        fast_ema = int(body.get('fast_ema', 9))
+        slow_ema = int(body.get('slow_ema', 21))
+        rsi_period = int(body.get('rsi_period', 14))
+        allow_short = bool(body.get('allow_short', False))
+        result = StrategyBacktester.vwap_ema_rsi_strategy(symbol, period=period, initial_capital=capital, fast_ema=fast_ema, slow_ema=slow_ema, rsi_period=rsi_period, allow_short=allow_short)
     else:
         short_w = int(body.get('short_window', 20))
         long_w = int(body.get('long_window', 50))
@@ -569,6 +577,24 @@ def backtest_dma200():
     ma_type = body.get('ma_type', 'SMA')
     allow_short = str(body.get('allow_short', 'false')).lower() in ['true', '1', 'yes']
     result = StrategyBacktester.dma_200_strategy(symbol, period=period, initial_capital=capital, ma_type=ma_type, allow_short=allow_short)
+    if "error" in result:
+        return jsonify(result), 400
+    return jsonify(result)
+
+@api_bp.route('/backtest/vwap_ema_rsi', methods=['GET', 'POST'])
+def backtest_vwap_ema_rsi():
+    if request.method == 'POST':
+        body = request.get_json() or {}
+    else:
+        body = request.args.to_dict()
+    symbol = body.get('symbol', 'RELIANCE.NS')
+    period = body.get('period', '2y')
+    capital = float(body.get('capital', 100000.0))
+    fast_ema = int(body.get('fast_ema', 9))
+    slow_ema = int(body.get('slow_ema', 21))
+    rsi_period = int(body.get('rsi_period', 14))
+    allow_short = str(body.get('allow_short', 'false')).lower() in ['true', '1', 'yes']
+    result = StrategyBacktester.vwap_ema_rsi_strategy(symbol, period=period, initial_capital=capital, fast_ema=fast_ema, slow_ema=slow_ema, rsi_period=rsi_period, allow_short=allow_short)
     if "error" in result:
         return jsonify(result), 400
     return jsonify(result)

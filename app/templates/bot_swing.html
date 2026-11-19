@@ -56,6 +56,7 @@
                         <label style="font-size: 0.68rem; font-weight: 800; color: #c084fc; letter-spacing: 0.05em;">ACTIVE STRATEGY SUITE:</label>
                         <select id="config-strategy-select" onchange="updateSwingConfig()" style="background: rgba(15, 23, 42, 0.9); border: 1px solid rgba(168, 85, 247, 0.4); color: #fff; padding: 6px 10px; border-radius: 6px; font-size: 0.8rem; font-weight: 700; outline: none; cursor: pointer;">
                             <option value="ALL">⭐ ALL STRATEGIES (Multi-Engine Confluence)</option>
+                            <option value="VWAP_EMA_RSI">⚡ VWAP + EMA + RSI (Triple Confluence)</option>
                             <option value="DMA_200">📈 200 DMA REGIME (Trend Breakout &amp; 200 DMA Stop)</option>
                             <option value="VOLUME_SHOCKER">⚡ VOLUME SHOCKER (Institutional Accumulation)</option>
                             <option value="VORTEX">🌀 VORTEX (Minervini VCP &amp; Stage 2 Breakout)</option>
@@ -943,6 +944,7 @@ function renderLogs(logs) {
 function getStrategyBadgeClass(strat) {
     if (!strat) return 'badge-vortex';
     const s = strat.toUpperCase();
+    if (s.includes('VWAP')) return 'badge-confluence';
     if (s.includes('DMA_200') || s.includes('200')) return 'badge-anchor';
     if (s.includes('VOLUME_SHOCKER') || s.includes('SHOCKER')) return 'badge-titan';
     if (s.includes('CONFLUENCE')) return 'badge-confluence';
