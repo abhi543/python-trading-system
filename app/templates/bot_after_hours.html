@@ -3121,8 +3121,27 @@
         }
 
         // Realized P&L & Day P&L Navbar Stat Chips
-        const realizedPnl = (data.realized_pnl !== undefined) ? data.realized_pnl : (data.account ? data.account.realized_pnl : 0.0);
-        const dayPnl = (data.day_pnl !== undefined) ? data.day_pnl : (data.account ? data.account.day_pnl : (realizedPnl + pnl));
+        let serverRealized = (data.realized_pnl !== undefined) ? Number(data.realized_pnl) : (data.account ? Number(data.account.realized_pnl) : 0.0);
+        let serverDayRealized = (data.day_realized_pnl !== undefined) ? Number(data.day_realized_pnl) : 0.0;
+        
+        // Compute from persistent client-side closed trades if available
+        let clientTotalRealized = 0.0;
+        let clientTodayRealized = 0.0;
+        const currentTrades = (typeof cachedClosedTrades !== 'undefined' && Array.isArray(cachedClosedTrades) && cachedClosedTrades.length > 0)
+            ? cachedClosedTrades
+            : ((typeof getStoredClosedTrades === 'function') ? getStoredClosedTrades() : []);
+            
+        currentTrades.forEach(t => {
+            const rp = parseFloat(t.realized_pnl || 0.0);
+            clientTotalRealized += rp;
+            if (typeof isSameIstDay === 'function' && isSameIstDay(t.timestamp)) {
+                clientTodayRealized += rp;
+            }
+        });
+
+        const realizedPnl = (Math.abs(clientTotalRealized) > 0 && serverRealized === 0) ? clientTotalRealized : serverRealized;
+        const effectiveDayRealized = (Math.abs(clientTodayRealized) > 0 && serverDayRealized === 0) ? clientTodayRealized : serverDayRealized;
+        const dayPnl = Math.round((effectiveDayRealized + pnl) * 100) / 100;
 
         const realEl = document.getElementById('nav-realized-pnl');
         if (realEl) {
@@ -3991,6 +4010,28 @@
         } catch (e) {}
     }
 
+    function isSameIstDay(timestampStr) {
+        if (!timestampStr) return false;
+        try {
+            let d;
+            if (typeof timestampStr === 'number') d = new Date(timestampStr);
+            else if (typeof timestampStr === 'string') {
+                const s = timestampStr.trim();
+                if (s.includes('T')) d = new Date(s);
+                else if (s.includes('-')) {
+                    d = new Date(s.replace(' ', 'T') + (s.endsWith('Z') || s.includes('+') ? '' : 'Z'));
+                    if (isNaN(d.getTime())) d = new Date(s);
+                } else d = new Date(s);
+            } else d = new Date(timestampStr);
+            if (isNaN(d.getTime())) return String(timestampStr).slice(0, 10) === new Date().toISOString().slice(0, 10);
+            const tIst = new Date(d.getTime() + (5.5 * 3600 * 1000));
+            const nowIst = new Date(new Date().getTime() + (5.5 * 3600 * 1000));
+            return (tIst.getUTCFullYear() === nowIst.getUTCFullYear() && tIst.getUTCMonth() === nowIst.getUTCMonth() && tIst.getUTCDate() === nowIst.getUTCDate());
+        } catch(e) {
+            return String(timestampStr).slice(0, 10) === new Date().toISOString().slice(0, 10);
+        }
+    }
+
     function renderClosedTradesUI(data) {
         if (!data) return;
         const serverTrades = data.trades || [];
@@ -4008,9 +4049,8 @@
         cachedClosedTrades = mergedTrades;
 
         // Recalculate summary from persistent merged trades
-        const todayStr = new Date(new Date().getTime() + (5.5 * 3600 * 1000)).toISOString().slice(0, 10);
-        let todayPnl = 0.0;
         let totalPnl = 0.0;
+        let todayPnl = 0.0;
         let totalCharges = 0.0;
         let wins = 0;
         let losses = 0;
@@ -4021,8 +4061,7 @@
             totalCharges += parseFloat(t.charges || 0.0);
             if (p > 0) wins++;
             else if (p < 0) losses++;
-            const tDate = (t.timestamp || '').slice(0, 10);
-            if (tDate === todayStr) {
+            if (isSameIstDay(t.timestamp)) {
                 todayPnl += p;
             }
         });
@@ -4047,7 +4086,28 @@
         }
 
         const activeFloatingPnl = Number(document.getElementById('nav-pnl')?.innerText?.replace(/[^0-9.-]+/g,"") || 0);
-        const dayTotalPnl = todayPnl + activeFloatingPnl;
+        const dayTotalPnl = Math.round((todayPnl + activeFloatingPnl) * 100) / 100;
+
+        // Update Navbar Day P&L
+        const navDayEl = document.getElementById('nav-day-pnl');
+        if (navDayEl) {
+            navDayEl.innerText = `${dayTotalPnl >= 0 ? '+' : ''}₹${dayTotalPnl.toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+            navDayEl.className = dayTotalPnl >= 0 ? 'stat-chip-val text-green' : 'stat-chip-val text-red';
+        }
+        const navDayChip = document.getElementById('nav-day-pnl-chip');
+        if (navDayChip) {
+            navDayChip.classList.remove('positive', 'negative');
+            if (dayTotalPnl > 0) navDayChip.classList.add('positive');
+            else if (dayTotalPnl < 0) navDayChip.classList.add('negative');
+        }
+
+        // Update Navbar Realized P&L
+        const navRealEl = document.getElementById('nav-realized-pnl');
+        if (navRealEl) {
+            navRealEl.innerText = `${totalPnl >= 0 ? '+' : ''}₹${totalPnl.toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+            navRealEl.className = totalPnl >= 0 ? 'stat-chip-val text-green' : 'stat-chip-val text-red';
+        }
+
         const closedDayEl = document.getElementById('closed-day-pnl');
         if (closedDayEl) {
             closedDayEl.innerText = `${dayTotalPnl >= 0 ? '+' : ''}₹${dayTotalPnl.toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
