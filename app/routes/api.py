@@ -499,6 +499,255 @@ def get_closed_trades():
     trades = TradeHistory.query.filter(TradeHistory.side.in_(["SELL", "COVER"])).order_by(TradeHistory.timestamp.desc()).limit(100).all()
     return jsonify(_build_closed_trades_summary(trades))
 
+@api_bp.route('/trades/daily-calendar', methods=['GET', 'POST'])
+def get_daily_trades_calendar():
+    """
+    Returns closed trades aggregated by IST date (YYYY-MM-DD),
+    providing daily P&L, trade counts, win rate, and individual trade breakdowns
+    for the trading calendar.
+    Accepts bot_type: 'alpha', 'nighthawk', 'swing', or 'all'.
+    Also accepts optional client_trades payload to merge persistent client-side trades.
+    """
+    from datetime import datetime, timedelta, timezone
+    from app.models.trading import TradeHistory, AfterHoursTradeHistory
+    try:
+        from app.models.trading import SwingTradeHistory
+    except Exception:
+        SwingTradeHistory = None
+
+    bot_type = request.args.get('bot_type')
+    body = request.get_json(silent=True) or {}
+    if not bot_type:
+        bot_type = body.get('bot_type', 'all')
+    bot_type = str(bot_type).strip().lower()
+
+    client_trades = body.get('client_trades', []) if isinstance(body, dict) else []
+
+    all_raw_trades = []
+
+    # 1. ALPHA trades
+    if bot_type in ['alpha', 'day', 'all']:
+        try:
+            alpha_trades = TradeHistory.query.filter(TradeHistory.side.in_(["SELL", "COVER"])).all()
+            for t in alpha_trades:
+                all_raw_trades.append({
+                    "id": f"alpha_{t.id}",
+                    "desk": "ALPHA",
+                    "symbol": t.symbol,
+                    "displayName": t.symbol.replace('.NS', ''),
+                    "side": t.side,
+                    "quantity": t.quantity,
+                    "price": t.price,
+                    "total": t.total,
+                    "realized_pnl": float(t.realized_pnl or 0.0),
+                    "charges": float(getattr(t, 'charges', 0.0) or 0.0),
+                    "timestamp": t.timestamp
+                })
+        except Exception:
+            pass
+
+    # 2. NIGHTHAWK trades
+    if bot_type in ['nighthawk', 'after_hours', 'all']:
+        try:
+            ah_trades = AfterHoursTradeHistory.query.filter(AfterHoursTradeHistory.side.in_(["SELL", "COVER"])).all()
+            for t in ah_trades:
+                all_raw_trades.append({
+                    "id": f"ah_{t.id}",
+                    "desk": "NIGHTHAWK",
+                    "symbol": t.symbol,
+                    "displayName": t.symbol.replace('.NS', ''),
+                    "side": t.side,
+                    "quantity": t.quantity,
+                    "price": t.price,
+                    "total": t.total,
+                    "realized_pnl": float(t.realized_pnl or 0.0),
+                    "charges": float(getattr(t, 'charges', 0.0) or 0.0),
+                    "timestamp": t.timestamp
+                })
+        except Exception:
+            pass
+
+    # 3. SWING (TITAN) trades
+    if bot_type in ['swing', 'titan', 'all'] and SwingTradeHistory:
+        try:
+            swing_trades = SwingTradeHistory.query.filter(SwingTradeHistory.side.in_(["SELL", "COVER"])).all()
+            for t in swing_trades:
+                all_raw_trades.append({
+                    "id": f"swing_{t.id}",
+                    "desk": "TITAN",
+                    "symbol": t.symbol,
+                    "displayName": t.symbol.replace('.NS', ''),
+                    "side": t.side,
+                    "quantity": t.quantity,
+                    "price": t.price,
+                    "total": t.total,
+                    "realized_pnl": float(t.realized_pnl or 0.0),
+                    "charges": float(getattr(t, 'charges', 0.0) or 0.0),
+                    "timestamp": getattr(t, 'exit_date', None) or (t.timestamp if hasattr(t, 'timestamp') else datetime.now(timezone.utc))
+                })
+        except Exception:
+            pass
+
+    # 4. Merge client-provided local storage trades
+    seen_keys = set()
+    unified_trades = []
+
+    def make_key(item):
+        t_id = item.get('id')
+        if t_id:
+            return f"id_{t_id}"
+        ts_str = str(item.get('timestamp') or '')[:19]
+        return f"{item.get('symbol')}_{item.get('side')}_{item.get('quantity')}_{item.get('price')}_{ts_str}"
+
+    for t in all_raw_trades:
+        k = make_key(t)
+        if k not in seen_keys:
+            seen_keys.add(k)
+            unified_trades.append(t)
+
+    for ct in client_trades:
+        k = make_key(ct)
+        if k not in seen_keys:
+            seen_keys.add(k)
+            ts = ct.get('timestamp')
+            if isinstance(ts, str):
+                try:
+                    ts = datetime.fromisoformat(ts.replace('Z', '+00:00'))
+                except Exception:
+                    try:
+                        ts = datetime.strptime(ts[:19], "%Y-%m-%d %H:%M:%S")
+                    except Exception:
+                        ts = datetime.now(timezone.utc)
+            unified_trades.append({
+                "id": ct.get('id', f"client_{k}"),
+                "desk": ct.get('desk', 'ALPHA'),
+                "symbol": ct.get('symbol', 'UNKNOWN'),
+                "displayName": ct.get('displayName') or ct.get('symbol', 'UNKNOWN').replace('.NS', ''),
+                "side": ct.get('side', 'SELL'),
+                "quantity": float(ct.get('quantity') or 0.0),
+                "price": float(ct.get('exit_price') or ct.get('price') or 0.0),
+                "entry_price": float(ct.get('entry_price') or 0.0),
+                "total": float(ct.get('total') or ct.get('total_value') or 0.0),
+                "realized_pnl": float(ct.get('realized_pnl') or 0.0),
+                "charges": float(ct.get('charges') or 0.0),
+                "timestamp": ts
+            })
+
+    # 5. Group by IST Date (UTC + 5:30)
+    days_map = {}
+    total_calendar_pnl = 0.0
+    total_calendar_charges = 0.0
+    total_calendar_trades = len(unified_trades)
+
+    for item in unified_trades:
+        ts = item.get('timestamp')
+        if not ts or not hasattr(ts, 'year'):
+            ts = datetime.now(timezone.utc)
+
+        ist_ts = ts + timedelta(hours=5, minutes=30)
+        date_str = ist_ts.strftime('%Y-%m-%d')
+        time_str = ist_ts.strftime('%H:%M:%S')
+
+        pnl = round(float(item.get('realized_pnl') or 0.0), 2)
+        charges = round(float(item.get('charges') or 0.0), 2)
+        qty = float(item.get('quantity') or 0.0)
+        price = float(item.get('price') or 0.0)
+        entry_price = float(item.get('entry_price') or 0.0)
+        if entry_price == 0.0 and qty > 0:
+            tot = float(item.get('total') or 0.0)
+            entry_price = round((tot - pnl) / qty, 2) if item.get('side') != 'COVER' else round((tot + pnl) / qty, 2)
+
+        cost_basis = round(qty * entry_price, 2) if (qty > 0 and entry_price > 0) else round(qty * price, 2)
+        roi_pct = round((pnl / cost_basis) * 100, 2) if cost_basis > 0 else 0.0
+
+        trade_dict = {
+            "id": item.get('id'),
+            "desk": item.get('desk', 'ALPHA'),
+            "symbol": item.get('symbol'),
+            "displayName": item.get('displayName'),
+            "side": item.get('side'),
+            "quantity": qty,
+            "entry_price": entry_price,
+            "exit_price": price,
+            "charges": charges,
+            "realized_pnl": pnl,
+            "roi_pct": roi_pct,
+            "time_str": time_str,
+            "timestamp": ist_ts.strftime('%Y-%m-%d %H:%M:%S')
+        }
+
+        if date_str not in days_map:
+            days_map[date_str] = {
+                "date": date_str,
+                "net_pnl": 0.0,
+                "charges": 0.0,
+                "trades_count": 0,
+                "wins": 0,
+                "losses": 0,
+                "breakevens": 0,
+                "trades": []
+            }
+
+        day_obj = days_map[date_str]
+        day_obj["net_pnl"] = round(day_obj["net_pnl"] + pnl, 2)
+        day_obj["charges"] = round(day_obj["charges"] + charges, 2)
+        day_obj["trades_count"] += 1
+        if pnl > 0:
+            day_obj["wins"] += 1
+        elif pnl < 0:
+            day_obj["losses"] += 1
+        else:
+            day_obj["breakevens"] += 1
+        day_obj["trades"].append(trade_dict)
+
+        total_calendar_pnl += pnl
+        total_calendar_charges += charges
+
+    winning_days = 0
+    losing_days = 0
+    breakeven_days = 0
+    best_day = None
+    worst_day = None
+
+    for d, ddata in days_map.items():
+        ddata["trades"].sort(key=lambda x: x.get("time_str", ""), reverse=True)
+        cnt = ddata["trades_count"]
+        ddata["win_rate"] = round((ddata["wins"] / cnt) * 100, 1) if cnt > 0 else 0.0
+
+        p = ddata["net_pnl"]
+        if p > 0:
+            winning_days += 1
+        elif p < 0:
+            losing_days += 1
+        else:
+            breakeven_days += 1
+
+        if best_day is None or p > best_day["net_pnl"]:
+            best_day = {"date": d, "net_pnl": p, "trades": cnt}
+        if worst_day is None or p < worst_day["net_pnl"]:
+            worst_day = {"date": d, "net_pnl": p, "trades": cnt}
+
+    total_days = len(days_map)
+    day_win_rate = round((winning_days / total_days) * 100, 1) if total_days > 0 else 0.0
+
+    return jsonify({
+        "success": True,
+        "days": days_map,
+        "summary": {
+            "total_net_pnl": round(total_calendar_pnl, 2),
+            "total_charges": round(total_calendar_charges, 2),
+            "total_trades": total_calendar_trades,
+            "total_days_traded": total_days,
+            "winning_days": winning_days,
+            "losing_days": losing_days,
+            "breakeven_days": breakeven_days,
+            "day_win_rate": day_win_rate,
+            "avg_day_pnl": round(total_calendar_pnl / total_days, 2) if total_days > 0 else 0.0,
+            "best_day": best_day or {"date": None, "net_pnl": 0.0},
+            "worst_day": worst_day or {"date": None, "net_pnl": 0.0}
+        }
+    })
+
 @api_bp.route('/watchlist', methods=['GET'])
 def get_watchlist():
     items = WatchlistItem.query.all()

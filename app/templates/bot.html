@@ -354,6 +354,9 @@
                             <button id="tab-btn-closed-trades" class="ledger-tab-btn" onclick="switchLedgerTab('closed')">
                                 <i class="fa-solid fa-vault" style="color: #00f090;"></i> Realized P&amp;L (<span id="closed-net-pnl-badge" style="color: #00f090; font-weight: 800;">₹0.00</span>)
                             </button>
+                            <button id="tab-btn-pnl-calendar" class="ledger-tab-btn" onclick="switchLedgerTab('calendar')">
+                                <i class="fa-regular fa-calendar-days" style="color: #38bdf8;"></i> Daily P&amp;L Calendar
+                            </button>
                             <button id="tab-btn-active-holdings" class="ledger-tab-btn" onclick="switchLedgerTab('active')">
                                 <i class="fa-solid fa-briefcase" style="color: var(--blue);"></i> Active Holdings (<span id="holdings-badge-count">0</span>)
                             </button>
@@ -611,6 +614,126 @@
                                     </tr>
                                 </tbody>
                             </table>
+                        </div>
+                    </div>
+
+                    <!-- TAB 3: DAILY P&L TRADING CALENDAR -->
+                    <div id="view-pnl-calendar" style="display: none; padding: 1.25rem;">
+                        <div class="pnl-calendar-container">
+                            <!-- NAV BAR & MONTH SELECTOR -->
+                            <div class="cal-nav-bar">
+                                <div class="cal-month-nav">
+                                    <button class="cal-nav-btn" onclick="changeCalendarMonth(-1)" title="Previous Month">
+                                        <i class="fa-solid fa-chevron-left"></i> Prev
+                                    </button>
+                                    <span class="cal-month-title" id="cal-current-month-label">November 2026</span>
+                                    <button class="cal-nav-btn" onclick="changeCalendarMonth(1)" title="Next Month">
+                                        Next <i class="fa-solid fa-chevron-right"></i>
+                                    </button>
+                                    <button class="cal-nav-btn" onclick="resetCalendarToToday()" style="color: #38bdf8; border-color: rgba(56, 189, 248, 0.4);" title="Jump to Current Month & Today">
+                                        <i class="fa-solid fa-crosshairs"></i> Today
+                                    </button>
+                                </div>
+                                <div style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
+                                    <span style="font-size: 0.75rem; color: var(--text-muted);"><i class="fa-solid fa-filter"></i> Desk:</span>
+                                    <select id="cal-desk-select" onchange="onCalendarDeskChange()" style="background: rgba(0,0,0,0.4); border: 1px solid var(--border); color: #fff; padding: 4px 8px; border-radius: 6px; font-size: 0.75rem; font-family: var(--font-code);">
+                                        <option value="alpha" selected>Bot ALPHA (Day)</option>
+                                        <option value="all">All Desks (Unified)</option>
+                                        <option value="nighthawk">Bot NIGHTHAWK</option>
+                                    </select>
+                                    <button class="btn-sm btn-outline" onclick="loadDailyCalendar(true)" title="Refresh calendar trades">
+                                        <i class="fa-solid fa-rotate"></i> Refresh
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- MONTHLY HIGHLIGHTS STRIP -->
+                            <div class="cal-summary-strip">
+                                <div class="score-card-item">
+                                    <span class="score-label">MONTH REALIZED P&amp;L</span>
+                                    <span class="score-val text-green" id="cal-month-net-pnl">₹0.00</span>
+                                    <span class="score-sub" id="cal-month-sub">From booked exits</span>
+                                </div>
+                                <div class="score-card-item">
+                                    <span class="score-label">DAY WIN RATE</span>
+                                    <span class="score-val" id="cal-day-win-rate">0.0%</span>
+                                    <span class="score-sub" id="cal-win-loss-days">0 Win / 0 Loss Days</span>
+                                </div>
+                                <div class="score-card-item">
+                                    <span class="score-label">AVG P&amp;L / TRADED DAY</span>
+                                    <span class="score-val" id="cal-avg-day-pnl">₹0.00</span>
+                                    <span class="score-sub" id="cal-total-traded-days">0 Traded Days</span>
+                                </div>
+                                <div class="score-card-item">
+                                    <span class="score-label">BEST DAY</span>
+                                    <span class="score-val text-green" id="cal-best-day">--</span>
+                                    <span class="score-sub" id="cal-best-day-date">Highest daily profit</span>
+                                </div>
+                                <div class="score-card-item">
+                                    <span class="score-label">WORST DAY</span>
+                                    <span class="score-val text-red" id="cal-worst-day">--</span>
+                                    <span class="score-sub" id="cal-worst-day-date">Max daily drawdown</span>
+                                </div>
+                                <div class="score-card-item">
+                                    <span class="score-label">CHARGES &amp; TAXES</span>
+                                    <span class="score-val" id="cal-month-charges" style="color: #fca5a5;">₹0.00</span>
+                                    <span class="score-sub">Brokerage + STT + GST</span>
+                                </div>
+                            </div>
+
+                            <!-- CALENDAR GRID -->
+                            <div class="calendar-grid-wrapper">
+                                <div class="calendar-weekdays-row">
+                                    <div class="cal-weekday-header">SUN</div>
+                                    <div class="cal-weekday-header">MON</div>
+                                    <div class="cal-weekday-header">TUE</div>
+                                    <div class="cal-weekday-header">WED</div>
+                                    <div class="cal-weekday-header">THU</div>
+                                    <div class="cal-weekday-header">FRI</div>
+                                    <div class="cal-weekday-header">SAT</div>
+                                </div>
+                                <div class="calendar-days-grid" id="calendar-days-grid">
+                                    <!-- Populated dynamically -->
+                                </div>
+                            </div>
+
+                            <!-- SELECTED DAY INSPECTOR DRAWER -->
+                            <div class="cal-day-inspector" id="cal-day-inspector">
+                                <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 0.75rem; border-bottom: 1px solid var(--border); padding-bottom: 0.5rem;">
+                                    <div style="display: flex; align-items: center; gap: 0.5rem;">
+                                        <i class="fa-regular fa-calendar-check" style="color: #38bdf8; font-size: 1.1rem;"></i>
+                                        <span style="font-weight: 800; font-size: 0.95rem; color: #fff;" id="insp-date-title">Select a day on the calendar to inspect trades</span>
+                                    </div>
+                                    <div style="display: flex; gap: 1rem; align-items: center;" id="insp-day-stats">
+                                        <span style="font-size: 0.75rem; color: var(--text-muted);">Net P&amp;L: <strong id="insp-net-pnl" class="text-green" style="font-family: var(--font-code);">₹0.00</strong></span>
+                                        <span style="font-size: 0.75rem; color: var(--text-muted);">Trades: <strong id="insp-trade-count" style="color: #fff; font-family: var(--font-code);">0</strong></span>
+                                        <span style="font-size: 0.75rem; color: var(--text-muted);">Charges: <strong id="insp-charges" style="color: #fca5a5; font-family: var(--font-code);">₹0.00</strong></span>
+                                    </div>
+                                </div>
+                                <div class="table-wrapper">
+                                    <table class="data-table">
+                                        <thead>
+                                            <tr>
+                                                <th>TIME (IST)</th>
+                                                <th>DESK</th>
+                                                <th>STOCK</th>
+                                                <th>SIDE</th>
+                                                <th>QTY</th>
+                                                <th>ENTRY (₹)</th>
+                                                <th>EXIT (₹)</th>
+                                                <th>CHARGES (₹)</th>
+                                                <th>NET REALIZED P&amp;L (₹)</th>
+                                                <th>ROI (%)</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="cal-day-trades-tbody">
+                                            <tr>
+                                                <td colspan="10" class="text-center" style="padding: 1.5rem; color: var(--text-muted);">Click on any date cell with trades above to view individual executions.</td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
                         </div>
                     </div>
 
@@ -3652,9 +3775,11 @@
         const btnSession = document.getElementById('tab-btn-session-report');
         const btnActive = document.getElementById('tab-btn-active-holdings');
         const btnClosed = document.getElementById('tab-btn-closed-trades');
+        const btnCal = document.getElementById('tab-btn-pnl-calendar');
         const viewSession = document.getElementById('view-session-report');
         const viewActive = document.getElementById('view-active-holdings');
         const viewClosed = document.getElementById('view-closed-trades');
+        const viewCal = document.getElementById('view-pnl-calendar');
         const btnSessionCsv = document.getElementById('btn-export-session-csv');
         const btnHoldingsCsv = document.getElementById('btn-export-holdings-csv');
         const btnZerodhaBasket = document.getElementById('btn-export-zerodha-basket');
@@ -3664,11 +3789,13 @@
         if (btnSession) btnSession.classList.remove('active');
         if (btnActive) btnActive.classList.remove('active');
         if (btnClosed) btnClosed.classList.remove('active');
+        if (btnCal) btnCal.classList.remove('active');
 
         // Reset views
         if (viewSession) viewSession.style.display = 'none';
         if (viewActive) viewActive.style.display = 'none';
         if (viewClosed) viewClosed.style.display = 'none';
+        if (viewCal) viewCal.style.display = 'none';
 
         if (btnSessionCsv) btnSessionCsv.style.display = 'none';
         if (btnHoldingsCsv) btnHoldingsCsv.style.display = 'none';
@@ -3691,6 +3818,10 @@
             if (viewClosed) viewClosed.style.display = 'block';
             if (btnCsv) btnCsv.style.display = 'inline-flex';
             loadClosedTrades();
+        } else if (tab === 'calendar') {
+            if (btnCal) btnCal.classList.add('active');
+            if (viewCal) viewCal.style.display = 'block';
+            loadDailyCalendar();
         }
     }
 
@@ -3704,6 +3835,8 @@
                 }).catch(() => {});
         } else if (currentLedgerTab === 'active') {
             loadBotHoldings();
+        } else if (currentLedgerTab === 'calendar') {
+            loadDailyCalendar();
         } else {
             loadClosedTrades();
         }
@@ -3912,6 +4045,306 @@
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
         showToast('Closed trades CSV report downloaded', 'success');
+    }
+
+    // =========================================================================
+    // DAILY P&L TRADING CALENDAR ENGINE
+    // =========================================================================
+    let calViewDate = new Date(); // tracks year and month
+    let calTradesData = { days: {}, summary: {} };
+    let calSelectedDate = null;
+    let calDeskFilter = 'alpha';
+
+    function changeCalendarMonth(delta) {
+        calViewDate.setMonth(calViewDate.getMonth() + delta);
+        renderCalendarMonth();
+    }
+
+    function resetCalendarToToday() {
+        calViewDate = new Date();
+        const nowIst = new Date(new Date().getTime() + (5.5 * 3600 * 1000));
+        calSelectedDate = nowIst.toISOString().slice(0, 10);
+        renderCalendarMonth();
+        if (calTradesData && calTradesData.days && calTradesData.days[calSelectedDate]) {
+            renderDayInspector(calSelectedDate);
+        }
+    }
+
+    function onCalendarDeskChange() {
+        const sel = document.getElementById('cal-desk-select');
+        if (sel) {
+            calDeskFilter = sel.value;
+        }
+        loadDailyCalendar(true);
+    }
+
+    async function loadDailyCalendar(forceRefresh = false) {
+        try {
+            const localTrades = (typeof getStoredClosedTrades === 'function') ? getStoredClosedTrades() : [];
+            const res = await fetch(`/api/trades/daily-calendar?bot_type=${calDeskFilter}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ bot_type: calDeskFilter, client_trades: localTrades })
+            });
+            if (!res.ok) throw new Error('Failed to fetch calendar data');
+            const data = await res.json();
+            if (data && data.success) {
+                calTradesData = data;
+                renderCalendarMonth();
+            }
+        } catch (e) {
+            console.error('[CALENDAR] Error loading daily calendar:', e);
+        }
+    }
+
+    function renderCalendarMonth() {
+        const year = calViewDate.getFullYear();
+        const month = calViewDate.getMonth(); // 0-indexed
+
+        const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+        const labelEl = document.getElementById('cal-current-month-label');
+        if (labelEl) {
+            labelEl.innerText = `${monthNames[month]} ${year}`;
+        }
+
+        const nowIst = new Date(new Date().getTime() + (5.5 * 3600 * 1000));
+        const todayStr = nowIst.toISOString().slice(0, 10);
+
+        const daysMap = (calTradesData && calTradesData.days) ? calTradesData.days : {};
+        let monthNetPnl = 0.0;
+        let monthCharges = 0.0;
+        let monthTradedDays = 0;
+        let monthWinDays = 0;
+        let monthLossDays = 0;
+        let bestDay = null;
+        let worstDay = null;
+
+        Object.keys(daysMap).forEach(dStr => {
+            const [y, m, d] = dStr.split('-').map(Number);
+            if (y === year && (m - 1) === month) {
+                const dayObj = daysMap[dStr];
+                const pnl = dayObj.net_pnl || 0.0;
+                monthNetPnl += pnl;
+                monthCharges += (dayObj.charges || 0.0);
+                monthTradedDays++;
+                if (pnl > 0) monthWinDays++;
+                else if (pnl < 0) monthLossDays++;
+
+                if (!bestDay || pnl > bestDay.net_pnl) bestDay = { date: dStr, net_pnl: pnl };
+                if (!worstDay || pnl < worstDay.net_pnl) worstDay = { date: dStr, net_pnl: pnl };
+            }
+        });
+
+        // Highlights Strip
+        const monthPnlEl = document.getElementById('cal-month-net-pnl');
+        if (monthPnlEl) {
+            monthPnlEl.innerText = `${monthNetPnl >= 0 ? '+' : ''}₹${monthNetPnl.toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+            monthPnlEl.className = monthNetPnl >= 0 ? 'score-val text-green' : 'score-val text-red';
+        }
+
+        const winRate = monthTradedDays > 0 ? Math.round((monthWinDays / monthTradedDays) * 100) : 0;
+        const winRateEl = document.getElementById('cal-day-win-rate');
+        if (winRateEl) {
+            winRateEl.innerText = `${winRate}%`;
+            winRateEl.className = winRate >= 50 ? 'score-val text-green' : 'score-val text-red';
+        }
+
+        const winLossSub = document.getElementById('cal-win-loss-days');
+        if (winLossSub) winLossSub.innerText = `${monthWinDays} Win / ${monthLossDays} Loss Days`;
+
+        const avgDayPnl = monthTradedDays > 0 ? (monthNetPnl / monthTradedDays) : 0.0;
+        const avgDayEl = document.getElementById('cal-avg-day-pnl');
+        if (avgDayEl) {
+            avgDayEl.innerText = `${avgDayPnl >= 0 ? '+' : ''}₹${avgDayPnl.toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+            avgDayEl.className = avgDayPnl >= 0 ? 'score-val text-green' : 'score-val text-red';
+        }
+
+        const tradedDaysSub = document.getElementById('cal-total-traded-days');
+        if (tradedDaysSub) tradedDaysSub.innerText = `${monthTradedDays} Traded Days`;
+
+        const bestEl = document.getElementById('cal-best-day');
+        const bestDateEl = document.getElementById('cal-best-day-date');
+        if (bestEl) {
+            if (bestDay && bestDay.net_pnl > 0) {
+                bestEl.innerText = `+₹${bestDay.net_pnl.toLocaleString('en-IN', {minimumFractionDigits: 2})}`;
+                if (bestDateEl) bestDateEl.innerText = `${bestDay.date.slice(8, 10)} ${monthNames[month].slice(0, 3)}`;
+            } else {
+                bestEl.innerText = '--';
+                if (bestDateEl) bestDateEl.innerText = 'No winning days yet';
+            }
+        }
+
+        const worstEl = document.getElementById('cal-worst-day');
+        const worstDateEl = document.getElementById('cal-worst-day-date');
+        if (worstEl) {
+            if (worstDay && worstDay.net_pnl < 0) {
+                worstEl.innerText = `-₹${Math.abs(worstDay.net_pnl).toLocaleString('en-IN', {minimumFractionDigits: 2})}`;
+                if (worstDateEl) worstDateEl.innerText = `${worstDay.date.slice(8, 10)} ${monthNames[month].slice(0, 3)}`;
+            } else {
+                worstEl.innerText = '--';
+                if (worstDateEl) worstDateEl.innerText = 'No losing days';
+            }
+        }
+
+        const chargesEl = document.getElementById('cal-month-charges');
+        if (chargesEl) chargesEl.innerText = `₹${monthCharges.toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+
+        // Build 7-column Calendar Grid
+        const gridEl = document.getElementById('calendar-days-grid');
+        if (!gridEl) return;
+        gridEl.innerHTML = '';
+
+        const firstDayOfMonth = new Date(year, month, 1);
+        const startingDayOfWeek = firstDayOfMonth.getDay(); // 0 = Sunday
+        const daysInMonth = new Date(year, month + 1, 0).getDate();
+        const daysInPrevMonth = new Date(year, month, 0).getDate();
+
+        // 1. Preceding days
+        for (let i = startingDayOfWeek - 1; i >= 0; i--) {
+            const prevDayNum = daysInPrevMonth - i;
+            const cell = document.createElement('div');
+            cell.className = 'cal-day-cell other-month';
+            cell.innerHTML = `<div class="cal-day-top"><span class="cal-day-num">${prevDayNum}</span></div>`;
+            gridEl.appendChild(cell);
+        }
+
+        // 2. Current Month Days
+        let autoSelectDate = null;
+
+        for (let day = 1; day <= daysInMonth; day++) {
+            const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+            const isToday = (dateStr === todayStr);
+            const dayData = daysMap[dateStr];
+
+            const cell = document.createElement('div');
+            cell.id = `cal-cell-${dateStr}`;
+            let cellClasses = ['cal-day-cell'];
+
+            if (isToday) cellClasses.push('today');
+            if (dateStr === calSelectedDate) cellClasses.push('selected');
+
+            let pnlHtml = '';
+            if (dayData && dayData.trades_count > 0) {
+                cellClasses.push('has-trades');
+                if (dayData.net_pnl > 0) cellClasses.push('win-day');
+                else if (dayData.net_pnl < 0) cellClasses.push('loss-day');
+                else cellClasses.push('breakeven-day');
+
+                const pnlSign = dayData.net_pnl >= 0 ? '+' : '';
+                const pnlColorClass = dayData.net_pnl >= 0 ? 'text-green' : 'text-red';
+                pnlHtml = `
+                    <div class="cal-pnl-block">
+                        <div class="cal-pnl-val ${pnlColorClass}">${pnlSign}₹${dayData.net_pnl.toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>
+                        <div class="cal-trade-count"><i class="fa-solid fa-receipt"></i> ${dayData.trades_count} trade${dayData.trades_count > 1 ? 's' : ''}</div>
+                    </div>
+                `;
+
+                if (!calSelectedDate && (!autoSelectDate || dateStr === todayStr)) {
+                    autoSelectDate = dateStr;
+                }
+            } else {
+                pnlHtml = `<div class="cal-pnl-block" style="opacity: 0.25;"><span style="font-size: 0.7rem; color: var(--text-muted);">--</span></div>`;
+            }
+
+            cell.className = cellClasses.join(' ');
+            cell.onclick = () => selectCalendarDay(dateStr);
+
+            cell.innerHTML = `
+                <div class="cal-day-top">
+                    <span class="cal-day-num">${day}</span>
+                    ${isToday ? '<span class="cal-today-tag">TODAY</span>' : ''}
+                </div>
+                ${pnlHtml}
+            `;
+
+            gridEl.appendChild(cell);
+        }
+
+        // 3. Trailing days
+        const totalRendered = startingDayOfWeek + daysInMonth;
+        const remainingCells = (7 - (totalRendered % 7)) % 7;
+        for (let nextDay = 1; nextDay <= remainingCells; nextDay++) {
+            const cell = document.createElement('div');
+            cell.className = 'cal-day-cell other-month';
+            cell.innerHTML = `<div class="cal-day-top"><span class="cal-day-num">${nextDay}</span></div>`;
+            gridEl.appendChild(cell);
+        }
+
+        if (!calSelectedDate) {
+            calSelectedDate = autoSelectDate || (daysMap[todayStr] ? todayStr : Object.keys(daysMap)[0] || todayStr);
+        }
+        if (calSelectedDate) {
+            renderDayInspector(calSelectedDate);
+        }
+    }
+
+    function selectCalendarDay(dateStr) {
+        calSelectedDate = dateStr;
+        document.querySelectorAll('.cal-day-cell').forEach(c => c.classList.remove('selected'));
+        const targetCell = document.getElementById(`cal-cell-${dateStr}`);
+        if (targetCell) targetCell.classList.add('selected');
+
+        renderDayInspector(dateStr);
+    }
+
+    function renderDayInspector(dateStr) {
+        const titleEl = document.getElementById('insp-date-title');
+        const netEl = document.getElementById('insp-net-pnl');
+        const tradesEl = document.getElementById('insp-trade-count');
+        const chargesEl = document.getElementById('insp-charges');
+        const tbody = document.getElementById('cal-day-trades-tbody');
+        if (!tbody) return;
+
+        const [y, m, d] = dateStr.split('-').map(Number);
+        const dateObj = new Date(y, m - 1, d);
+        const formattedDate = dateObj.toLocaleDateString('en-US', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+
+        if (titleEl) {
+            titleEl.innerHTML = `<span style="color: #38bdf8;">${formattedDate}</span> &mdash; Trade Execution Breakdown`;
+        }
+
+        const daysMap = (calTradesData && calTradesData.days) ? calTradesData.days : {};
+        const dayData = daysMap[dateStr];
+
+        if (!dayData || !dayData.trades || dayData.trades.length === 0) {
+            if (netEl) { netEl.innerText = '₹0.00'; netEl.className = 'text-muted'; }
+            if (tradesEl) tradesEl.innerText = '0';
+            if (chargesEl) chargesEl.innerText = '₹0.00';
+            tbody.innerHTML = `<tr><td colspan="10" class="text-center" style="padding: 1.5rem; color: var(--text-muted);">No trades were executed on ${formattedDate}.</td></tr>`;
+            return;
+        }
+
+        const pnl = dayData.net_pnl || 0.0;
+        if (netEl) {
+            netEl.innerText = `${pnl >= 0 ? '+' : ''}₹${pnl.toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+            netEl.className = pnl >= 0 ? 'text-green' : 'text-red';
+        }
+        if (tradesEl) tradesEl.innerText = `${dayData.trades_count} (${dayData.win_rate}% Win)`;
+        if (chargesEl) chargesEl.innerText = `₹${(dayData.charges || 0).toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+
+        tbody.innerHTML = '';
+        dayData.trades.forEach(t => {
+            const tr = document.createElement('tr');
+            const isWin = (t.realized_pnl || 0) >= 0;
+            const pnlClass = isWin ? 'text-green' : 'text-red';
+            const sign = isWin ? '+' : '';
+            const sideClass = (t.side === 'COVER' || t.side === 'SHORT') ? 'badge-short' : 'badge-long';
+            const deskColor = t.desk === 'NIGHTHAWK' ? '#ffd166' : (t.desk === 'TITAN' ? '#c084fc' : '#00f090');
+
+            tr.innerHTML = `
+                <td style="font-family: var(--font-code); color: var(--text-muted); font-size: 0.78rem;">${t.time_str || (t.timestamp || '').slice(11, 19)}</td>
+                <td><span style="font-size: 0.65rem; font-weight: 800; padding: 2px 6px; border-radius: 4px; border: 1px solid ${deskColor}; color: ${deskColor};">${t.desk || 'ALPHA'}</span></td>
+                <td><strong style="color: #fff;">${t.displayName || (t.symbol || '').replace('.NS', '')}</strong></td>
+                <td><span class="badge ${sideClass}">${t.side}</span></td>
+                <td style="font-family: var(--font-code);">${t.quantity}</td>
+                <td style="font-family: var(--font-code);">₹${(t.entry_price || 0).toFixed(2)}</td>
+                <td style="font-family: var(--font-code);">₹${(t.exit_price || t.price || 0).toFixed(2)}</td>
+                <td style="font-family: var(--font-code); color: #fca5a5;">₹${(t.charges || 0).toFixed(2)}</td>
+                <td style="font-family: var(--font-code); font-weight: 800;" class="${pnlClass}">${sign}₹${(t.realized_pnl || 0).toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                <td style="font-family: var(--font-code); font-weight: 700;" class="${pnlClass}">${sign}${(t.roi_pct || 0).toFixed(2)}%</td>
+            `;
+            tbody.appendChild(tr);
+        });
     }
 
     async function exitBotPosition(symbol, quantity, side = 'LONG') {
