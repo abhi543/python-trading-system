@@ -601,7 +601,7 @@
                                         <th>CURRENT</th>
                                         <th>P&L (₹)</th>
                                         <th>P&L (%)</th>
-                                        <th style="color: #00f090;"><i class="fa-solid fa-lock"></i> PROFIT LOCKED (₹)</th>
+                                        <th style="color: #00f090;"><i class="fa-solid fa-lock"></i> LOCKED PROFIT &amp; PRICE</th>
                                         <th style="color: #38bdf8;"><i class="fa-solid fa-robot"></i> BOT ACTION</th>
                                         <th>STOP-LOSS</th>
                                         <th style="color: #ff6b6b;"><i class="fa-solid fa-shield-halved"></i> MAX LOSS (₹)</th>
@@ -1865,16 +1865,16 @@
             const maxLoss = Math.abs(p.average_price - sl) * p.quantity;
             const notional = (p.quantity || 0) * (p.current_price || p.average_price || 0);
 
-            let lockedText = '₹0.00';
+            let lockedText = 'Not locked';
             if (isShort) {
                 if (sl > 0 && sl <= p.average_price) {
                     const lk = (p.average_price - sl) * p.quantity;
-                    lockedText = lk > 0 ? `+₹${lk.toFixed(2)}` : '₹0.00';
+                    lockedText = lk > 0 ? `+₹${lk.toFixed(2)} (@ ₹${sl.toFixed(2)})` : `₹0.00 (@ ₹${sl.toFixed(2)})`;
                 }
             } else {
                 if (sl >= p.average_price) {
                     const lk = (sl - p.average_price) * p.quantity;
-                    lockedText = lk > 0 ? `+₹${lk.toFixed(2)}` : '₹0.00';
+                    lockedText = lk > 0 ? `+₹${lk.toFixed(2)} (@ ₹${sl.toFixed(2)})` : `₹0.00 (@ ₹${sl.toFixed(2)})`;
                 }
             }
 
@@ -3384,43 +3384,69 @@
             let lockedAmt = 0;
             let lockedPct = 0;
             let isLocked = false;
+            let lockedPrice = (p.locked_price !== undefined && p.locked_price !== null) ? Number(p.locked_price) : (p.stop_loss ? Number(p.stop_loss) : 0);
             
             if (p.locked_pnl !== undefined && p.locked_pnl !== null) {
                 lockedAmt = Number(p.locked_pnl) || 0;
                 lockedPct = Number(p.locked_pct) || 0;
                 isLocked = true;
+                if (!lockedPrice && p.stop_loss) lockedPrice = Number(p.stop_loss);
             } else if (isShort) {
                 if (p.stop_loss && p.stop_loss > 0 && p.stop_loss <= p.average_price) {
                     lockedAmt = (p.average_price - p.stop_loss) * p.quantity;
                     lockedPct = p.average_price > 0 ? ((p.average_price - p.stop_loss) / p.average_price * 100) : 0;
                     isLocked = true;
+                    lockedPrice = Number(p.stop_loss);
                 }
             } else {
                 if (p.stop_loss && p.stop_loss >= p.average_price) {
                     lockedAmt = (p.stop_loss - p.average_price) * p.quantity;
                     lockedPct = p.average_price > 0 ? ((p.stop_loss - p.average_price) / p.average_price * 100) : 0;
                     isLocked = true;
+                    lockedPrice = Number(p.stop_loss);
                 }
             }
             
             if (isLocked) {
                 if (lockedAmt > 0) {
-                    lockedHtml = `<span style="background: rgba(0, 240, 144, 0.18); color: var(--green); border: 1px solid rgba(0, 240, 144, 0.4); font-weight: 700; padding: 2px 8px; border-radius: 4px; font-size: 0.76rem; display: inline-flex; align-items: center; gap: 4px; font-family: var(--font-code);">
-                        <i class="fa-solid fa-lock"></i> +₹${lockedAmt.toFixed(2)}
-                    </span>`;
+                    lockedHtml = `
+                    <div style="display: flex; flex-direction: column; gap: 2px; align-items: flex-start;">
+                        <span style="background: rgba(0, 240, 144, 0.18); color: var(--green); border: 1px solid rgba(0, 240, 144, 0.4); font-weight: 800; padding: 2px 7px; border-radius: 4px; font-size: 0.74rem; display: inline-flex; align-items: center; gap: 4px; font-family: var(--font-code);">
+                            <i class="fa-solid fa-lock"></i> +₹${lockedAmt.toFixed(2)} (+${lockedPct.toFixed(2)}%)
+                        </span>
+                        <span style="font-size: 0.68rem; color: #38bdf8; font-family: var(--font-code); display: inline-flex; align-items: center; gap: 3px;">
+                            <i class="fa-solid fa-crosshairs"></i> Exit @ ₹${lockedPrice.toFixed(2)}
+                        </span>
+                    </div>`;
                 } else {
-                    lockedHtml = `<span style="background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3); font-weight: 700; padding: 2px 8px; border-radius: 4px; font-size: 0.76rem; display: inline-flex; align-items: center; gap: 4px; font-family: var(--font-code);">
-                        <i class="fa-solid fa-shield-halved"></i> ₹0.00
-                    </span>`;
+                    lockedHtml = `
+                    <div style="display: flex; flex-direction: column; gap: 2px; align-items: flex-start;">
+                        <span style="background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3); font-weight: 700; padding: 2px 7px; border-radius: 4px; font-size: 0.74rem; display: inline-flex; align-items: center; gap: 4px; font-family: var(--font-code);">
+                            <i class="fa-solid fa-shield-halved"></i> Breakeven Shield
+                        </span>
+                        <span style="font-size: 0.68rem; color: #38bdf8; font-family: var(--font-code); display: inline-flex; align-items: center; gap: 3px;">
+                            <i class="fa-solid fa-crosshairs"></i> Exit @ ₹${lockedPrice > 0 ? lockedPrice.toFixed(2) : (p.average_price||0).toFixed(2)}
+                        </span>
+                    </div>`;
                 }
             } else if (p.trailing_active) {
-                lockedHtml = `<span style="background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3); font-weight: 700; padding: 2px 8px; border-radius: 4px; font-size: 0.76rem; display: inline-flex; align-items: center; gap: 4px; font-family: var(--font-code);">
-                    <i class="fa-solid fa-shield-halved"></i> ₹0.00
-                </span>`;
+                lockedHtml = `
+                <div style="display: flex; flex-direction: column; gap: 2px; align-items: flex-start;">
+                    <span style="background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3); font-weight: 700; padding: 2px 7px; border-radius: 4px; font-size: 0.74rem; display: inline-flex; align-items: center; gap: 4px; font-family: var(--font-code);">
+                        <i class="fa-solid fa-shield-halved"></i> Breakeven Shield
+                    </span>
+                    <span style="font-size: 0.68rem; color: #38bdf8; font-family: var(--font-code); display: inline-flex; align-items: center; gap: 3px;">
+                        <i class="fa-solid fa-crosshairs"></i> Exit @ ₹${lockedPrice > 0 ? lockedPrice.toFixed(2) : (p.average_price||0).toFixed(2)}
+                    </span>
+                </div>`;
             } else {
-                lockedHtml = `<span style="color: var(--text-muted); font-size: 0.74rem; font-family: var(--font-code); display: inline-flex; align-items: center; gap: 4px;">
-                    <i class="fa-solid fa-lock-open" style="opacity: 0.4;"></i> ₹0.00
-                </span>`;
+                lockedHtml = `
+                <div style="display: flex; flex-direction: column; gap: 2px; align-items: flex-start;">
+                    <span style="color: var(--text-muted); font-size: 0.74rem; font-family: var(--font-code); display: inline-flex; align-items: center; gap: 4px;">
+                        <i class="fa-solid fa-lock-open" style="opacity: 0.4;"></i> Not locked
+                    </span>
+                    <span style="font-size: 0.68rem; color: #64748b; font-family: var(--font-code);">Stop @ ₹${(p.stop_loss||0).toFixed(2)}</span>
+                </div>`;
             }
 
             // Compute Live Bot Action for this holding

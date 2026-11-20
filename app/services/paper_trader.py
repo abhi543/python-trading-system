@@ -115,7 +115,8 @@ class PaperTradingEngine:
                 "take_profit": round(getattr(pos, 'take_profit', 0.0) or 0.0, 2),
                 "trailing_active": bool(getattr(pos, 'trailing_active', False)),
                 "locked_pnl": locked_pnl,
-                "locked_pct": locked_pct
+                "locked_pct": locked_pct,
+                "locked_price": round(sl_val, 2) if (sl_val > 0) else None
             })
             
         # Compute Day Realized P&L (IST Day) and Cumulative Realized P&L
@@ -637,7 +638,8 @@ class AfterHoursPaperTradingEngine:
                 "take_profit": round(getattr(pos, 'take_profit', 0.0) or 0.0, 2),
                 "trailing_active": bool(getattr(pos, 'trailing_active', False)),
                 "locked_pnl": locked_pnl,
-                "locked_pct": locked_pct
+                "locked_pct": locked_pct,
+                "locked_price": round(sl_val, 2) if (sl_val > 0) else None
             })
 
         # Compute Day Realized P&L (IST Day) and Cumulative Realized P&L
