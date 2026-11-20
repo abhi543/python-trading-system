@@ -95,20 +95,32 @@
                 </div>
                 <div class="stat-chip">
                     <div class="stat-chip-info">
-                        <span class="stat-chip-label">NIGHTHAWK CASH</span>
+                        <span class="stat-chip-label"><i class="fa-solid fa-wallet" style="color: #ffd166;"></i> WALLET</span>
                         <span class="stat-chip-val" id="nav-cash-balance">₹1,00,00,000.00</span>
                     </div>
                 </div>
-                <div class="stat-chip">
+                <div class="stat-chip stat-chip-pnl" id="nav-realized-chip">
                     <div class="stat-chip-info">
-                        <span class="stat-chip-label">5X BUYING POWER</span>
-                        <span class="stat-chip-val text-green" id="nav-buying-power">₹5,00,00,000.00</span>
+                        <span class="stat-chip-label"><i class="fa-solid fa-vault" style="color: #00f090;"></i> REALIZED P&amp;L</span>
+                        <span class="stat-chip-val text-green" id="nav-realized-pnl">₹0.00</span>
+                    </div>
+                </div>
+                <div class="stat-chip stat-chip-pnl" id="nav-day-pnl-chip">
+                    <div class="stat-chip-info">
+                        <span class="stat-chip-label"><i class="fa-solid fa-calendar-day" style="color: #ffd166;"></i> DAY P&amp;L</span>
+                        <span class="stat-chip-val" id="nav-day-pnl">₹0.00</span>
                     </div>
                 </div>
                 <div class="stat-chip stat-chip-pnl" id="nav-pnl-chip">
                     <div class="stat-chip-info">
                         <span class="stat-chip-label">UNREALIZED P&amp;L</span>
                         <span class="stat-chip-val" id="nav-pnl">₹0.00</span>
+                    </div>
+                </div>
+                <div class="stat-chip">
+                    <div class="stat-chip-info">
+                        <span class="stat-chip-label">5X BUYING POWER</span>
+                        <span class="stat-chip-val text-green" id="nav-buying-power">₹5,00,00,000.00</span>
                     </div>
                 </div>
                 {% else %}
@@ -124,20 +136,32 @@
                 </div>
                 <div class="stat-chip">
                     <div class="stat-chip-info">
-                        <span class="stat-chip-label">AVAILABLE CASH</span>
+                        <span class="stat-chip-label"><i class="fa-solid fa-wallet" style="color: #38bdf8;"></i> WALLET</span>
                         <span class="stat-chip-val" id="nav-cash-balance">₹50,000.00</span>
                     </div>
                 </div>
-                <div class="stat-chip">
+                <div class="stat-chip stat-chip-pnl" id="nav-realized-chip">
                     <div class="stat-chip-info">
-                        <span class="stat-chip-label">5X BUYING POWER</span>
-                        <span class="stat-chip-val text-green" id="nav-buying-power">₹2,50,000.00</span>
+                        <span class="stat-chip-label"><i class="fa-solid fa-vault" style="color: #00f090;"></i> REALIZED P&amp;L</span>
+                        <span class="stat-chip-val text-green" id="nav-realized-pnl">₹0.00</span>
+                    </div>
+                </div>
+                <div class="stat-chip stat-chip-pnl" id="nav-day-pnl-chip">
+                    <div class="stat-chip-info">
+                        <span class="stat-chip-label"><i class="fa-solid fa-calendar-day" style="color: #ffd166;"></i> DAY P&amp;L</span>
+                        <span class="stat-chip-val" id="nav-day-pnl">₹0.00</span>
                     </div>
                 </div>
                 <div class="stat-chip stat-chip-pnl" id="nav-pnl-chip">
                     <div class="stat-chip-info">
                         <span class="stat-chip-label">UNREALIZED P&amp;L</span>
                         <span class="stat-chip-val" id="nav-pnl">₹0.00</span>
+                    </div>
+                </div>
+                <div class="stat-chip">
+                    <div class="stat-chip-info">
+                        <span class="stat-chip-label">5X BUYING POWER</span>
+                        <span class="stat-chip-val text-green" id="nav-buying-power">₹2,50,000.00</span>
                     </div>
                 </div>
                 {% endif %}

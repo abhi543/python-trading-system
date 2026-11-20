@@ -40,8 +40,8 @@ class PaperTradingEngine:
         total_margin_used = sum((p.quantity * p.average_price) / PaperTradingEngine.LEVERAGE for p in positions)
         total_realized_pnl = db.session.query(db.func.sum(TradeHistory.realized_pnl)).scalar() or 0.0
         
-        # Canonical cash balance = Starting cash (₹50k) + Realized P&L - Active Margin Blocked
-        expected_cash = round(max(0.0, 50000.0 + total_realized_pnl - total_margin_used), 2)
+        # Canonical cash balance = Starting cash (₹50k) - Active Margin Blocked (Realized P&L tracked separately, not added to wallet!)
+        expected_cash = round(max(0.0, 50000.0 - total_margin_used), 2)
         account.cash_balance = expected_cash
         db.session.commit()
         return account
@@ -118,22 +118,23 @@ class PaperTradingEngine:
                 "locked_pct": locked_pct
             })
             
-        total_equity = account.cash_balance + total_margin_used + total_unrealized_pnl
-        buying_power = account.cash_balance * PaperTradingEngine.LEVERAGE
+        # Compute Day Realized P&L (IST Day) and Cumulative Realized P&L
+        now_utc = datetime.now(timezone.utc)
+        now_ist = now_utc + timedelta(hours=5, minutes=30)
+        start_of_ist_day_utc = datetime(now_ist.year, now_ist.month, now_ist.day, 0, 0, 0) - timedelta(hours=5, minutes=30)
+
+        total_realized_pnl = db.session.query(db.func.sum(TradeHistory.realized_pnl)).scalar() or 0.0
+        day_realized_pnl = db.session.query(db.func.sum(TradeHistory.realized_pnl)).filter(
+            TradeHistory.timestamp >= start_of_ist_day_utc
+        ).scalar() or 0.0
+
+        day_pnl = round(day_realized_pnl + total_unrealized_pnl, 2)
+        total_equity = round(50000.0 + total_realized_pnl + total_unrealized_pnl, 2)
+        buying_power = round(account.cash_balance * PaperTradingEngine.LEVERAGE, 2)
         
         account_data = {
             "cash_balance": round(account.cash_balance, 2),
-            "available_margin": round(account.cash_balance, 2),
-            "margin_used": round(total_margin_used, 2),
-            "buying_power": round(buying_power, 2),
-            "leverage": 5,
-            "market_value": round(total_market_value, 2),
-            "total_equity": round(total_equity, 2),
-            "unrealized_pnl": round(total_unrealized_pnl, 2)
-        }
-
-        return {
-            "cash_balance": round(account.cash_balance, 2),
+            "wallet_balance": round(account.cash_balance, 2),
             "available_margin": round(account.cash_balance, 2),
             "margin_used": round(total_margin_used, 2),
             "buying_power": round(buying_power, 2),
@@ -141,6 +142,24 @@ class PaperTradingEngine:
             "market_value": round(total_market_value, 2),
             "total_equity": round(total_equity, 2),
             "unrealized_pnl": round(total_unrealized_pnl, 2),
+            "realized_pnl": round(total_realized_pnl, 2),
+            "day_realized_pnl": round(day_realized_pnl, 2),
+            "day_pnl": round(day_pnl, 2)
+        }
+
+        return {
+            "cash_balance": round(account.cash_balance, 2),
+            "wallet_balance": round(account.cash_balance, 2),
+            "available_margin": round(account.cash_balance, 2),
+            "margin_used": round(total_margin_used, 2),
+            "buying_power": round(buying_power, 2),
+            "leverage": 5,
+            "market_value": round(total_market_value, 2),
+            "total_equity": round(total_equity, 2),
+            "unrealized_pnl": round(total_unrealized_pnl, 2),
+            "realized_pnl": round(total_realized_pnl, 2),
+            "day_realized_pnl": round(day_realized_pnl, 2),
+            "day_pnl": round(day_pnl, 2),
             "account": account_data,
             "positions": portfolio_positions
         }
@@ -267,7 +286,8 @@ class PaperTradingEngine:
             gross_pnl = cost_basis - cover_turnover
             net_realized_pnl = round(gross_pnl - total_charges, 2)
 
-            cash_returned = round(margin_originally_blocked + net_realized_pnl, 2)
+            # Do NOT add net_realized_pnl into trading wallet: return only originally blocked margin
+            cash_returned = margin_originally_blocked
             account.cash_balance += cash_returned
             position.quantity -= qty_to_cover
 
@@ -319,7 +339,8 @@ class PaperTradingEngine:
             gross_pnl = sell_turnover - cost_basis
             net_realized_pnl = round(gross_pnl - total_charges, 2)
 
-            cash_returned = round(margin_originally_blocked + net_realized_pnl, 2)
+            # Do NOT add net_realized_pnl into trading wallet: return only originally blocked margin
+            cash_returned = margin_originally_blocked
             account.cash_balance += cash_returned
             position.quantity -= qty_to_sell
 
@@ -540,8 +561,8 @@ class AfterHoursPaperTradingEngine:
         total_margin_used = sum((p.quantity * p.average_price) / AfterHoursPaperTradingEngine.LEVERAGE for p in positions)
         total_realized_pnl = db.session.query(db.func.sum(AfterHoursTradeHistory.realized_pnl)).scalar() or 0.0
 
-        # Canonical cash balance = Starting cash (₹1 Crore) + Realized P&L - Active Margin Blocked
-        expected_cash = round(max(0.0, AfterHoursPaperTradingEngine.INITIAL_CASH + total_realized_pnl - total_margin_used), 2)
+        # Canonical cash balance = Starting cash (₹1 Crore) - Active Margin Blocked (Do not add realized P&L into wallet!)
+        expected_cash = round(max(0.0, AfterHoursPaperTradingEngine.INITIAL_CASH - total_margin_used), 2)
         account.cash_balance = expected_cash
         db.session.commit()
         return account
@@ -619,22 +640,23 @@ class AfterHoursPaperTradingEngine:
                 "locked_pct": locked_pct
             })
 
-        total_equity = account.cash_balance + total_margin_used + total_unrealized_pnl
-        buying_power = account.cash_balance * AfterHoursPaperTradingEngine.LEVERAGE
+        # Compute Day Realized P&L (IST Day) and Cumulative Realized P&L
+        now_utc = datetime.now(timezone.utc)
+        now_ist = now_utc + timedelta(hours=5, minutes=30)
+        start_of_ist_day_utc = datetime(now_ist.year, now_ist.month, now_ist.day, 0, 0, 0) - timedelta(hours=5, minutes=30)
+
+        total_realized_pnl = db.session.query(db.func.sum(AfterHoursTradeHistory.realized_pnl)).scalar() or 0.0
+        day_realized_pnl = db.session.query(db.func.sum(AfterHoursTradeHistory.realized_pnl)).filter(
+            AfterHoursTradeHistory.timestamp >= start_of_ist_day_utc
+        ).scalar() or 0.0
+
+        day_pnl = round(day_realized_pnl + total_unrealized_pnl, 2)
+        total_equity = round(AfterHoursPaperTradingEngine.INITIAL_CASH + total_realized_pnl + total_unrealized_pnl, 2)
+        buying_power = round(account.cash_balance * AfterHoursPaperTradingEngine.LEVERAGE, 2)
 
         account_data = {
             "cash_balance": round(account.cash_balance, 2),
-            "available_margin": round(account.cash_balance, 2),
-            "margin_used": round(total_margin_used, 2),
-            "buying_power": round(buying_power, 2),
-            "leverage": 5,
-            "market_value": round(total_market_value, 2),
-            "total_equity": round(total_equity, 2),
-            "unrealized_pnl": round(total_unrealized_pnl, 2)
-        }
-
-        return {
-            "cash_balance": round(account.cash_balance, 2),
+            "wallet_balance": round(account.cash_balance, 2),
             "available_margin": round(account.cash_balance, 2),
             "margin_used": round(total_margin_used, 2),
             "buying_power": round(buying_power, 2),
@@ -642,6 +664,24 @@ class AfterHoursPaperTradingEngine:
             "market_value": round(total_market_value, 2),
             "total_equity": round(total_equity, 2),
             "unrealized_pnl": round(total_unrealized_pnl, 2),
+            "realized_pnl": round(total_realized_pnl, 2),
+            "day_realized_pnl": round(day_realized_pnl, 2),
+            "day_pnl": round(day_pnl, 2)
+        }
+
+        return {
+            "cash_balance": round(account.cash_balance, 2),
+            "wallet_balance": round(account.cash_balance, 2),
+            "available_margin": round(account.cash_balance, 2),
+            "margin_used": round(total_margin_used, 2),
+            "buying_power": round(buying_power, 2),
+            "leverage": 5,
+            "market_value": round(total_market_value, 2),
+            "total_equity": round(total_equity, 2),
+            "unrealized_pnl": round(total_unrealized_pnl, 2),
+            "realized_pnl": round(total_realized_pnl, 2),
+            "day_realized_pnl": round(day_realized_pnl, 2),
+            "day_pnl": round(day_pnl, 2),
             "positions": portfolio_positions,
             "account": account_data
         }
@@ -704,7 +744,8 @@ class AfterHoursPaperTradingEngine:
             cover_turnover = round(qty_to_cover * price, 2)
             gross_pnl = cost_basis - cover_turnover
             net_realized_pnl = round(gross_pnl - total_charges, 2)
-            cash_returned = round(margin_originally_blocked + net_realized_pnl, 2)
+            # Do NOT add net_realized_pnl into trading wallet: return only originally blocked margin
+            cash_returned = margin_originally_blocked
             account.cash_balance += cash_returned
             position.quantity -= qty_to_cover
             if position.quantity <= 0:
@@ -735,7 +776,8 @@ class AfterHoursPaperTradingEngine:
             margin_originally_blocked = round(cost_basis / AfterHoursPaperTradingEngine.LEVERAGE, 2)
             gross_pnl = turnover - cost_basis
             net_realized_pnl = round(gross_pnl - total_charges, 2)
-            cash_returned = round(margin_originally_blocked + net_realized_pnl, 2)
+            # Do NOT add net_realized_pnl into trading wallet: return only originally blocked margin
+            cash_returned = margin_originally_blocked
             account.cash_balance += cash_returned
             position.quantity -= qty_to_sell
             if position.quantity <= 0:
