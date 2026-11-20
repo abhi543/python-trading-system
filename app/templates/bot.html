@@ -566,7 +566,7 @@
                             <div class="score-card-item" style="border-color: rgba(56, 189, 248, 0.35); background: rgba(56, 189, 248, 0.04);">
                                 <span class="score-label"><i class="fa-solid fa-calendar-day" style="color: #38bdf8;"></i> TODAY'S DAY P&amp;L</span>
                                 <span class="score-val text-green" id="closed-day-pnl">₹0.00</span>
-                                <span class="score-sub" id="closed-day-pnl-sub">Today Realized + Floating</span>
+                                <span class="score-sub" id="closed-day-pnl-sub">Booked profit today</span>
                             </div>
                             <div class="score-card-item">
                                 <span class="score-label"><i class="fa-solid fa-calendar-check" style="color: #ffd166;"></i> TODAY'S REALIZED</span>
@@ -3048,7 +3048,8 @@
 
         const realizedPnl = (Math.abs(clientTotalRealized) > 0 && serverRealized === 0) ? clientTotalRealized : serverRealized;
         const effectiveDayRealized = (Math.abs(clientTodayRealized) > 0 && serverDayRealized === 0) ? clientTodayRealized : serverDayRealized;
-        const dayPnl = Math.round((effectiveDayRealized + pnl) * 100) / 100;
+        // Day P&L strictly reflects booked/realized profit today (unrealized floating stays in nav-pnl)
+        const dayPnl = Math.round(effectiveDayRealized * 100) / 100;
 
         const realEl = document.getElementById('nav-realized-pnl');
         if (realEl) {
@@ -3980,8 +3981,8 @@
             todayEl.className = todayPnl >= 0 ? 'score-val text-green' : 'score-val text-red';
         }
 
-        const activeFloatingPnl = Number(document.getElementById('nav-pnl')?.innerText?.replace(/[^0-9.-]+/g,"") || 0);
-        const dayTotalPnl = Math.round((todayPnl + activeFloatingPnl) * 100) / 100;
+        // Day P&L strictly reflects booked/realized profit today
+        const dayTotalPnl = Math.round(todayPnl * 100) / 100;
 
         // Update Navbar Day P&L
         const navDayEl = document.getElementById('nav-day-pnl');

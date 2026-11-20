@@ -129,7 +129,7 @@ class PaperTradingEngine:
             TradeHistory.timestamp >= start_of_ist_day_utc
         ).scalar() or 0.0
 
-        day_pnl = round(day_realized_pnl + total_unrealized_pnl, 2)
+        day_pnl = round(day_realized_pnl, 2)
         total_equity = round(50000.0 + total_realized_pnl + total_unrealized_pnl, 2)
         buying_power = round(account.cash_balance * PaperTradingEngine.LEVERAGE, 2)
         
@@ -652,7 +652,7 @@ class AfterHoursPaperTradingEngine:
             AfterHoursTradeHistory.timestamp >= start_of_ist_day_utc
         ).scalar() or 0.0
 
-        day_pnl = round(day_realized_pnl + total_unrealized_pnl, 2)
+        day_pnl = round(day_realized_pnl, 2)
         total_equity = round(AfterHoursPaperTradingEngine.INITIAL_CASH + total_realized_pnl + total_unrealized_pnl, 2)
         buying_power = round(account.cash_balance * AfterHoursPaperTradingEngine.LEVERAGE, 2)
 
