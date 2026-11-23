@@ -15,7 +15,7 @@
                 </div>
                 <div>
                     <div style="font-weight: 800; font-size: 0.95rem; color: #ff7575; letter-spacing: 0.03em;">NSE MARKET IS CLOSED — BOT ALPHA IS SLEEPING</div>
-                    <div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 2px;">ALPHA can run <strong>ONLY</strong> during live market hours (Mon–Fri 09:15 AM – 03:30 PM IST). To run strategies and simulations after hours, switch to <strong>NIGHTHAWK</strong>.</div>
+                    <div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 2px;">ALPHA can run <strong>ONLY</strong> during live market hours (Mon–Fri 09:15 AM – 03:00 PM IST). To run strategies and simulations after hours, switch to <strong>NIGHTHAWK</strong>.</div>
                 </div>
             </div>
             <a href="/bot-after-hours" class="btn-sm" style="background: linear-gradient(135deg, #ffd166, #f39c12); color: #07090e; font-weight: 800; text-decoration: none; padding: 9px 18px; border-radius: 8px; white-space: nowrap; box-shadow: 0 4px 12px rgba(255, 209, 102, 0.25);">
@@ -38,7 +38,7 @@
                     <span class="bot-badge-outline" id="bot-interval-badge"><i class="fa-solid fa-clock"></i> CYCLE: 60s (1m)</span>
                 </div>
                 <h1 class="bot-title"><i class="fa-solid fa-sun" style="color: #00f090;"></i> BOT ALPHA — Algorithmic Live Trading Station</h1>
-                <p class="bot-subtitle">Autonomous multi-asset strategy scanner & live execution engine for NIFTY 200 & NIFTY 50 during regular NSE market hours (9:15 AM – 3:30 PM).</p>
+                <p class="bot-subtitle">Autonomous multi-asset strategy scanner & live execution engine for NIFTY 200 & NIFTY 50 during regular NSE market hours (9:15 AM – 3:00 PM).</p>
 
                 <!-- 1-MINUTE LIVE SWEEP PROGRESS BAR -->
                 <div class="sweep-progress-container" id="sweep-progress-box">
@@ -1988,13 +1988,13 @@
         const ist = new Date(utc + (3600000 * 5.5));
         const day = ist.getDay(); // 0 is Sun, 6 is Sat
         const mins = ist.getHours() * 60 + ist.getMinutes();
-        const isOpen = (day >= 1 && day <= 5) && (mins >= 555 && mins <= 930);
+        const isOpen = (day >= 1 && day <= 5) && (mins >= 555 && mins < 900);
         window.isMarketAfterHours = !isOpen;
 
         const initBadge = document.getElementById('bot-session-badge');
         if (initBadge) {
             if (isOpen) {
-                initBadge.innerHTML = '<i class="fa-solid fa-sun" style="color: var(--green);"></i> SESSION: LIVE NSE MARKET SESSION (09:15 - 15:30 IST)';
+                initBadge.innerHTML = '<i class="fa-solid fa-sun" style="color: var(--green);"></i> SESSION: LIVE NSE MARKET SESSION (09:15 - 15:00 IST)';
                 initBadge.style.borderColor = 'rgba(0, 240, 144, 0.4)';
                 initBadge.style.color = 'var(--green)';
             } else {
@@ -2222,11 +2222,11 @@
         const sessBadge = document.getElementById('bot-session-badge');
         if (sessBadge) {
             if (!window.isMarketOpen) {
-                sessBadge.innerHTML = '<i class="fa-solid fa-moon" style="color: #ff7575;"></i> MARKET CLOSED (ALPHA SLEEPING — 09:15 - 15:30 IST)';
+                sessBadge.innerHTML = '<i class="fa-solid fa-moon" style="color: #ff7575;"></i> MARKET CLOSED (ALPHA SLEEPING — 09:15 - 15:00 IST)';
                 sessBadge.style.borderColor = 'rgba(255, 75, 75, 0.4)';
                 sessBadge.style.color = '#ff7575';
             } else {
-                sessBadge.innerHTML = '<i class="fa-solid fa-sun" style="color: var(--green);"></i> SESSION: LIVE NSE MARKET SESSION (09:15 - 15:30 IST)';
+                sessBadge.innerHTML = '<i class="fa-solid fa-sun" style="color: var(--green);"></i> SESSION: LIVE NSE MARKET SESSION (09:15 - 15:00 IST)';
                 sessBadge.style.borderColor = 'rgba(0, 240, 144, 0.4)';
                 sessBadge.style.color = 'var(--green)';
             }
@@ -2737,7 +2737,7 @@
                 if (data.success === false) {
                     setBotActiveState(false);
                     if (data.status) updateBotUI(data.status);
-                    showToast(data.error || 'ALPHA operates exclusively during Live Market hours (09:15 AM – 03:30 PM IST).', 'warning');
+                    showToast(data.error || 'ALPHA operates exclusively during Live Market hours before 3:00 PM (09:15 AM – 03:00 PM IST).', 'warning');
                     return;
                 }
                 if (data.status) updateBotUI(data.status);
@@ -2951,7 +2951,7 @@
                 sweepClosed.push(...data.result.eod_closed_trades);
                 saveStoredActivePositions([]);
                 window.cachedActivePositions = [];
-                showToast(`🔔 Market Closed: All open positions automatically squared off at 3:20 PM IST.`, 'success');
+                showToast(`🔔 Market Closed: All open positions automatically squared off at 3:00 PM IST.`, 'success');
             }
             if (sweepClosed.length > 0) {
                 // 1. Immediately remove closed symbols from stored active positions

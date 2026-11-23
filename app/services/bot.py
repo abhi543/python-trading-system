@@ -49,15 +49,25 @@ def is_nse_market_open() -> bool:
     # 09:15 to 15:30 IST
     return (9 * 60 + 15) <= current_minutes <= (15 * 60 + 30)
 
+def is_alpha_trading_hours() -> bool:
+    """Returns True only during Alpha's active trading window: Mon-Fri 09:15 AM to 03:00 PM IST"""
+    from datetime import datetime, timezone, timedelta
+    now_ist = datetime.now(timezone.utc) + timedelta(hours=5, minutes=30)
+    if now_ist.weekday() >= 5:
+        return False
+    current_minutes = now_ist.hour * 60 + now_ist.minute
+    # Alpha active strictly from 09:15 AM to 03:00 PM IST (15:00 cutoff)
+    return (9 * 60 + 15) <= current_minutes < (15 * 60)
+
 def is_intraday_squareoff_time() -> bool:
-    """Returns True if current IST time is 15:20 or later (standard Indian intraday 3:20 PM auto-squareoff window)"""
+    """Returns True if current IST time is 15:00 (3:00 PM) or later (Alpha 3:00 PM auto-squareoff cutoff)"""
     from datetime import datetime, timezone, timedelta
     now_ist = datetime.now(timezone.utc) + timedelta(hours=5, minutes=30)
     if now_ist.weekday() >= 5:
         return True
     current_minutes = now_ist.hour * 60 + now_ist.minute
-    # 15:20 IST is 15*60 + 20 = 920 minutes. After 15:20 or before 09:15 IST
-    return current_minutes >= (15 * 60 + 20) or current_minutes < (9 * 60 + 15)
+    # 15:00 IST is 15*60 = 900 minutes. After 15:00 or before 09:15 IST
+    return current_minutes >= (15 * 60) or current_minutes < (9 * 60 + 15)
 
 def get_after_hours_price(symbol: str, base_price: float, pos=None) -> float:
     import random
@@ -363,16 +373,18 @@ class AutoTradingBot:
             self.session_stop_time = persisted.get("session_stop_time", self.session_stop_time)
 
         market_open = is_nse_market_open()
-        can_run = market_open if self.name == "ALPHA" else True
+        alpha_open = is_alpha_trading_hours()
+        can_run = alpha_open if self.name == "ALPHA" else True
         time_restriction_msg = ""
-        if self.name == "ALPHA" and not market_open:
-            time_restriction_msg = "ALPHA runs exclusively during live NSE market hours (09:15 AM – 03:30 PM IST). Market is currently closed. Switch to NIGHTHAWK for after-hours trading."
+        if self.name == "ALPHA" and not alpha_open:
+            time_restriction_msg = "ALPHA operates strictly between 09:15 AM – 03:00 PM IST (Mon–Fri). Alpha is closed for today (3:00 PM cutoff reached). Switch to NIGHTHAWK for after-hours trading."
 
         return {
             "name": self.name,
             "is_running": is_active,
             "can_run": can_run,
             "is_market_open": market_open,
+            "is_alpha_open": alpha_open,
             "time_restriction_msg": time_restriction_msg,
             "is_after_hours": after_hours,
             "is_after_hours_bot": self.is_after_hours_forced,
@@ -555,12 +567,13 @@ class AutoTradingBot:
             self.update_config(config)
 
         # Enforce Operating Hours:
-        # ALPHA runs ONLY during live market hours (09:15 AM – 03:30 PM IST Mon-Fri)
+        # ALPHA runs ONLY during live market hours before 3:00 PM (09:15 AM – 03:00 PM IST Mon-Fri)
         # NIGHTHAWK is the 24/7 After-Hours Strategy Lab & Simulator (runs anytime)
         market_open = is_nse_market_open()
+        alpha_open = is_alpha_trading_hours()
 
-        if self.name == "ALPHA" and not market_open:
-            msg = "ALPHA is restricted to LIVE NSE Market hours (09:15 AM – 03:30 PM IST Mon-Fri). Market is currently closed. Please use NIGHTHAWK for after-hours trading!"
+        if self.name == "ALPHA" and not alpha_open:
+            msg = "ALPHA is restricted to LIVE Market hours (09:15 AM – 03:00 PM IST Mon-Fri). Trading session for Alpha closes at 3:00 PM IST. Please use NIGHTHAWK for after-hours trading!"
             self.add_log(f"🛑 [ALPHA BLOCKED] {msg}", "WARNING")
             return {
                 "success": False,
@@ -1172,10 +1185,10 @@ class AutoTradingBot:
             "action_executed": None
         }
 
-    def auto_square_off_all_positions(self, reason: str = "EOD 3:20 PM Auto Square-Off") -> list:
+    def auto_square_off_all_positions(self, reason: str = "3:00 PM EOD Auto Square-Off") -> list:
         """
         Automatically liquidates every open intraday position at current market prices
-        at market close (15:20 – 15:30 IST) or when market is closed, returning margin to cash.
+        at Alpha cutoff (15:00 IST / 3:00 PM) or when market is closed, returning margin to cash.
         """
         positions = self.pos_model.query.filter(self.pos_model.quantity > 0).all()
         if not positions:
@@ -1240,28 +1253,29 @@ class AutoTradingBot:
         import random
         self.last_run_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-        # 0. Enforce Operating Hours & 15:20 EOD Auto Square-Off:
+        # 0. Enforce Operating Hours & 3:00 PM EOD Auto Square-Off:
         market_open = is_nse_market_open()
+        alpha_open = is_alpha_trading_hours()
         square_off_time = is_intraday_squareoff_time()
         is_explicit_test = simulation_event in ["FORCE_BUY", "STOP_SHOCK", "FLASH_CRASH", "BULL_SURGE", "BULL_RUNNER", "TRAIL_PUSH", "WHIPSAW_CHOP"]
 
         if self.name == "ALPHA" and not is_explicit_test:
-            # Check if any positions need to be auto-squared off at market close (3:20 PM or after hours)
+            # Check if any positions need to be auto-squared off at 3:00 PM cutoff or after hours
             eod_closed = []
-            if square_off_time or not market_open:
-                eod_closed = self.auto_square_off_all_positions(reason="3:20 PM EOD Market Close Auto Square-Off")
+            if square_off_time or not alpha_open:
+                eod_closed = self.auto_square_off_all_positions(reason="3:00 PM EOD Auto Square-Off")
                 if eod_closed:
-                    self.add_log(f"🏁 [EOD COMPLETE] Auto-squared off all {len(eod_closed)} intraday positions at market close. Desk 100% in cash.", "SUCCESS")
+                    self.add_log(f"🏁 [EOD COMPLETE] Auto-squared off all {len(eod_closed)} intraday positions at 3:00 PM cutoff. Desk 100% in cash.", "SUCCESS")
 
-            if not market_open:
+            if not alpha_open:
                 if self.is_running:
                     self.is_running = False
                     self.session_status = "MARKET_CLOSED_PAUSED"
                     self.persist_state()
-                    self.add_log("⏸️ [ALPHA SLEEP] NSE Market is closed. ALPHA auto-squared off and paused until 09:15 AM tomorrow. Use NIGHTHAWK for after-market trading.", "WARNING")
+                    self.add_log("⏸️ [ALPHA SLEEP] 3:00 PM Cutoff Reached. ALPHA auto-squared off and paused until 09:15 AM tomorrow. Use NIGHTHAWK for after-market trading.", "WARNING")
                 return {
                     "total_scanned": 0, "buys_found": 0, "sells_found": 0, "trades_executed": len(eod_closed),
-                    "message": "Market Closed: ALPHA auto-squares off all positions by 03:20 PM IST. Re-opens at 09:15 AM tomorrow.",
+                    "message": "Market Closed: ALPHA auto-squares off all positions by 03:00 PM IST. Re-opens at 09:15 AM tomorrow.",
                     "is_market_closed": True,
                     "eod_closed_trades": eod_closed,
                     "allowed_engine": "NIGHTHAWK",
