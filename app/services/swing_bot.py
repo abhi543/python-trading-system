@@ -357,6 +357,7 @@ class SwingTradingBot:
         """Calculates win rate, total P&L and average holding days for each of the 4 swing strategies"""
         trades = SwingTradeHistory.query.all()
         scorecard = {
+            "RSI_20_80": {"trades": 0, "wins": 0, "pnl": 0.0, "days": []},
             "VWAP_EMA_RSI": {"trades": 0, "wins": 0, "pnl": 0.0, "days": []},
             "DMA_200": {"trades": 0, "wins": 0, "pnl": 0.0, "days": []},
             "VOLUME_SHOCKER": {"trades": 0, "wins": 0, "pnl": 0.0, "days": []},
@@ -437,6 +438,29 @@ class SwingTradingBot:
             # Check Stop-Loss
             if pos.stop_loss > 0 and curr_p <= pos.stop_loss:
                 self.add_log(f"🛑 [SWING STOP-LOSS CUT] {pos.symbol.replace('.NS','')}: Price ₹{curr_p:.2f} breached SL ₹{pos.stop_loss:.2f} ({pnl_pct:.1f}%). Liquidating!", "ERROR")
+                SwingPaperTradingEngine.execute_order(pos.symbol, "SELL", pos.quantity, curr_p, strategy=pos.strategy)
+                held_symbols.discard(pos.symbol)
+                continue
+
+            # Check RSI Overbought Exit (>= 80.0)
+            analysis_data = MarketDataService.get_stock_analysis_data(pos.symbol)
+            if "error" not in analysis_data:
+                c_list = analysis_data.get("closes", [])
+                p_rsi = SwingStrategyBase.calc_rsi(c_list, 14) if len(c_list) >= 15 else None
+                if p_rsi and p_rsi >= 80.0:
+                    self.add_log(f"⚡ [SWING RSI 80 EXIT] {pos.symbol.replace('.NS','')}: RSI reached {p_rsi:.1f} (>= 80.0 Overbought). Exiting swing position at market (+{pnl_pct:.1f}%)!", "SUCCESS")
+                    SwingPaperTradingEngine.execute_order(pos.symbol, "SELL", pos.quantity, curr_p, strategy=pos.strategy)
+                    held_symbols.discard(pos.symbol)
+                    continue
+
+            # 2-DAY GREEN SWING EXIT RULE:
+            # If position has been held for 2 or more days and is in GREEN (>= +0.5%), exit and lock in profit!
+            entry_dt = pos.entry_date
+            if entry_dt and entry_dt.tzinfo is None:
+                entry_dt = entry_dt.replace(tzinfo=timezone.utc)
+            pos_days = max(1, (now - (entry_dt or now)).days) if entry_dt else 1
+            if pos_days >= 2 and pnl_pct >= 0.5:
+                self.add_log(f"🎯 [2-DAY GREEN SWING EXIT] {pos.symbol.replace('.NS','')}: Day {pos_days} reached in GREEN (+{pnl_pct:.2f}%). Banking profit & recycling capital!", "SUCCESS")
                 SwingPaperTradingEngine.execute_order(pos.symbol, "SELL", pos.quantity, curr_p, strategy=pos.strategy)
                 held_symbols.discard(pos.symbol)
                 continue

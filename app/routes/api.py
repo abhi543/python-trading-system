@@ -789,7 +789,18 @@ def backtest():
     symbol = body.get('symbol', 'RELIANCE.NS')
     strat = str(body.get('strategy', 'SMA_CROSSOVER')).upper()
     
-    if strat in ['DMA_200', '200_DMA', 'DMA200', '200_DAY']:
+    if strat in ['RSI', 'RSI_20_80', 'RSI_MOMENTUM']:
+        period = body.get('period', '2y')
+        capital = float(body.get('capital', 100000.0))
+        rsi_period = int(body.get('rsi_period', 14))
+        oversold = float(body.get('oversold', body.get('rsi_oversold', 20.0)))
+        overbought = float(body.get('overbought', body.get('rsi_overbought', 80.0)))
+        allow_short = bool(body.get('allow_short', False))
+        result = StrategyBacktester.rsi_strategy(
+            symbol, period=period, initial_capital=capital,
+            rsi_period=rsi_period, oversold=oversold, overbought=overbought, allow_short=allow_short
+        )
+    elif strat in ['DMA_200', '200_DMA', 'DMA200', '200_DAY']:
         period = body.get('period', '2y')
         capital = float(body.get('capital', 100000.0))
         ma_type = body.get('ma_type', 'SMA')
@@ -847,6 +858,165 @@ def backtest_vwap_ema_rsi():
     if "error" in result:
         return jsonify(result), 400
     return jsonify(result)
+
+@api_bp.route('/backtest/rsi', methods=['GET', 'POST'])
+def backtest_rsi():
+    if request.method == 'POST':
+        body = request.get_json() or {}
+    else:
+        body = request.args.to_dict()
+    symbol = body.get('symbol', 'RELIANCE.NS')
+    period = body.get('period', '2y')
+    capital = float(body.get('capital', 100000.0))
+    rsi_period = int(body.get('rsi_period', 14))
+    oversold = float(body.get('oversold', body.get('rsi_oversold', 20.0)))
+    overbought = float(body.get('overbought', body.get('rsi_overbought', 80.0)))
+    allow_short = str(body.get('allow_short', 'false')).lower() in ['true', '1', 'yes']
+    result = StrategyBacktester.rsi_strategy(
+        symbol, period=period, initial_capital=capital,
+        rsi_period=rsi_period, oversold=oversold, overbought=overbought, allow_short=allow_short
+    )
+    if "error" in result:
+        return jsonify(result), 400
+    return jsonify(result)
+
+@api_bp.route('/bot/apply-rsi-all', methods=['POST'])
+def apply_rsi_strategy_all_bots():
+    """
+    Applies the RSI Extreme Mean Reversion Strategy (Buy <= 20, Sell >= 80)
+    across all trading desks and autonomous bots:
+    1. ALPHA Bot (Day/Live Intraday Desk)
+    2. NIGHTHAWK Bot (24/7 After-Hours Simulator Desk)
+    3. TITAN Bot (Multi-Day Swing Delivery CNC Desk)
+    """
+    from app.services.bot import bot_instance, after_hours_bot_instance
+    from app.services.swing_bot import swing_bot_instance
+
+    body = request.get_json(silent=True) or {}
+    oversold = float(body.get("rsi_oversold", 20.0))
+    overbought = float(body.get("rsi_overbought", 80.0))
+    rsi_period = int(body.get("rsi_period", 14))
+
+    rsi_config = {
+        "strategy": "RSI_20_80",
+        "rsi_oversold": oversold,
+        "rsi_overbought": overbought,
+        "rsi_period": rsi_period,
+        "use_ema200_filter": False  # Allow buying deep oversold dips without trend block
+    }
+
+    # 1. Update Alpha Bot
+    bot_instance.update_config(rsi_config)
+    bot_instance.persist_state()
+    bot_instance.add_log(f"🎯 [ALL BOTS CONFIG] Activated RSI 20/80 Strategy (Buy <= {oversold:.0f}, Sell >= {overbought:.0f}) on ALPHA Desk", "SUCCESS")
+
+    # 2. Update Nighthawk Bot
+    after_hours_bot_instance.update_config(rsi_config)
+    after_hours_bot_instance.persist_state()
+    after_hours_bot_instance.add_log(f"🎯 [ALL BOTS CONFIG] Activated RSI 20/80 Strategy (Buy <= {oversold:.0f}, Sell >= {overbought:.0f}) on NIGHTHAWK Desk", "SUCCESS")
+
+    # 3. Update Titan Swing Bot
+    swing_bot_instance.selected_strategy = "RSI_20_80"
+    swing_bot_instance.persist_state()
+    swing_bot_instance.add_log(f"🎯 [ALL BOTS CONFIG] Activated RSI 20/80 Strategy (Buy <= {oversold:.0f}, Sell >= {overbought:.0f}) on TITAN Swing Desk", "SUCCESS")
+
+    return jsonify({
+        "success": True,
+        "message": f"RSI Strategy (Buy <= {oversold:.0f}, Sell >= {overbought:.0f}) successfully activated across ALL bots (ALPHA, NIGHTHAWK, TITAN)!",
+        "parameters": {
+            "strategy": "RSI_20_80",
+            "rsi_oversold": oversold,
+            "rsi_overbought": overbought,
+            "rsi_period": rsi_period
+        },
+        "bots": {
+            "alpha": bot_instance.get_status(),
+            "nighthawk": after_hours_bot_instance.get_status(),
+            "titan_swing": swing_bot_instance.get_status()
+        }
+    })
+
+@api_bp.route('/bot/configure-green-day-blueprint', methods=['POST'])
+def configure_green_day_blueprint():
+    """
+    Configures the Dual-Engine Green Day Blueprint:
+    1. ALPHA & NIGHTHAWK (Intraday):
+       - Strategy: VWAP + 9/21 EMA + RSI (Triple Confluence Scalp)
+       - Quick Target: +1.0% (5.0% return on 5x Margin)
+       - Strict Stop Loss: 0.8%
+       - Breakeven Shield: Triggered at +0.5% (100% Risk Free)
+       - Daily Green Target Lock: +2.0% Daily Desk Profit Target (Locks gains & stops overtrading)
+    2. TITAN (Swing):
+       - Strategy: RSI 20/80 Mean Reversion (Deep Oversold 2-Day Snapback)
+       - Target: +3.5%
+       - Stop Loss: -2.0%
+       - Max 2-Day Holding Rule: Automatically exits on Day 2 in profit to lock in green swing!
+    """
+    from app.services.bot import bot_instance, after_hours_bot_instance
+    from app.services.swing_bot import swing_bot_instance
+
+    body = request.get_json(silent=True) or {}
+    intraday_target = float(body.get("intraday_target_pct", 1.0))
+    intraday_sl = min(0.8, float(body.get("intraday_sl_pct", 0.8)))
+    daily_desk_target = float(body.get("daily_desk_target_pct", 2.0))
+
+    intraday_config = {
+        "strategy": "VWAP_EMA_RSI",
+        "take_profit_pct": intraday_target,
+        "stop_loss_pct": intraday_sl,
+        "survival_breakeven_pct": 0.5,
+        "daily_profit_target_pct": daily_desk_target,
+        "lock_daily_green_target": True,
+        "daily_green_locked": False,
+        "daily_circuit_tripped": False,
+        "use_trailing_stop": True,
+        "use_ema200_filter": True,
+        "use_volume_filter": True,
+        "min_volume_ratio": 1.3
+    }
+
+    # 1. Update Alpha (Day Intraday Bot)
+    bot_instance.update_config(intraday_config)
+    bot_instance.persist_state()
+    bot_instance.add_log(f"🟢 [GREEN DAY BLUEPRINT] ALPHA Desk configured: VWAP+EMA+RSI Scalp | Target: +{intraday_target}% | SL: -{intraday_sl}% | Breakeven Shield @ +0.5% | Daily Green Vault Lock @ +{daily_desk_target}%", "SUCCESS")
+
+    # 2. Update Nighthawk (After-Hours Bot)
+    after_hours_bot_instance.update_config(intraday_config)
+    after_hours_bot_instance.persist_state()
+    after_hours_bot_instance.add_log(f"🟢 [GREEN DAY BLUEPRINT] NIGHTHAWK Desk configured: VWAP+EMA+RSI Scalp | Target: +{intraday_target}% | SL: -{intraday_sl}% | Breakeven Shield @ +0.5% | Daily Green Vault Lock @ +{daily_desk_target}%", "SUCCESS")
+
+    # 3. Update Titan (Swing Bot)
+    swing_bot_instance.selected_strategy = "RSI_20_80"
+    swing_bot_instance.survival_breakeven_pct = 1.0
+    swing_bot_instance.enable_partial_profits = True
+    swing_bot_instance.persist_state()
+    swing_bot_instance.add_log("🟢 [2-DAY GREEN SWING BLUEPRINT] TITAN Swing Desk configured: RSI-20 Deep Oversold Snapback | Auto-Exit on Day 2 in GREEN | Breakeven @ +1.0%", "SUCCESS")
+
+    return jsonify({
+        "success": True,
+        "message": "🟢 Green Day Blueprint successfully ACTIVATED across ALL bots! Intraday desk locked to VWAP+EMA Scalping & Daily Green Vault. Swing desk locked to 2-Day RSI Snapback.",
+        "config": {
+            "intraday": {
+                "strategy": "VWAP_EMA_RSI",
+                "target_pct": intraday_target,
+                "stop_loss_pct": intraday_sl,
+                "breakeven_trigger_pct": 0.5,
+                "daily_profit_target_pct": daily_desk_target,
+                "lock_daily_green_target": True
+            },
+            "swing": {
+                "strategy": "RSI_20_80",
+                "max_holding_days": 2,
+                "exit_rule": "Exit on Day 2 in profit or +3.5% snapback target",
+                "breakeven_trigger_pct": 1.0
+            }
+        },
+        "bots": {
+            "alpha": bot_instance.get_status(),
+            "nighthawk": after_hours_bot_instance.get_status(),
+            "titan_swing": swing_bot_instance.get_status()
+        }
+    })
 
 @api_bp.route('/complete-reset', methods=['POST'])
 def complete_system_reset():
@@ -1980,6 +2150,88 @@ def generate_swing_gtt_basket():
             "reward_pct": round(((target_price - entry_price) / entry_price * 100), 2)
         }
     })
+
+# ========================================================
+# ADVANCED MULTI-UNIVERSE STOCK SCANNER ENDPOINTS
+# ========================================================
+
+@api_bp.route('/scanner/universes', methods=['GET'])
+def get_scanner_universes():
+    """Returns available stock universes for scanning"""
+    from app.services.scanner_service import StockScannerService
+    return jsonify({
+        "success": True,
+        "universes": StockScannerService.get_available_universes()
+    })
+
+@api_bp.route('/scanner/run', methods=['GET', 'POST'])
+def run_stock_scanner():
+    """
+    Executes a scan across a chosen universe with multi-indicator filters
+    and custom user-defined rules.
+    """
+    from app.services.scanner_service import StockScannerService
+    if request.method == 'POST':
+        payload = request.get_json(silent=True) or {}
+    else:
+        payload = {k: v for k, v in request.args.items()}
+
+    universe = payload.get("universe", "NIFTY_50")
+    criteria = {
+        "query": payload.get("query", ""),
+        "min_price": payload.get("min_price"),
+        "max_price": payload.get("max_price"),
+        "min_change": payload.get("min_change"),
+        "max_change": payload.get("max_change"),
+        "direction": payload.get("direction", "ALL"),
+        "min_rsi": payload.get("min_rsi"),
+        "max_rsi": payload.get("max_rsi"),
+        "min_vol_ratio": payload.get("min_vol_ratio"),
+        "trend": payload.get("trend", "ANY"),
+        "vwap": payload.get("vwap", "ANY"),
+        "ema_cross": payload.get("ema_cross", "ANY"),
+        "limit": payload.get("limit", 200),
+        "sort_by": payload.get("sort_by", "percent_change"),
+        "sort_order": payload.get("sort_order", "desc"),
+        "custom_rules": payload.get("custom_rules", {})
+    }
+
+    try:
+        scan_output = StockScannerService.scan_universe(universe_id=universe, criteria=criteria)
+        return jsonify(scan_output)
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@api_bp.route('/scanner/custom-rules', methods=['GET', 'POST'])
+def manage_scanner_custom_rules():
+    """
+    Endpoint for saving and retrieving custom user filtering rules.
+    Ready to store any rules the user specifies later.
+    """
+    global _USER_SCANNER_RULES
+    if '_USER_SCANNER_RULES' not in globals():
+        globals()['_USER_SCANNER_RULES'] = {
+            "name": "Custom User Filter Blueprint",
+            "active": False,
+            "rule_mode": "DEFAULT",
+            "rules_description": "Awaiting custom rules from user.",
+            "parameters": {}
+        }
+
+    if request.method == 'POST':
+        data = request.get_json(silent=True) or {}
+        globals()['_USER_SCANNER_RULES'].update(data)
+        return jsonify({
+            "success": True,
+            "message": "Custom scanner rules updated successfully.",
+            "rules": globals()['_USER_SCANNER_RULES']
+        })
+
+    return jsonify({
+        "success": True,
+        "rules": globals()['_USER_SCANNER_RULES']
+    })
+
 
 
 

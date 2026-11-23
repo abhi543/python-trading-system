@@ -22,6 +22,12 @@ def bot_after_hours_page():
 def bot_swing_page():
     return render_template('bot_swing.html')
 
+@views_bp.route('/scanner')
+@views_bp.route('/stock-scanner')
+@views_bp.route('/screener')
+def scanner_page():
+    return render_template('scanner.html')
+
 @views_bp.route('/debug-env')
 def debug_env():
     from flask import request

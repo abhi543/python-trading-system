@@ -493,6 +493,61 @@ class VWAPEMARSIStrategy(SwingStrategyBase):
 
 
 # ==============================================================================
+# 5. RSI 20/80 EXTREME MEAN REVERSION STRATEGY
+# ==============================================================================
+class RSI2080Strategy(SwingStrategyBase):
+    """
+    RSI 20/80 Extreme Mean Reversion Strategy:
+    - BUY when 14-period RSI <= 20.0 (Deep oversold capitulation)
+    - SELL / EXIT when 14-period RSI >= 80.0 (Overbought climax)
+    - Targets +9.0% snapback bounce with -3.0% Stop Loss
+    """
+    @classmethod
+    def evaluate(cls, symbol: str, data: Dict[str, Any]) -> Dict[str, Any]:
+        closes = data.get("closes", [])
+        current_price = data.get("price", closes[-1] if closes else 0.0)
+
+        if len(closes) < 18:
+            return {"active": False, "reason": "Insufficient candle history for RSI-14"}
+
+        rsi_14 = cls.calc_rsi(closes, 14)
+        if rsi_14 is None:
+            return {"active": False, "reason": "RSI indicator pending"}
+
+        # BUY trigger: RSI <= 20
+        if rsi_14 <= 20.0:
+            sl_price = round(current_price * 0.98, 2)     # -2.0% Stop Loss
+            target_price = round(current_price * 1.035, 2) # +3.5% 2-Day Snapback Target
+            rr = round((target_price - current_price) / max(0.1, current_price - sl_price), 2)
+            score = min(99, int(92 + max(0, (20.0 - rsi_14) * 2)))
+
+            return {
+                "active": True,
+                "strategy": "RSI_20_80",
+                "label": "⚡ 2-Day Green Swing (RSI 20 Snapback)",
+                "score": score,
+                "target_price": target_price,
+                "target_pct": 3.5,
+                "stop_loss": sl_price,
+                "stop_loss_pct": 2.0,
+                "risk_reward": f"1 : {rr}",
+                "holding_days": "1 - 2 Days",
+                "reason": f"⚡ 2-Day Green Swing: Deep Oversold (RSI: {rsi_14:.1f} <= 20.0) | High probability 2-day snapback bounce"
+            }
+
+        # SELL / Overbought alert
+        if rsi_14 >= 80.0:
+            return {
+                "active": False,
+                "is_exit_signal": True,
+                "strategy": "RSI_20_80",
+                "reason": f"🛑 RSI Extreme Overbought (RSI: {rsi_14:.1f} >= 80.0) | Profit taking / Overbought exit"
+            }
+
+        return {"active": False, "reason": f"RSI Neutral ({rsi_14:.1f}) | Buy at <= 20.0, Sell at >= 80.0"}
+
+
+# ==============================================================================
 # UNIFIED CONFLUENCE ENGINE & MULTI-STRATEGY SCANNER
 # ==============================================================================
 class UnifiedSwingScanner:
@@ -501,6 +556,7 @@ class UnifiedSwingScanner:
     and calculates Multi-Strategy Confluence when multiple engines align.
     """
     STRATEGIES = {
+        "RSI_20_80": RSI2080Strategy,
         "VWAP_EMA_RSI": VWAPEMARSIStrategy,
         "DMA_200": DMA200BreakoutStrategy,
         "VOLUME_SHOCKER": VolumeShockerStrategy,

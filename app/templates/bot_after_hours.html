@@ -94,6 +94,12 @@
                 <button id="bot-stop-both-btn" class="btn-bot-scan" style="border-color: rgba(239, 68, 68, 0.6); background: linear-gradient(135deg, rgba(239, 68, 68, 0.16) 0%, rgba(185, 28, 28, 0.28) 100%); color: #ff6b6b; font-weight: 800;" onclick="globalStopBothBots()" title="Emergency Kill Switch: Stop both ALPHA and NIGHTHAWK bots immediately">
                     <i class="fa-solid fa-power-off"></i> STOP BOTH BOTS
                 </button>
+                <button id="bot-rsi-all-btn" class="btn-bot-scan" style="border-color: rgba(168, 85, 247, 0.6); background: rgba(168, 85, 247, 0.15); color: #c084fc; font-weight: 800;" onclick="applyRsiStrategyToAllBots()" title="Set RSI 20/80 Strategy across ALL Bots (Alpha, Nighthawk, Titan)">
+                    <i class="fa-solid fa-chart-line"></i> SET RSI 20/80 (ALL BOTS)
+                </button>
+                <button id="bot-green-blueprint-btn" class="btn-bot-scan" style="border-color: rgba(0, 240, 144, 0.6); background: rgba(0, 240, 144, 0.16); color: var(--green); font-weight: 800;" onclick="activateGreenDayBlueprint()" title="Activate Daily Green Intraday Scalp & 2-Day Swing Blueprint across all desks">
+                    <i class="fa-solid fa-gem"></i> 🟢 GREEN DAY BLUEPRINT
+                </button>
             </div>
         </div>
 
@@ -143,6 +149,7 @@
                 <div class="config-item">
                     <label><i class="fa-solid fa-chart-line"></i> STRATEGY MODEL</label>
                     <select id="bot-strategy" class="config-select" onchange="onStrategyChange()">
+                        <option value="RSI_20_80">⚡ RSI Extreme (Buy &le; 20 / Sell &ge; 80 Mean Reversion)</option>
                         <option value="VWAP_EMA_RSI">⚡ VWAP + EMA + RSI Confluence (Volume Anchor &amp; Momentum)</option>
                         <option value="123_REVERSAL" selected>1-2-3 Reversal Map [AGPro Series v2.1] (Neckline Break &amp; Target)</option>
                         <option value="SMA_CROSSOVER">Dual SMA Golden/Death Cross (9 / 21)</option>
@@ -2422,7 +2429,7 @@
 
     function updateConfigSummaryRibbon() {
         const stratVal = document.getElementById('bot-strategy')?.value || '123_REVERSAL';
-        const stratName = (stratVal === '123_REVERSAL') ? '1-2-3 Reversal Map' : (stratVal === 'VWAP_EMA_RSI' ? 'VWAP+EMA+RSI' : (stratVal === 'SMA_CROSSOVER' ? 'Dual SMA (9/21)' : 'RSI Reversion'));
+        const stratName = (stratVal === '123_REVERSAL') ? '1-2-3 Reversal Map' : (stratVal === 'RSI_20_80' ? 'RSI 20/80 Reversal' : (stratVal === 'VWAP_EMA_RSI' ? 'VWAP+EMA+RSI' : (stratVal === 'SMA_CROSSOVER' ? 'Dual SMA (9/21)' : 'RSI Reversion')));
         const mode = document.getElementById('bot-scan-mode')?.value || 'ALL_NIFTY_200';
         const universeName = (mode === 'ALL_NIFTY_200') ? 'NIFTY 200' : (mode === 'SINGLE' ? 'Single Focus' : 'NIFTY 50');
         const capital = document.getElementById('bot-allocation')?.value || '200000';
@@ -2835,6 +2842,75 @@
         }
     }
 
+    async function applyRsiStrategyToAllBots() {
+        showToast('Applying RSI (Buy <= 20, Sell >= 80) across ALL bots...', 'info');
+        try {
+            const res = await fetch('/api/bot/apply-rsi-all', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ rsi_oversold: 20.0, rsi_overbought: 80.0, rsi_period: 14 })
+            });
+            const data = await res.json();
+            if (data.success) {
+                showToast('✅ RSI 20/80 Strategy activated on ALL bots (Alpha, Nighthawk, Titan)!', 'success');
+                const stratSelect = document.getElementById('bot-strategy');
+                if (stratSelect) {
+                    stratSelect.value = 'RSI_20_80';
+                    localStorage.setItem('nifty_after_hours_bot_strategy', 'RSI_20_80');
+                    if (typeof syncStrategyUIHints === 'function') syncStrategyUIHints();
+                    if (typeof updateConfigSummaryRibbon === 'function') updateConfigSummaryRibbon();
+                }
+                if (data.bots && data.bots.nighthawk && typeof updateBotUI === 'function') {
+                    updateBotUI(data.bots.nighthawk);
+                }
+                if (isBotActive) {
+                    tickBotNow();
+                }
+            } else {
+                showToast('Error applying RSI strategy: ' + (data.message || 'Unknown error'), 'error');
+            }
+        } catch (e) {
+            showToast('Network error applying RSI strategy: ' + e.message, 'error');
+        }
+    }
+
+    async function activateGreenDayBlueprint() {
+        showToast('Activating Daily & 2-Day Green Day Blueprint across all desks...', 'info');
+        try {
+            const res = await fetch('/api/bot/configure-green-day-blueprint', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    intraday_target_pct: 1.0,
+                    intraday_sl_pct: 0.8,
+                    daily_desk_target_pct: 2.0
+                })
+            });
+            const data = await res.json();
+            if (data.success) {
+                showToast('🏆 Green Day Blueprint ACTIVATED! Daily Profit Vault + 2-Day Swing Snapback Online!', 'success');
+                const stratSelect = document.getElementById('bot-strategy');
+                if (stratSelect) {
+                    stratSelect.value = 'VWAP_EMA_RSI';
+                    localStorage.setItem('nifty_after_hours_bot_strategy', 'VWAP_EMA_RSI');
+                    if (typeof syncStrategyUIHints === 'function') syncStrategyUIHints();
+                    if (typeof updateConfigSummaryRibbon === 'function') updateConfigSummaryRibbon();
+                }
+                const slInput = document.getElementById('bot-stop-loss');
+                if (slInput) slInput.value = '0.8';
+                const tpInput = document.getElementById('bot-take-profit');
+                if (tpInput) tpInput.value = '1.0';
+                if (data.bots && data.bots.nighthawk && typeof updateBotUI === 'function') {
+                    updateBotUI(data.bots.nighthawk);
+                }
+            } else {
+                showToast('Error activating Green Day Blueprint: ' + (data.message || 'Unknown error'), 'error');
+            }
+        } catch (e) {
+            showToast('Network error: ' + e.message, 'error');
+        }
+    }
+
     async function tickBotNow() {
         if (isScanning) return;
         isScanning = true;
@@ -2916,9 +2992,7 @@
                 currentClosed.forEach(t => tradeMap.set(getKey(t), t));
                 sweepClosed.forEach(t => {
                     tradeMap.set(getKey(t), t);
-                    if (botSession && Array.isArray(botSession.trades)) {
-                        botSession.trades.push(t);
-                    }
+                    addSessionTrade(t);
                 });
                 const mergedClosed = Array.from(tradeMap.values()).sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp)).slice(0, 100);
                 saveStoredClosedTrades(mergedClosed);
@@ -3622,6 +3696,29 @@
         }
     };
 
+    function getSessionTradeKey(t) {
+        if (!t) return '';
+        if (t.id) return `id_${t.id}`;
+        const ts = (t.timestamp || '').slice(0, 16);
+        const p = t.entry_price || t.price || 0;
+        const ep = t.exit_price || 0;
+        return `${t.symbol}_${t.side}_${t.quantity}_${p}_${ep}_${ts}`;
+    }
+
+    function addSessionTrade(trade) {
+        if (!botSession || !Array.isArray(botSession.trades) || !trade) return false;
+        const targetKey = getSessionTradeKey(trade);
+        const exists = botSession.trades.some(t => getSessionTradeKey(t) === targetKey);
+        if (!exists) {
+            botSession.trades.unshift(trade);
+            if (botSession.trades.length > 100) {
+                botSession.trades = botSession.trades.slice(0, 100);
+            }
+            return true;
+        }
+        return false;
+    }
+
     function loadStoredBotSession() {
         try {
             const raw = localStorage.getItem(BOT_SESSION_STORAGE_KEY);
@@ -3629,6 +3726,17 @@
                 const parsed = JSON.parse(raw);
                 if (parsed && Array.isArray(parsed.trades)) {
                     botSession = parsed;
+                    // Deduplicate any trades accumulated from previous sessions/scans
+                    const seen = new Set();
+                    botSession.trades = (botSession.trades || []).filter(t => {
+                        if (!t) return false;
+                        const k = getSessionTradeKey(t);
+                        if (seen.has(k)) return false;
+                        seen.add(k);
+                        return true;
+                    });
+                    recalcSessionMetrics();
+                    saveBotSession();
                 }
             }
         } catch (e) {}
@@ -4605,13 +4713,11 @@
                 saveStoredClosedTrades(mergedClosed);
                 cachedClosedTrades = mergedClosed;
 
-                // Also update botSession.trades
-                if (botSession && Array.isArray(botSession.trades)) {
-                    botSession.trades.push(closedRecord);
-                    recalcSessionMetrics();
-                    saveBotSession();
-                    renderBotSessionReport();
-                }
+                // Also update botSession.trades with deduplication
+                addSessionTrade(closedRecord);
+                recalcSessionMetrics();
+                saveBotSession();
+                renderBotSessionReport();
 
                 showToast(`${isShort ? 'Covered' : 'Liquidated'} ${quantity} shares of ${symbol}`, 'success');
                 loadBotHoldings();
@@ -4663,9 +4769,7 @@
                     currentClosed.forEach(t => tradeMap.set(getKey(t), t));
                     data.closed_trades.forEach(t => {
                         tradeMap.set(getKey(t), t);
-                        if (botSession && Array.isArray(botSession.trades)) {
-                            botSession.trades.push(t);
-                        }
+                        addSessionTrade(t);
                     });
                     const mergedClosed = Array.from(tradeMap.values()).sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp)).slice(0, 100);
                     saveStoredClosedTrades(mergedClosed);

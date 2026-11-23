@@ -339,3 +339,125 @@ class StrategyBacktester:
                 "benchmark_equity": [round(float(initial_capital * val), 2) for val in df_active['Cum_Market_Return']]
             }
         }
+
+    @staticmethod
+    def rsi_strategy(symbol: str, period: str = "2y", initial_capital: float = 100000.0, rsi_period: int = 14, oversold: float = 20.0, overbought: float = 80.0, allow_short: bool = False):
+        """
+        RSI Extreme Mean Reversion Strategy:
+        - BUY when 14-period RSI <= oversold (20)
+        - SELL / EXIT when 14-period RSI >= overbought (80)
+        - If allow_short is True, go SHORT when RSI >= 80 and COVER when RSI <= 20
+        """
+        symbol = symbol.strip().upper()
+        candles = MarketDataService.get_historical_candles(symbol, period=period, interval="1d")
+        if not candles or len(candles) < rsi_period + 10:
+            candles = MarketDataService.get_historical_candles(symbol, period="5y", interval="1d")
+            if not candles or len(candles) < rsi_period + 10:
+                return {"error": f"Insufficient historical bars ({len(candles) if candles else 0}) for RSI analysis."}
+
+        df = pd.DataFrame(candles)
+        df['Close'] = df['close'].astype(float)
+        df['High'] = df['high'].astype(float)
+        df['Low'] = df['low'].astype(float)
+
+        delta = df['Close'].diff()
+        gain = (delta.where(delta > 0, 0.0)).rolling(rsi_period).mean()
+        loss = (-delta.where(delta < 0, 0.0)).rolling(rsi_period).mean()
+        rs = gain / (loss + 1e-9)
+        df['RSI'] = 100.0 - (100.0 / (1.0 + rs))
+
+        warmup = rsi_period + 2
+        signals = [0.0] * len(df)
+        curr_pos = 0.0
+
+        for i in range(warmup, len(df)):
+            rsi_val = df['RSI'].iloc[i]
+            if curr_pos == 0.0:
+                if rsi_val <= oversold:
+                    curr_pos = 1.0  # Buy when RSI <= 20
+                elif allow_short and rsi_val >= overbought:
+                    curr_pos = -1.0 # Short when RSI >= 80
+            elif curr_pos == 1.0:
+                if rsi_val >= overbought:
+                    curr_pos = -1.0 if allow_short else 0.0 # Sell / Exit when RSI >= 80
+            elif curr_pos == -1.0:
+                if rsi_val <= oversold:
+                    curr_pos = 1.0 # Cover & Buy when RSI <= 20
+            signals[i] = curr_pos
+
+        df['Signal'] = signals
+        df['Position'] = df['Signal'].diff()
+
+        df['Market_Return'] = df['Close'].pct_change()
+        df['Strategy_Return'] = df['Market_Return'] * df['Signal'].shift(1)
+
+        df_active = df.iloc[warmup:].copy().reset_index(drop=True)
+        df_active['Cum_Market_Return'] = (1 + df_active['Market_Return'].fillna(0)).cumprod()
+        df_active['Cum_Strategy_Return'] = (1 + df_active['Strategy_Return'].fillna(0)).cumprod()
+
+        final_strategy_equity = initial_capital * df_active['Cum_Strategy_Return'].iloc[-1]
+        final_market_equity = initial_capital * df_active['Cum_Market_Return'].iloc[-1]
+        total_trades = int((df_active['Position'] != 0).sum())
+
+        cum_strat = df_active['Cum_Strategy_Return']
+        rolling_max = cum_strat.cummax()
+        drawdown_series = (cum_strat - rolling_max) / rolling_max
+        max_drawdown_pct = round(float(drawdown_series.min() * 100), 2) if not drawdown_series.empty else 0.0
+
+        cum_bench = df_active['Cum_Market_Return']
+        bench_rolling_max = cum_bench.cummax()
+        bench_drawdown_series = (cum_bench - bench_rolling_max) / bench_rolling_max
+        bench_max_drawdown_pct = round(float(bench_drawdown_series.min() * 100), 2) if not bench_drawdown_series.empty else 0.0
+
+        active_returns = df_active.loc[df_active['Strategy_Return'] != 0, 'Strategy_Return']
+        win_rate_pct = round(float((active_returns > 0).mean() * 100), 2) if len(active_returns) > 0 else 0.0
+
+        strat_ret = df_active['Strategy_Return'].fillna(0)
+        ret_std = strat_ret.std()
+        sharpe_ratio = round(float((strat_ret.mean() / ret_std) * np.sqrt(252)), 2) if ret_std > 1e-8 else 0.0
+
+        dates = [str(d) for d in df_active['time']]
+        curr_price = float(df_active['Close'].iloc[-1])
+        curr_rsi = float(df_active['RSI'].iloc[-1])
+
+        if curr_rsi <= oversold:
+            regime = f"OVERSOLD BUY ZONE (RSI {curr_rsi:.1f} <= {oversold})"
+        elif curr_rsi >= overbought:
+            regime = f"OVERBOUGHT SELL ZONE (RSI {curr_rsi:.1f} >= {overbought})"
+        else:
+            regime = f"NEUTRAL MOMENTUM (RSI {curr_rsi:.1f})"
+
+        return {
+            "symbol": symbol,
+            "strategy_name": f"RSI Extreme Reversal (Buy <= {oversold:.0f} / Sell >= {overbought:.0f})",
+            "period": period,
+            "rsi_period": rsi_period,
+            "oversold": oversold,
+            "overbought": overbought,
+            "allow_short": allow_short,
+            "initial_capital": initial_capital,
+            "final_strategy_equity": round(float(final_strategy_equity), 2),
+            "final_market_equity": round(float(final_market_equity), 2),
+            "strategy_return_pct": round(float((df_active['Cum_Strategy_Return'].iloc[-1] - 1) * 100), 2),
+            "benchmark_return_pct": round(float((df_active['Cum_Market_Return'].iloc[-1] - 1) * 100), 2),
+            "total_trades": total_trades,
+            "max_drawdown_pct": max_drawdown_pct,
+            "benchmark_max_drawdown_pct": bench_max_drawdown_pct,
+            "drawdown_reduction_pct": round(abs(bench_max_drawdown_pct) - abs(max_drawdown_pct), 2),
+            "win_rate_pct": win_rate_pct,
+            "sharpe_ratio": sharpe_ratio,
+            "current_status": {
+                "price": round(curr_price, 2),
+                "rsi": round(curr_rsi, 1),
+                "regime": regime,
+                "oversold_threshold": oversold,
+                "overbought_threshold": overbought
+            },
+            "chart": {
+                "dates": dates,
+                "prices": [round(float(p), 2) for p in df_active['Close']],
+                "rsi": [round(float(p), 2) if not pd.isna(p) else None for p in df_active['RSI']],
+                "strategy_equity": [round(float(initial_capital * val), 2) for val in df_active['Cum_Strategy_Return']],
+                "benchmark_equity": [round(float(initial_capital * val), 2) for val in df_active['Cum_Market_Return']]
+            }
+        }

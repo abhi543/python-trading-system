@@ -146,11 +146,11 @@ class AutoTradingBot:
         except Exception:
             pass
         self.interval_seconds = 60  # 1 minute (60 seconds)
-        self.fast_period = 9
-        self.slow_period = 21
-        self.rsi_period = 14
-        self.rsi_oversold = 35
-        self.rsi_overbought = 65
+        self.fast_period = int(persisted.get("fast_period", 9))
+        self.slow_period = int(persisted.get("slow_period", 21))
+        self.rsi_period = int(persisted.get("rsi_period", 14))
+        self.rsi_oversold = float(persisted.get("rsi_oversold", 20.0))
+        self.rsi_overbought = float(persisted.get("rsi_overbought", 80.0))
         self.stop_loss_pct = min(float(persisted.get("stop_loss_pct", 1.0)), 1.0)
         self.take_profit_pct = float(persisted.get("take_profit_pct", 1.0))
         
@@ -172,10 +172,13 @@ class AutoTradingBot:
         self.survival_mode = persisted.get("survival_mode", True)
         self.daily_max_drawdown_pct = float(persisted.get("daily_max_drawdown_pct", 1.5))
         self.min_risk_reward_ratio = float(persisted.get("min_risk_reward_ratio", 2.5))
-        self.survival_breakeven_pct = float(persisted.get("survival_breakeven_pct", 0.65))
+        self.survival_breakeven_pct = float(persisted.get("survival_breakeven_pct", 0.5))
         self.enable_partial_profits = persisted.get("enable_partial_profits", True)
         self.stagnation_timeout_mins = int(persisted.get("stagnation_timeout_mins", 45))
         self.daily_circuit_tripped = False
+        self.daily_profit_target_pct = float(persisted.get("daily_profit_target_pct", 2.0))
+        self.lock_daily_green_target = persisted.get("lock_daily_green_target", True)
+        self.daily_green_locked = persisted.get("daily_green_locked", False)
         
         # Session Management & Trade Report State (Preserved across stops & reboots)
         self.session_count = persisted.get("session_count", 1)
@@ -218,6 +221,11 @@ class AutoTradingBot:
                 "allocation_per_trade": self.allocation_per_trade,
                 "leverage": self.leverage,
                 "max_positions": self.max_positions,
+                "fast_period": self.fast_period,
+                "slow_period": self.slow_period,
+                "rsi_period": self.rsi_period,
+                "rsi_oversold": getattr(self, "rsi_oversold", 20.0),
+                "rsi_overbought": getattr(self, "rsi_overbought", 80.0),
                 "stop_loss_pct": self.stop_loss_pct,
                 "take_profit_pct": self.take_profit_pct,
                 "use_ema200_filter": self.use_ema200_filter,
@@ -232,10 +240,13 @@ class AutoTradingBot:
                 "survival_mode": getattr(self, "survival_mode", True),
                 "daily_max_drawdown_pct": getattr(self, "daily_max_drawdown_pct", 1.5),
                 "min_risk_reward_ratio": getattr(self, "min_risk_reward_ratio", 2.5),
-                "survival_breakeven_pct": getattr(self, "survival_breakeven_pct", 0.65),
+                "survival_breakeven_pct": getattr(self, "survival_breakeven_pct", 0.5),
                 "enable_partial_profits": getattr(self, "enable_partial_profits", True),
                 "stagnation_timeout_mins": getattr(self, "stagnation_timeout_mins", 45),
                 "daily_circuit_tripped": getattr(self, "daily_circuit_tripped", False),
+                "daily_profit_target_pct": getattr(self, "daily_profit_target_pct", 2.0),
+                "lock_daily_green_target": getattr(self, "lock_daily_green_target", True),
+                "daily_green_locked": getattr(self, "daily_green_locked", False),
                 "ai_signals": getattr(self, "ai_signals", {}),
                 "ai_signals_metadata": getattr(self, "ai_signals_metadata", {}),
                 "session_id": self.session_id,
@@ -286,8 +297,19 @@ class AutoTradingBot:
         }
 
     def record_session_trade(self, trade_data: dict):
-        """Records an executed trade into the current bot session report and updates metrics"""
+        """Records an executed trade into the current bot session report and updates metrics (deduplicated)"""
         with self.lock:
+            trade_id = trade_data.get("id")
+            trade_sym = trade_data.get("symbol")
+            trade_side = trade_data.get("side")
+            trade_ts = (trade_data.get("timestamp") or "")[:16]
+            for existing in self.session_trades:
+                if trade_id and existing.get("id") == trade_id:
+                    return
+                if trade_sym and existing.get("symbol") == trade_sym and existing.get("side") == trade_side:
+                    if trade_ts and (existing.get("timestamp") or "").startswith(trade_ts):
+                        return
+
             if not trade_data.get("timestamp"):
                 trade_data["timestamp"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             if not trade_data.get("id"):
@@ -368,6 +390,8 @@ class AutoTradingBot:
             "fast_period": self.fast_period,
             "slow_period": self.slow_period,
             "rsi_period": self.rsi_period,
+            "rsi_oversold": getattr(self, "rsi_oversold", 20.0),
+            "rsi_overbought": getattr(self, "rsi_overbought", 80.0),
             "stop_loss_pct": self.stop_loss_pct,
             "take_profit_pct": self.take_profit_pct,
             "use_ema200_filter": self.use_ema200_filter,
@@ -386,10 +410,13 @@ class AutoTradingBot:
             "survival_mode": getattr(self, "survival_mode", True),
             "daily_max_drawdown_pct": getattr(self, "daily_max_drawdown_pct", 1.5),
             "min_risk_reward_ratio": getattr(self, "min_risk_reward_ratio", 2.5),
-            "survival_breakeven_pct": getattr(self, "survival_breakeven_pct", 0.65),
+            "survival_breakeven_pct": getattr(self, "survival_breakeven_pct", 0.5),
             "enable_partial_profits": getattr(self, "enable_partial_profits", True),
             "stagnation_timeout_mins": getattr(self, "stagnation_timeout_mins", 45),
             "daily_circuit_tripped": getattr(self, "daily_circuit_tripped", False),
+            "daily_profit_target_pct": getattr(self, "daily_profit_target_pct", 2.0),
+            "lock_daily_green_target": getattr(self, "lock_daily_green_target", True),
+            "daily_green_locked": getattr(self, "daily_green_locked", False),
             "last_run_time": self.last_run_time,
             "session": {
                 "session_id": self.session_id,
@@ -436,6 +463,10 @@ class AutoTradingBot:
             self.slow_period = int(config["slow_period"])
         if "rsi_period" in config:
             self.rsi_period = int(config["rsi_period"])
+        if "rsi_oversold" in config:
+            self.rsi_oversold = float(config["rsi_oversold"])
+        if "rsi_overbought" in config:
+            self.rsi_overbought = float(config["rsi_overbought"])
         if "stop_loss_pct" in config:
             self.stop_loss_pct = min(float(config["stop_loss_pct"]), 1.0) # Strict 1.0% max ceiling rule
         if "take_profit_pct" in config:
@@ -470,10 +501,18 @@ class AutoTradingBot:
             self.enable_partial_profits = bool(config["enable_partial_profits"])
         if "stagnation_timeout_mins" in config:
             self.stagnation_timeout_mins = int(config["stagnation_timeout_mins"])
+        if "daily_profit_target_pct" in config:
+            self.daily_profit_target_pct = float(config["daily_profit_target_pct"])
+        if "lock_daily_green_target" in config:
+            self.lock_daily_green_target = bool(config["lock_daily_green_target"])
+        if "daily_green_locked" in config:
+            self.daily_green_locked = bool(config["daily_green_locked"])
         self.persist_state()
 
     def start_new_session(self, config: dict = None):
         """Initializes a fresh new trading session report when the bot is started/restarted"""
+        self.daily_green_locked = False
+        self.daily_circuit_tripped = False
         if config:
             self.update_config(config)
 
@@ -873,7 +912,8 @@ class AutoTradingBot:
                 }
 
         # 2. Strategy Indicator Evaluation
-        if not closes or len(closes) < max(self.slow_period, self.rsi_period) + 2:
+        req_bars = (self.rsi_period + 2) if self.strategy in ["RSI_20_80", "RSI_MOMENTUM", "RSI"] else (max(self.slow_period, self.rsi_period) + 2)
+        if not closes or len(closes) < req_bars:
             return {
                 "symbol": symbol, "displayName": display_name, "price": current_price,
                 "change_pct": change_pct, "signal": "HOLD", "reason": "Insufficient candles",
@@ -952,23 +992,34 @@ class AutoTradingBot:
                 trend = "Bullish" if fast_curr > slow_curr else "Bearish"
                 reason = f"{trend} trend (Fast: {fast_curr:.1f}, Slow: {slow_curr:.1f})"
 
-        elif self.strategy == "RSI_MOMENTUM":
+        elif self.strategy in ["RSI_20_80", "RSI_MOMENTUM", "RSI"]:
             delta = s_closes.diff()
-            gain = (delta.where(delta > 0, 0)).rolling(window=self.rsi_period).mean()
-            loss = (-delta.where(delta < 0, 0)).rolling(window=self.rsi_period).mean()
+            gain = (delta.where(delta > 0, 0.0)).rolling(window=self.rsi_period).mean()
+            loss = (-delta.where(delta < 0, 0.0)).rolling(window=self.rsi_period).mean()
             rs = gain / (loss + 1e-9)
-            rsi = 100 - (100 / (1 + rs))
+            rsi = 100.0 - (100.0 / (1.0 + rs))
             current_rsi = float(rsi.iloc[-1])
             rsi_val = round(current_rsi, 1)
 
-            if current_rsi < self.rsi_oversold:
+            oversold_th = getattr(self, "rsi_oversold", 20.0)
+            overbought_th = getattr(self, "rsi_overbought", 80.0)
+
+            if current_rsi <= oversold_th:
                 signal = "BUY"
-                reason = f"Oversold Bounce (RSI: {current_rsi:.1f} < {self.rsi_oversold})"
-            elif current_rsi > self.rsi_overbought:
+                suggested_sl = round(current_price * 0.99, 2)
+                suggested_tp = round(current_price * 1.03, 2)
+                reason = f"⚡ RSI Extreme Oversold (RSI: {current_rsi:.1f} <= {oversold_th:.0f}) - Strong BUY Signal"
+                reversal_score = min(99, int(92 + max(0, (oversold_th - current_rsi) * 2)))
+                reversal_grade = "A+"
+            elif current_rsi >= overbought_th:
                 signal = "SELL"
-                reason = f"Overbought Exhaustion (RSI: {current_rsi:.1f} > {self.rsi_overbought})"
+                suggested_sl = round(current_price * 1.01, 2)
+                suggested_tp = round(current_price * 0.97, 2)
+                reason = f"⚡ RSI Extreme Overbought (RSI: {current_rsi:.1f} >= {overbought_th:.0f}) - SELL / Exit Signal"
+                reversal_score = min(99, int(92 + max(0, (current_rsi - overbought_th) * 2)))
+                reversal_grade = "A+"
             else:
-                reason = f"Neutral Momentum (RSI: {current_rsi:.1f})"
+                reason = f"RSI Neutral ({current_rsi:.1f}) | Buy at <= {oversold_th:.0f}, Sell at >= {overbought_th:.0f}"
 
         elif self.strategy == "VOLUME_SHOCKER":
             # ⚡ VOLUME SHOCKER STRATEGY: Institutional Accumulation (RVOL >= 1.75x)
@@ -1022,7 +1073,7 @@ class AutoTradingBot:
                 signal = "BUY"
                 suggested_sl = round(vwap_val, 2)
                 risk_dist = max(current_price * 0.005, current_price - suggested_sl)
-                suggested_tp = round(current_price + (risk_dist * 2.2), 2)
+                suggested_tp = round(current_price + (risk_dist * 2.6), 2)
                 reason = f"⚡ Triple Confluence BUY: Above VWAP (₹{vwap_val:.2f}) | 9 EMA > 21 EMA | RSI {rsi_curr:.1f} (Bullish Thrust) | Stop Loss = Exact VWAP"
                 reversal_score = 94
                 reversal_grade = "A+"
@@ -1030,7 +1081,7 @@ class AutoTradingBot:
                 signal = "SELL"
                 suggested_sl = round(vwap_val, 2)
                 risk_dist = max(current_price * 0.005, suggested_sl - current_price)
-                suggested_tp = round(current_price - (risk_dist * 2.2), 2)
+                suggested_tp = round(current_price - (risk_dist * 2.6), 2)
                 reason = f"⚡ Triple Confluence SHORT: Below VWAP (₹{vwap_val:.2f}) | 9 EMA < 21 EMA | RSI {rsi_curr:.1f} (Bearish Pullback) | Stop Loss = Exact VWAP"
                 reversal_score = 92
                 reversal_grade = "A+"
@@ -1044,7 +1095,10 @@ class AutoTradingBot:
         min_vol = getattr(self, "min_volume_ratio", 1.3)
 
         if signal == "BUY" and (not pos or getattr(pos, 'side', 'LONG') == 'SHORT'):
-            if getattr(self, 'use_nifty_filter', False) and nifty_reg == "BEARISH":
+            if self.strategy in ["RSI_20_80", "RSI_MOMENTUM", "RSI"]:
+                # Pure RSI Extreme mean-reversion strategy is built to buy deep oversold pullbacks (RSI <= 20)
+                pass
+            elif getattr(self, 'use_nifty_filter', False) and nifty_reg == "BEARISH":
                 signal = "HOLD"
                 reason = f"BUY Filtered: NIFTY 50 is BEARISH ({nifty_reg}) | Macro Market Trend Filter"
                 filter_status = "FILTERED_NIFTY_REGIME"
@@ -1058,7 +1112,9 @@ class AutoTradingBot:
                 filter_status = "FILTERED_VOLUME"
         elif signal == "SELL" and not pos:
             # For new SHORT entries:
-            if getattr(self, 'use_nifty_filter', False) and nifty_reg == "BULLISH":
+            if self.strategy in ["RSI_20_80", "RSI_MOMENTUM", "RSI"]:
+                pass
+            elif getattr(self, 'use_nifty_filter', False) and nifty_reg == "BULLISH":
                 signal = "HOLD"
                 reason = f"SHORT Filtered: NIFTY 50 is BULLISH ({nifty_reg}) | Macro Market Trend Filter"
                 filter_status = "FILTERED_NIFTY_REGIME"
@@ -1439,20 +1495,30 @@ class AutoTradingBot:
                         unrealized_today += (p_price - p.average_price) * p.quantity
                 
                 total_session_pnl = realized_today + unrealized_today
-                base_capital = 50000.0  # Base capital ₹50,000
-                session_dd_pct = round((total_session_pnl / base_capital) * 100, 2)
+                base_capital = 10000000.0 if self.is_after_hours_forced else 50000.0
+                session_pnl_pct = round((total_session_pnl / base_capital) * 100, 2)
                 max_dd_limit = float(getattr(self, "daily_max_drawdown_pct", 1.5))
 
-                if session_dd_pct <= -abs(max_dd_limit):
+                if session_pnl_pct <= -abs(max_dd_limit):
                     if not getattr(self, "daily_circuit_tripped", False):
                         self.daily_circuit_tripped = True
-                        self.add_log(f"🛡️ [SURVIVAL CIRCUIT BREAKER TRIPPED] Session loss hit {session_dd_pct:+.2f}% (Limit: -{max_dd_limit}%). Halting new orders for today to preserve capital!", "ERROR")
+                        self.add_log(f"🛡️ [SURVIVAL CIRCUIT BREAKER TRIPPED] Session loss hit {session_pnl_pct:+.2f}% (Limit: -{max_dd_limit}%). Halting new orders for today to preserve capital!", "ERROR")
                 else:
                     self.daily_circuit_tripped = False
+
+                # DAILY GREEN DAY TARGET LOCK (Goal & Vault):
+                daily_target_pct = float(getattr(self, "daily_profit_target_pct", 2.0))
+                lock_green = getattr(self, "lock_daily_green_target", True)
+                if lock_green and session_pnl_pct >= daily_target_pct:
+                    if not getattr(self, "daily_green_locked", False):
+                        self.daily_green_locked = True
+                        self.add_log(f"🏆 [DAILY GREEN DAY ACHIEVED] Target +{daily_target_pct:.1f}% hit! Desk P&L: ₹{total_session_pnl:+,.2f} (+{session_pnl_pct:.2f}%). Banking all profits and locking the day in GREEN!", "SUCCESS")
+                        self.auto_square_off_all_positions(reason=f"Daily Green Target Hit (+{session_pnl_pct:.2f}%)")
+                        self.persist_state()
             except Exception:
                 pass
 
-        if getattr(self, "daily_circuit_tripped", False):
+        if getattr(self, "daily_circuit_tripped", False) or getattr(self, "daily_green_locked", False):
             can_execute_trades = False
 
         for symbol in target_stocks:
@@ -1522,7 +1588,10 @@ class AutoTradingBot:
 
                     # Otherwise, if we do not hold this stock and have a position slot, open a LONG trade
                     elif symbol not in held_map and has_position_slot:
-                        if getattr(self, "daily_circuit_tripped", False):
+                        if getattr(self, "daily_green_locked", False):
+                            eval_res["action_executed"] = "LOCKED (Daily Green Day Target Secured)"
+                            self.add_log(f"🏆 [GREEN DAY VAULT] BUY on {display_name} skipped: Daily profit target secured. Green day locked!", "INFO")
+                        elif getattr(self, "daily_circuit_tripped", False):
                             eval_res["action_executed"] = "HALTED (Circuit Breaker Tripped)"
                             self.add_log(f"🛡️ [SURVIVAL SHIELD] BUY on {display_name} blocked: Daily Loss Circuit Breaker active", "WARNING")
                         else:
@@ -1564,7 +1633,7 @@ class AutoTradingBot:
                                             pass
 
                                     chg_amt = exec_res.get("charges", {}).get("total_charges", 0.0) if isinstance(exec_res.get("charges"), dict) else 0.0
-                                    strat_tag = "1-2-3 Neckline Break" if self.strategy == "123_REVERSAL" else ("Dual SMA Cross" if self.strategy == "SMA_CROSSOVER" else "RSI Reversal")
+                                    strat_tag = "1-2-3 Neckline Break" if self.strategy == "123_REVERSAL" else ("Dual SMA Cross" if self.strategy == "SMA_CROSSOVER" else ("RSI Extreme (20/80)" if self.strategy in ["RSI_20_80", "RSI_MOMENTUM", "RSI"] else self.strategy))
                                     self.record_session_trade({
                                         "symbol": symbol,
                                         "displayName": display_name,
@@ -1609,7 +1678,7 @@ class AutoTradingBot:
                     elif symbol in held_map:
                         eval_res["action_executed"] = f"ACTIVE ({getattr(held_map[symbol], 'side', 'LONG')})"
                 else:
-                    eval_res["action_executed"] = "OFFLINE (Bot Stopped)"
+                    eval_res["action_executed"] = "LOCKED (Daily Green Day Target Secured)" if getattr(self, "daily_green_locked", False) else "OFFLINE (Bot Stopped)"
 
             elif sig == "SELL":
                 sells_found += 1
@@ -1661,7 +1730,10 @@ class AutoTradingBot:
 
                     # Case B: If we do NOT hold this stock, enter a SHORT position!
                     elif symbol not in held_map and has_position_slot:
-                        if getattr(self, "daily_circuit_tripped", False):
+                        if getattr(self, "daily_green_locked", False):
+                            eval_res["action_executed"] = "LOCKED (Daily Green Day Target Secured)"
+                            self.add_log(f"🏆 [GREEN DAY VAULT] SHORT on {display_name} skipped: Daily profit target secured. Green day locked!", "INFO")
+                        elif getattr(self, "daily_circuit_tripped", False):
                             eval_res["action_executed"] = "HALTED (Circuit Breaker Tripped)"
                             self.add_log(f"🛡️ [SURVIVAL SHIELD] SHORT on {display_name} blocked: Daily Loss Circuit Breaker active", "WARNING")
                         else:
@@ -1748,7 +1820,7 @@ class AutoTradingBot:
                     elif symbol in held_map:
                         eval_res["action_executed"] = f"ACTIVE ({getattr(held_map[symbol], 'side', 'SHORT')})"
                 else:
-                    eval_res["action_executed"] = "OFFLINE (Bot Stopped)"
+                    eval_res["action_executed"] = "LOCKED (Daily Green Day Target Secured)" if getattr(self, "daily_green_locked", False) else "OFFLINE (Bot Stopped)"
 
             if symbol in already_traded_today and not eval_res.get("action_executed") and symbol not in held_map:
                 eval_res["action_executed"] = "TRADED TODAY"

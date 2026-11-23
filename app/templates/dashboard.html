@@ -266,6 +266,7 @@
             <div class="form-inline">
                 <label>Strategy:</label>
                 <select id="bt-strategy" class="sm-input" style="width: 175px;" onchange="onBtStrategyChange()">
+                    <option value="RSI_20_80">⚡ RSI Extreme (20/80)</option>
                     <option value="VWAP_EMA_RSI" selected>⚡ VWAP + EMA + RSI</option>
                     <option value="DMA_200">📈 200 DMA Regime</option>
                     <option value="SMA_CROSSOVER">Dual SMA Cross</option>
@@ -794,7 +795,7 @@ function setupEventListeners() {
             if (shortGrp) shortGrp.style.display = 'none';
             if (longGrp) longGrp.style.display = 'none';
             if (maTypeGrp) maTypeGrp.style.display = 'flex';
-        } else if (strat === 'VWAP_EMA_RSI') {
+        } else if (strat === 'VWAP_EMA_RSI' || strat === 'RSI_20_80') {
             if (shortGrp) shortGrp.style.display = 'none';
             if (longGrp) longGrp.style.display = 'none';
             if (maTypeGrp) maTypeGrp.style.display = 'none';

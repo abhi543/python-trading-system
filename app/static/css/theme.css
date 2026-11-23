@@ -45,6 +45,8 @@
     --accent-nighthawk-glow: rgba(255, 209, 102, 0.22);
     --accent-titan: #c084fc;
     --accent-titan-glow: rgba(192, 132, 252, 0.22);
+    --accent-scanner: #00d2ff;
+    --accent-scanner-glow: rgba(0, 210, 255, 0.25);
     
     /* Default Active Desk Accent */
     --accent-current: var(--accent-terminal);
@@ -69,6 +71,10 @@ body.theme-nighthawk {
 body.theme-titan {
     --accent-current: var(--accent-titan);
     --accent-glow: var(--accent-titan-glow);
+}
+body.theme-scanner {
+    --accent-current: var(--accent-scanner);
+    --accent-glow: var(--accent-scanner-glow);
 }
 
         * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -155,6 +161,7 @@ body.theme-titan {
         .desk-pill.pill-alpha .desk-dot { background: var(--accent-alpha); box-shadow: 0 0 6px var(--accent-alpha); }
         .desk-pill.pill-nighthawk .desk-dot { background: var(--accent-nighthawk); box-shadow: 0 0 6px var(--accent-nighthawk); }
         .desk-pill.pill-titan .desk-dot { background: var(--accent-titan); box-shadow: 0 0 6px var(--accent-titan); }
+        .desk-pill.pill-scanner .desk-dot { background: var(--accent-scanner); box-shadow: 0 0 6px var(--accent-scanner); }
 
         .desk-pill:hover {
             color: var(--text-main);
@@ -184,6 +191,12 @@ body.theme-titan {
             color: #ffffff;
             border: 1px solid rgba(192, 132, 252, 0.45);
             box-shadow: 0 0 14px rgba(192, 132, 252, 0.25);
+        }
+        .desk-pill.active.pill-scanner {
+            background: rgba(0, 210, 255, 0.16);
+            color: #ffffff;
+            border: 1px solid rgba(0, 210, 255, 0.45);
+            box-shadow: 0 0 14px rgba(0, 210, 255, 0.25);
         }
 
         /* Master Killswitch Set Apart on Right */

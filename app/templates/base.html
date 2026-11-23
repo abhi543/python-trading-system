@@ -15,7 +15,7 @@
     <!-- Master Theme Stylesheet (Unified Design Tokens, Desks & Components) -->
     <link rel="stylesheet" href="/static/css/theme.css">
 </head>
-<body class="{% if request.path == '/bot' %}theme-alpha{% elif request.path == '/bot-after-hours' or request.path == '/after-hours' %}theme-nighthawk{% elif request.path == '/bot-swing' or request.path == '/swing' %}theme-titan{% else %}theme-terminal{% endif %}">
+<body class="{% if request.path == '/bot' %}theme-alpha{% elif request.path == '/bot-after-hours' or request.path == '/after-hours' %}theme-nighthawk{% elif request.path == '/bot-swing' or request.path == '/swing' %}theme-titan{% elif request.path == '/scanner' or request.path == '/stock-scanner' or request.path == '/screener' %}theme-scanner{% else %}theme-terminal{% endif %}">
     <header class="app-header">
         <!-- Tier 1: Slim Top Nav Row -->
         <div class="top-nav-row">
@@ -39,6 +39,9 @@
                 </a>
                 <a href="/bot-swing" class="desk-pill pill-titan {% if request.path == '/bot-swing' or request.path == '/swing' %}active{% endif %}">
                     <span class="desk-dot"></span> TITAN (Swing)
+                </a>
+                <a href="/scanner" class="desk-pill pill-scanner {% if request.path == '/scanner' or request.path == '/stock-scanner' or request.path == '/screener' %}active{% endif %}">
+                    <span class="desk-dot"></span> SCANNER (Radar)
                 </a>
             </nav>
 
@@ -198,6 +201,10 @@
         <a href="/bot-swing" class="mobile-nav-item {% if request.path == '/bot-swing' or request.path == '/swing' %}active{% endif %}">
             <i class="fa-solid fa-bolt" style="color: #c084fc;"></i>
             <span>TITAN</span>
+        </a>
+        <a href="/scanner" class="mobile-nav-item {% if request.path == '/scanner' or request.path == '/stock-scanner' or request.path == '/screener' %}active{% endif %}">
+            <i class="fa-solid fa-crosshairs" style="color: #00d2ff;"></i>
+            <span>SCAN</span>
         </a>
         <button type="button" onclick="globalStopBothBots()" class="mobile-nav-item" style="background: none; border: none; cursor: pointer; color: #ef4444;">
             <i class="fa-solid fa-power-off"></i>
