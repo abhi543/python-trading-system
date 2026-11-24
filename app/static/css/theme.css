@@ -339,6 +339,7 @@ body.theme-scanner {
         .sidebar-item.item-nighthawk .desk-dot { background: var(--accent-nighthawk); box-shadow: 0 0 6px var(--accent-nighthawk); }
         .sidebar-item.item-titan .desk-dot { background: var(--accent-titan); box-shadow: 0 0 6px var(--accent-titan); }
         .sidebar-item.item-scanner .desk-dot { background: var(--accent-scanner); box-shadow: 0 0 6px var(--accent-scanner); }
+        .sidebar-item.item-lab .desk-dot { background: #fbbf24; box-shadow: 0 0 6px #fbbf24; }
 
         .sidebar-item.active .desk-dot {
             opacity: 1;
@@ -402,6 +403,18 @@ body.theme-scanner {
             background: rgba(0, 210, 255, 0.2);
             border-color: rgba(0, 210, 255, 0.4);
             color: var(--accent-scanner);
+        }
+
+        .sidebar-item.item-lab.active {
+            background: rgba(251, 191, 36, 0.12);
+            color: #ffffff;
+            border-color: rgba(251, 191, 36, 0.35);
+            box-shadow: 0 0 14px rgba(251, 191, 36, 0.18);
+        }
+        .sidebar-item.item-lab.active .item-icon {
+            background: rgba(251, 191, 36, 0.2);
+            border-color: rgba(251, 191, 36, 0.4);
+            color: #fbbf24;
         }
 
         /* Sidebar Action / Emergency Control Buttons */

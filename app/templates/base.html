@@ -15,7 +15,7 @@
     <!-- Master Theme Stylesheet (Unified Design Tokens, Desks & Components) -->
     <link rel="stylesheet" href="/static/css/theme.css">
 </head>
-<body class="{% if request.path == '/bot' %}theme-alpha{% elif request.path == '/bot-after-hours' or request.path == '/after-hours' %}theme-nighthawk{% elif request.path == '/bot-swing' or request.path == '/swing' %}theme-titan{% elif request.path == '/scanner' or request.path == '/stock-scanner' or request.path == '/screener' %}theme-scanner{% else %}theme-terminal{% endif %}">
+<body class="{% if request.path == '/bot' %}theme-alpha{% elif request.path == '/bot-after-hours' or request.path == '/after-hours' %}theme-nighthawk{% elif request.path == '/bot-swing' or request.path == '/swing' %}theme-titan{% elif request.path == '/scanner' or request.path == '/stock-scanner' or request.path == '/screener' %}theme-scanner{% elif request.path == '/lab' or request.path == '/backtest' or request.path == '/strategy-lab' %}theme-lab{% else %}theme-terminal{% endif %}">
     <div class="app-layout">
         <!-- Modern Financial Terminal Sidebar -->
         <aside class="app-sidebar" id="app-sidebar">
@@ -78,6 +78,15 @@
                         <div class="item-text">
                             <span class="item-title">SCANNER</span>
                             <span class="item-sub">Live Market Radar</span>
+                        </div>
+                        <span class="desk-dot"></span>
+                    </a>
+
+                    <a href="/lab" class="sidebar-item item-lab {% if request.path == '/lab' or request.path == '/backtest' or request.path == '/strategy-lab' %}active{% endif %}">
+                        <span class="item-icon"><i class="fa-solid fa-flask"></i></span>
+                        <div class="item-text">
+                            <span class="item-title">STRATEGY LAB</span>
+                            <span class="item-sub">1-Yr Fast Backtester</span>
                         </div>
                         <span class="desk-dot"></span>
                     </a>

@@ -28,6 +28,12 @@ def bot_swing_page():
 def scanner_page():
     return render_template('scanner.html')
 
+@views_bp.route('/lab')
+@views_bp.route('/backtest')
+@views_bp.route('/strategy-lab')
+def lab_page():
+    return render_template('lab.html')
+
 @views_bp.route('/debug-env')
 def debug_env():
     from flask import request

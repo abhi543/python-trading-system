@@ -2233,6 +2233,76 @@ def manage_scanner_custom_rules():
     })
 
 
+# ==============================================================================
+# STRATEGY LAB & FLASH BACKTESTER ENDPOINTS (1-YEAR DUAL-INGESTION ENGINE)
+# ==============================================================================
+
+@api_bp.route('/backtest/run', methods=['POST'])
+def run_backtest_api():
+    """Executes high-speed backtest via 1-click Auto-Fetch for any NSE symbol"""
+    try:
+        from app.services.backtester import BacktestEngine
+        data = request.get_json(silent=True) or {}
+        symbol = str(data.get("symbol", "RELIANCE.NS")).strip().upper()
+        if not symbol.endswith('.NS') and not symbol.startswith('^') and symbol != "NIFTY 50":
+            symbol = f"{symbol}.NS"
+        period = data.get("period", "1y")
+        interval = data.get("interval", "1d")
+
+        df = BacktestEngine.fetch_dataset(symbol, period=period, interval=interval)
+        results = BacktestEngine.run_backtest(df, data)
+        results["data_summary"]["symbol"] = symbol
+        return jsonify(results)
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 400
+
+@api_bp.route('/backtest/upload', methods=['POST'])
+def upload_backtest_api():
+    """Executes high-speed backtest from uploaded 1-year historical CSV or Excel file"""
+    try:
+        from app.services.backtester import BacktestEngine
+        import json
+        if 'file' not in request.files:
+            return jsonify({"success": False, "error": "No file uploaded. Please select a CSV or Excel file."}), 400
+        
+        file = request.files['file']
+        if file.filename == '':
+            return jsonify({"success": False, "error": "Empty filename selected."}), 400
+
+        content = file.read()
+        params = {}
+        if 'params' in request.form:
+            try:
+                params = json.loads(request.form['params'])
+            except Exception:
+                pass
+
+        df = BacktestEngine.parse_uploaded_file(content, file.filename)
+        results = BacktestEngine.run_backtest(df, params)
+        results["data_summary"]["symbol"] = file.filename
+        return jsonify(results)
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 400
+
+@api_bp.route('/backtest/sample-csv', methods=['GET'])
+def download_sample_csv():
+    """Generates and downloads a clean 1-year sample historical CSV file"""
+    try:
+        from app.services.backtester import BacktestEngine
+        from flask import Response
+        sym = request.args.get("symbol", "RELIANCE.NS")
+        csv_data = BacktestEngine.generate_sample_csv_content(sym)
+        clean_name = sym.replace('.NS', '').replace('^', '')
+        return Response(
+            csv_data,
+            mimetype="text/csv",
+            headers={"Content-Disposition": f"attachment;filename={clean_name}_1year_sample.csv"}
+        )
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 400
+
+
+
 
 
 
