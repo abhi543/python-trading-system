@@ -313,6 +313,8 @@ class BacktestEngine:
                     trades.append({
                         "id": len(trades) + 1,
                         "side": pos_side,
+                        "month_key": t.strftime("%Y-%m"),
+                        "month_label": t.strftime("%b %Y"),
                         "entry_time": position['entry_time'].strftime("%Y-%m-%d %H:%M"),
                         "exit_time": t.strftime("%Y-%m-%d %H:%M"),
                         "entry_price": round(entry_price, 2),
@@ -480,6 +482,41 @@ class BacktestEngine:
         avg_loss = round(gross_losses / loss_count, 2) if loss_count > 0 else 0.0
         risk_reward_achieved = round(avg_win / avg_loss, 2) if avg_loss > 0 else 0.0
 
+        # Monthly Performance Breakdown Aggregation
+        monthly_map = {}
+        for tr in trades:
+            m_key = tr.get("month_key") or tr["exit_time"][:7]
+            m_lbl = tr.get("month_label") or m_key
+            if m_key not in monthly_map:
+                monthly_map[m_key] = {
+                    "month_key": m_key,
+                    "month_label": m_lbl,
+                    "total_trades": 0,
+                    "win_count": 0,
+                    "loss_count": 0,
+                    "gross_pnl": 0.0,
+                    "charges": 0.0,
+                    "net_pnl": 0.0
+                }
+            m_stat = monthly_map[m_key]
+            m_stat["total_trades"] += 1
+            if tr["is_win"]:
+                m_stat["win_count"] += 1
+            else:
+                m_stat["loss_count"] += 1
+            m_stat["gross_pnl"] = round(m_stat["gross_pnl"] + tr["gross_pnl"], 2)
+            m_stat["charges"] = round(m_stat["charges"] + tr["charges"], 2)
+            m_stat["net_pnl"] = round(m_stat["net_pnl"] + tr["net_pnl"], 2)
+
+        monthly_breakdown = []
+        for m_key in sorted(monthly_map.keys()):
+            m_stat = monthly_map[m_key]
+            m_tot = m_stat["total_trades"]
+            m_win = m_stat["win_count"]
+            m_stat["win_rate"] = round((m_win / m_tot) * 100.0, 1) if m_tot > 0 else 0.0
+            m_stat["roi_pct"] = round((m_stat["net_pnl"] / initial_capital) * 100.0, 2)
+            monthly_breakdown.append(m_stat)
+
         execution_duration = round(time.time() - start_exec_time, 2)
 
         return {
@@ -504,6 +541,7 @@ class BacktestEngine:
                 "eod_closed_count": eod_closed_count,
                 "execution_seconds": execution_duration
             },
+            "monthly_breakdown": monthly_breakdown,
             "data_summary": {
                 "total_candles": n_bars,
                 "start_time": df.iloc[0]['datetime'].strftime("%Y-%m-%d"),

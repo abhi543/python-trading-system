@@ -522,17 +522,57 @@
             </div>
         </div>
 
+        <!-- Month-by-Month Performance Matrix -->
+        <div class="trades-table-wrap">
+            <div class="trades-table-header" style="background: rgba(251, 191, 36, 0.05);">
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <span style="font-weight: 800; font-size: 0.95rem; color: #ffffff;">
+                        <i class="fa-solid fa-calendar-days" style="color: #fbbf24;"></i> MONTH-BY-MONTH PERFORMANCE BREAKDOWN
+                    </span>
+                    <span class="lab-badge badge-amber" id="total-months-badge">0 Months</span>
+                </div>
+                <div style="color: #94a3b8; font-size: 0.76rem;">
+                    Click <span style="color: #fbbf24;">"View Month Trades"</span> on any row to inspect its individual trades below
+                </div>
+            </div>
+            <div style="overflow-x: auto;">
+                <table class="trades-table">
+                    <thead>
+                        <tr>
+                            <th>Month</th>
+                            <th>Total Trades</th>
+                            <th>Win / Loss</th>
+                            <th>Win Rate %</th>
+                            <th>Gross P&amp;L</th>
+                            <th>Taxes &amp; Charges</th>
+                            <th>Net P&amp;L (₹)</th>
+                            <th>Monthly ROI</th>
+                            <th style="text-align: right;">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody id="monthly-tbody">
+                        <tr><td colspan="9" style="text-align: center; padding: 1.5rem; color: #94a3b8;">Run backtest to view month-by-month performance.</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
         <!-- Trades History Table -->
         <div class="trades-table-wrap">
             <div class="trades-table-header">
-                <div style="display: flex; align-items: center; gap: 10px;">
+                <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
                     <span style="font-weight: 800; font-size: 0.95rem; color: #ffffff;">
                         <i class="fa-solid fa-list-check" style="color: #fbbf24;"></i> EXECUTED TRADE LOG
                     </span>
                     <span class="lab-badge badge-blue" id="total-trades-badge">0 Trades</span>
+                    <span id="active-month-pill" style="display: none;" class="lab-badge badge-amber"></span>
                 </div>
-                <div style="display: flex; gap: 8px;">
-                    <button class="tab-btn" onclick="filterTrades('ALL')" id="filter-all" style="padding: 4px 10px; font-size: 0.74rem;">All</button>
+                <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+                    <label style="font-size: 0.74rem; font-weight: 700; color: #94a3b8;">MONTH:</label>
+                    <select id="trade-month-filter" class="form-select" style="padding: 4px 10px; font-size: 0.74rem; width: auto;" onchange="onMonthSelectChange(this.value)">
+                        <option value="ALL">All Months</option>
+                    </select>
+                    <button class="tab-btn" onclick="filterTrades('ALL')" id="filter-all" style="padding: 4px 10px; font-size: 0.74rem;">All Trades</button>
                     <button class="tab-btn" onclick="filterTrades('WIN')" id="filter-win" style="padding: 4px 10px; font-size: 0.74rem;">Wins Only</button>
                     <button class="tab-btn" onclick="filterTrades('LOSS')" id="filter-loss" style="padding: 4px 10px; font-size: 0.74rem;">Losses Only</button>
                     <button class="tab-btn" onclick="exportTradesCSV()" style="padding: 4px 10px; font-size: 0.74rem; background: rgba(0, 240, 144, 0.15); border-color: #00f090; color: #00f090;">
@@ -572,7 +612,9 @@
     let activeIngestion = 'AUTOFETCH';
     let uploadedFileObj = null;
     let currentTradesList = [];
+    let currentMonthlyList = [];
     let currentFilter = 'ALL';
+    let activeMonthFilter = 'ALL';
 
     function switchIngestionTab(mode) {
         activeIngestion = mode;
@@ -724,13 +766,101 @@
         document.getElementById('res-speed').innerText = `${m.execution_seconds}s`;
         document.getElementById('res-candles').innerText = `${res.data_summary.total_candles.toLocaleString('en-IN')} Candles Processed`;
 
+        // Render Month-by-Month Breakdown
+        currentMonthlyList = res.monthly_breakdown || [];
+        renderMonthlyTable(currentMonthlyList);
+
+        // Populate Month Dropdown Filter
+        populateMonthSelect(currentMonthlyList);
+
         // Render Trades Table
         currentTradesList = res.trades || [];
-        document.getElementById('total-trades-badge').innerText = `${currentTradesList.length} Trades`;
+        activeMonthFilter = 'ALL';
         renderTradesTable();
 
         // Render Equity Curve
         drawEquityChart(res.equity_curve || []);
+    }
+
+    function renderMonthlyTable(months) {
+        const tbody = document.getElementById('monthly-tbody');
+        tbody.innerHTML = '';
+        document.getElementById('total-months-badge').innerText = `${months.length} Months`;
+
+        if (months.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="9" style="text-align: center; padding: 1.5rem; color: #94a3b8;">No monthly trade data available.</td></tr>`;
+            return;
+        }
+
+        months.forEach(m => {
+            const tr = document.createElement('tr');
+            const pnlColor = m.net_pnl >= 0 ? '#00f090' : '#ef4444';
+            const roiBadgeClass = m.roi_pct >= 0 ? 'badge-win' : 'badge-loss';
+            tr.innerHTML = `
+                <td style="font-weight: 800; color: #ffffff;"><i class="fa-regular fa-calendar" style="color: #fbbf24; margin-right: 6px;"></i> ${m.month_label}</td>
+                <td style="font-weight: 700;">${m.total_trades} trades</td>
+                <td style="font-size: 0.8rem;"><span style="color: #00f090; font-weight: 700;">${m.win_count}W</span> / <span style="color: #ef4444; font-weight: 700;">${m.loss_count}L</span></td>
+                <td><span class="${m.win_rate >= 50 ? 'badge-win' : 'badge-loss'}">${m.win_rate.toFixed(1)}%</span></td>
+                <td style="font-family: monospace;">₹${m.gross_pnl.toFixed(2)}</td>
+                <td style="font-size: 0.78rem; color: #94a3b8;">₹${m.charges.toFixed(2)}</td>
+                <td style="font-weight: 800; font-family: monospace; color: ${pnlColor}; font-size: 0.9rem;">${m.net_pnl >= 0 ? '+' : ''}₹${m.net_pnl.toLocaleString('en-IN', {minimumFractionDigits: 2})}</td>
+                <td><span class="${roiBadgeClass}">${m.roi_pct >= 0 ? '+' : ''}${m.roi_pct.toFixed(2)}%</span></td>
+                <td style="text-align: right;">
+                    <button class="tab-btn" onclick="filterToSpecificMonth('${m.month_key}', '${m.month_label}')" style="padding: 4px 10px; font-size: 0.74rem; border-color: rgba(251, 191, 36, 0.4); color: #fbbf24;">
+                        <i class="fa-solid fa-arrow-down"></i> View Month Trades
+                    </button>
+                </td>
+            `;
+            tbody.appendChild(tr);
+        });
+    }
+
+    function populateMonthSelect(months) {
+        const select = document.getElementById('trade-month-filter');
+        select.innerHTML = `<option value="ALL">All Months (${currentTradesList.length} Trades)</option>`;
+        months.forEach(m => {
+            const opt = document.createElement('option');
+            opt.value = m.month_key;
+            opt.innerText = `${m.month_label} (${m.total_trades} Trades | ${m.net_pnl >= 0 ? '+' : ''}₹${m.net_pnl.toFixed(0)})`;
+            select.appendChild(opt);
+        });
+    }
+
+    function onMonthSelectChange(monthKey) {
+        activeMonthFilter = monthKey;
+        const pill = document.getElementById('active-month-pill');
+        if (monthKey === 'ALL') {
+            pill.style.display = 'none';
+        } else {
+            const mObj = currentMonthlyList.find(m => m.month_key === monthKey);
+            const mLabel = mObj ? mObj.month_label : monthKey;
+            pill.style.display = 'inline-flex';
+            pill.innerHTML = `<i class="fa-regular fa-calendar"></i> Month: <strong>${mLabel}</strong> <span style="cursor: pointer; margin-left: 6px;" onclick="clearMonthFilter()">✕ Clear</span>`;
+        }
+        renderTradesTable();
+    }
+
+    function filterToSpecificMonth(monthKey, monthLabel) {
+        activeMonthFilter = monthKey;
+        const select = document.getElementById('trade-month-filter');
+        if (select) select.value = monthKey;
+        const pill = document.getElementById('active-month-pill');
+        pill.style.display = 'inline-flex';
+        pill.innerHTML = `<i class="fa-regular fa-calendar"></i> Month: <strong>${monthLabel || monthKey}</strong> <span style="cursor: pointer; margin-left: 6px;" onclick="clearMonthFilter()">✕ Clear</span>`;
+        renderTradesTable();
+
+        // Scroll to trades table smoothly
+        const tableCard = document.querySelector('.trades-table-wrap:last-child');
+        if (tableCard) tableCard.scrollIntoView({ behavior: 'smooth' });
+    }
+
+    function clearMonthFilter() {
+        activeMonthFilter = 'ALL';
+        const select = document.getElementById('trade-month-filter');
+        if (select) select.value = 'ALL';
+        const pill = document.getElementById('active-month-pill');
+        pill.style.display = 'none';
+        renderTradesTable();
     }
 
     function filterTrades(type) {
@@ -746,11 +876,18 @@
         tbody.innerHTML = '';
 
         let filtered = currentTradesList;
-        if (currentFilter === 'WIN') filtered = currentTradesList.filter(t => t.is_win);
-        else if (currentFilter === 'LOSS') filtered = currentTradesList.filter(t => !t.is_win);
+        // Filter by month
+        if (activeMonthFilter !== 'ALL') {
+            filtered = filtered.filter(t => (t.month_key === activeMonthFilter) || (t.exit_time && t.exit_time.startsWith(activeMonthFilter)));
+        }
+        // Filter by win/loss
+        if (currentFilter === 'WIN') filtered = filtered.filter(t => t.is_win);
+        else if (currentFilter === 'LOSS') filtered = filtered.filter(t => !t.is_win);
+
+        document.getElementById('total-trades-badge').innerText = `${filtered.length} Trades shown`;
 
         if (filtered.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="13" style="text-align: center; padding: 2rem; color: #94a3b8;">No trades match filter "${currentFilter}".</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="13" style="text-align: center; padding: 2rem; color: #94a3b8;">No trades match selected filters (Month: "${activeMonthFilter}", Type: "${currentFilter}").</td></tr>`;
             return;
         }
 
