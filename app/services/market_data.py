@@ -236,6 +236,13 @@ class MarketDataService:
             if not pd.isna(calc_rsi.iloc[-1]):
                 rsi_14 = round(float(calc_rsi.iloc[-1]), 2)
 
+        # Previous Day Low/High & Current Session Low/High for SMC Liquidity Sweeps
+        pdl = round(float(valid_lows[-2]), 2) if len(valid_lows) > 1 else round(float(valid_lows[-1]), 2)
+        pdh = round(float(valid_highs[-2]), 2) if len(valid_highs) > 1 else round(float(valid_highs[-1]), 2)
+        today_low = round(float(valid_lows[-1]), 2) if valid_lows else round(float(current_price), 2)
+        today_high = round(float(valid_highs[-1]), 2) if valid_highs else round(float(current_price), 2)
+        today_open = round(float(valid_opens[-1]), 2) if valid_opens else round(float(current_price), 2)
+
         return {
             "symbol": resolved_symbol,
             "price": round(float(current_price), 2),
@@ -252,7 +259,12 @@ class MarketDataService:
             "vwap": vwap or round(current_price * 0.995, 2),
             "ema_9": ema_9 or current_price,
             "ema_21": ema_21 or current_price,
-            "rsi_14": rsi_14
+            "rsi_14": rsi_14,
+            "prev_day_low": pdl,
+            "prev_day_high": pdh,
+            "today_low": today_low,
+            "today_high": today_high,
+            "today_open": today_open
         }
 
     @staticmethod

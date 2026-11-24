@@ -1068,6 +1068,52 @@ class AutoTradingBot:
                 reversal_score = 90
                 reversal_grade = "A"
 
+        elif self.strategy in ["SMC_LIQUIDITY_SWEEP", "PDL_SWEEP"]:
+            # ⚡ SMC LIQUIDITY SWEEP STRATEGY (PDL / PDH Institutional Trap Reversal)
+            pdl = stock_data.get("prev_day_low") or (current_price * 0.985)
+            pdh = stock_data.get("prev_day_high") or (current_price * 1.015)
+            today_low = stock_data.get("today_low") or current_price
+            today_high = stock_data.get("today_high") or current_price
+            vwap_val = stock_data.get("vwap") or current_price
+            atr = stock_data.get("atr_14") or (current_price * 0.015)
+
+            # Bullish PDL Sweep (Long): Price swept below Previous Day Low, then closed/reclaimed back above PDL
+            # Confluence: Price is near or above intraday VWAP
+            is_pdl_sweep_buy = (today_low < pdl) and (current_price >= pdl) and (current_price >= vwap_val * 0.997)
+
+            # Bearish PDH Sweep (Short): Price swept above Previous Day High, then rejected/closed back below PDH
+            # Confluence: Price is near or below intraday VWAP
+            is_pdh_sweep_short = (today_high > pdh) and (current_price <= pdh) and (current_price <= vwap_val * 1.003)
+
+            strict_sl_pct = min(abs(self.stop_loss_pct or 1.0), 1.0)
+
+            if is_pdl_sweep_buy:
+                signal = "BUY"
+                raw_sl = round(today_low - 0.1 * atr, 2)
+                # Strict 1.0% stop-loss ceiling protection
+                strict_sl = round(current_price * (1.0 - strict_sl_pct / 100.0), 2)
+                suggested_sl = max(raw_sl, strict_sl)
+                risk_dist = max(current_price * 0.004, current_price - suggested_sl)
+                suggested_tp = round(current_price + (risk_dist * 2.8), 2)
+                reason = f"⚡ SMC PDL Sweep BUY: Swept PDL ₹{pdl:.2f} (Low ₹{today_low:.2f}) & reclaimed! Bear trap reversed | SL: ₹{suggested_sl:.2f} | TP: ₹{suggested_tp:.2f} (1:2.8 R:R)"
+                reversal_score = 96
+                reversal_grade = "A+"
+            elif is_pdh_sweep_short:
+                signal = "SELL"
+                raw_sl = round(today_high + 0.1 * atr, 2)
+                # Strict 1.0% stop-loss ceiling protection
+                strict_sl = round(current_price * (1.0 + strict_sl_pct / 100.0), 2)
+                suggested_sl = min(raw_sl, strict_sl)
+                risk_dist = max(current_price * 0.004, suggested_sl - current_price)
+                suggested_tp = round(current_price - (risk_dist * 2.8), 2)
+                reason = f"⚡ SMC PDH Sweep SHORT: Swept PDH ₹{pdh:.2f} (High ₹{today_high:.2f}) & rejected! Bull trap reversed | SL: ₹{suggested_sl:.2f} | TP: ₹{suggested_tp:.2f} (1:2.8 R:R)"
+                reversal_score = 94
+                reversal_grade = "A+"
+            else:
+                pdl_dist = round(((current_price - pdl) / pdl) * 100, 2)
+                pdh_dist = round(((current_price - pdh) / pdh) * 100, 2)
+                reason = f"SMC Neutral: PDL ₹{pdl:.2f} ({pdl_dist:+0.2f}%), PDH ₹{pdh:.2f} ({pdh_dist:+0.2f}%) | Awaiting liquidity sweep outside range"
+
         elif self.strategy == "VWAP_EMA_RSI":
             # ⚡ TRIPLE CONFLUENCE STRATEGY: VWAP + EMA + RSI
             vwap_val = stock_data.get("vwap") or (current_price * 0.995)
@@ -1647,7 +1693,7 @@ class AutoTradingBot:
                                             pass
 
                                     chg_amt = exec_res.get("charges", {}).get("total_charges", 0.0) if isinstance(exec_res.get("charges"), dict) else 0.0
-                                    strat_tag = "1-2-3 Neckline Break" if self.strategy == "123_REVERSAL" else ("Dual SMA Cross" if self.strategy == "SMA_CROSSOVER" else ("RSI Extreme (20/80)" if self.strategy in ["RSI_20_80", "RSI_MOMENTUM", "RSI"] else self.strategy))
+                                    strat_tag = "SMC Liquidity Sweep" if self.strategy in ["SMC_LIQUIDITY_SWEEP", "PDL_SWEEP"] else ("1-2-3 Neckline Break" if self.strategy == "123_REVERSAL" else ("Dual SMA Cross" if self.strategy == "SMA_CROSSOVER" else ("RSI Extreme (20/80)" if self.strategy in ["RSI_20_80", "RSI_MOMENTUM", "RSI"] else self.strategy)))
                                     self.record_session_trade({
                                         "symbol": symbol,
                                         "displayName": display_name,
@@ -1789,7 +1835,7 @@ class AutoTradingBot:
                                             pass
 
                                     chg_amt = exec_res.get("charges", {}).get("total_charges", 0.0) if isinstance(exec_res.get("charges"), dict) else 0.0
-                                    strat_tag = "1-2-3 Neckline Breakdown" if self.strategy == "123_REVERSAL" else ("Dual SMA Death Cross" if self.strategy == "SMA_CROSSOVER" else "RSI Overbought")
+                                    strat_tag = "SMC Liquidity Sweep" if self.strategy in ["SMC_LIQUIDITY_SWEEP", "PDL_SWEEP"] else ("1-2-3 Neckline Breakdown" if self.strategy == "123_REVERSAL" else ("Dual SMA Death Cross" if self.strategy == "SMA_CROSSOVER" else "RSI Overbought"))
                                     self.record_session_trade({
                                         "symbol": symbol,
                                         "displayName": display_name,
