@@ -153,12 +153,13 @@
                 <div class="config-item">
                     <label><i class="fa-solid fa-chart-line"></i> STRATEGY MODEL</label>
                     <select id="bot-strategy" class="config-select" onchange="onStrategyChange()">
+                        <option value="AUTO_ENSEMBLE" selected>🤖 Auto-Pilot Ensemble (Self-Adaptive Regime Engine)</option>
                         <option value="SMC_LIQUIDITY_SWEEP">⚡ SMC Liquidity Sweep (PDL / PDH Bear &amp; Bull Trap Hunt)</option>
                         <option value="RSI_20_80">⚡ RSI Extreme (Buy &le; 20 / Sell &ge; 80 Mean Reversion)</option>
                         <option value="VWAP_EMA_RSI">⚡ VWAP + EMA + RSI Confluence (Volume Anchor &amp; Momentum)</option>
                         <option value="DMA_200">📈 200 DMA Regime Trend (Buy Above / Short Below 200 DMA)</option>
                         <option value="VOLUME_SHOCKER">⚡ Volume Shocker Breakout (Institutional RVOL &ge; 1.75x)</option>
-                        <option value="123_REVERSAL" selected>1-2-3 Reversal Map [AGPro Series v2.1] (Neckline Break &amp; Target)</option>
+                        <option value="123_REVERSAL">1-2-3 Reversal Map [AGPro Series v2.1] (Neckline Break &amp; Target)</option>
                         <option value="SMA_CROSSOVER">Dual SMA Golden/Death Cross (9 / 21)</option>
                         <option value="RSI_MOMENTUM">RSI Mean Reversion (14-Period, 35/65)</option>
                     </select>
@@ -1973,9 +1974,9 @@
     window.cachedActivePositions = [];
 
     document.addEventListener('DOMContentLoaded', () => {
-        const savedStrat = localStorage.getItem('nifty_bot_strategy') || '123_REVERSAL';
+        const savedStrat = localStorage.getItem('nifty_bot_strategy') || 'AUTO_ENSEMBLE';
         const stratEl = document.getElementById('bot-strategy');
-        if (stratEl) stratEl.value = savedStrat;
+        if (stratEl) stratEl.value = (savedStrat === '123_REVERSAL') ? 'AUTO_ENSEMBLE' : savedStrat;
 
         const savedScan = localStorage.getItem('nifty_bot_scan_mode');
         if (savedScan) {
@@ -2366,8 +2367,8 @@
     }
 
     function updateConfigSummaryRibbon() {
-        const stratVal = document.getElementById('bot-strategy')?.value || '123_REVERSAL';
-        const stratName = (stratVal === 'SMC_LIQUIDITY_SWEEP') ? 'SMC Liquidity Sweep' : ((stratVal === '123_REVERSAL') ? '1-2-3 Reversal Map' : (stratVal === 'RSI_20_80' ? 'RSI 20/80 Reversal' : (stratVal === 'VWAP_EMA_RSI' ? 'VWAP+EMA+RSI' : (stratVal === 'VOLUME_SHOCKER' ? 'Volume Shocker' : (stratVal === 'DMA_200' ? '200 DMA Regime' : (stratVal === 'SMA_CROSSOVER' ? 'Dual SMA (9/21)' : 'RSI Reversion'))))));
+        const stratVal = document.getElementById('bot-strategy')?.value || 'AUTO_ENSEMBLE';
+        const stratName = (stratVal === 'AUTO_ENSEMBLE') ? '🤖 Auto-Pilot Ensemble' : ((stratVal === 'SMC_LIQUIDITY_SWEEP') ? 'SMC Liquidity Sweep' : ((stratVal === '123_REVERSAL') ? '1-2-3 Reversal Map' : (stratVal === 'RSI_20_80' ? 'RSI 20/80 Reversal' : (stratVal === 'VWAP_EMA_RSI' ? 'VWAP+EMA+RSI' : (stratVal === 'VOLUME_SHOCKER' ? 'Volume Shocker' : (stratVal === 'DMA_200' ? '200 DMA Regime' : (stratVal === 'SMA_CROSSOVER' ? 'Dual SMA (9/21)' : 'RSI Reversion')))))));
         const mode = document.getElementById('bot-scan-mode')?.value || 'TOP_200_TURNOVER';
         const universeName = (mode === 'TOP_200_TURNOVER') ? 'Top 200 Turnover' : ((mode === 'ALL_NSE_2000') ? 'Total Market (2,000+)' : ((mode === 'ALL_NIFTY_200') ? 'NIFTY 200' : (mode === 'SINGLE' ? 'Single Focus' : 'NIFTY 50')));
         const capital = document.getElementById('bot-allocation')?.value || '500';
@@ -2391,8 +2392,8 @@
         const marginVal = Number(capital) || 500;
         const exposureVal = marginVal * 5;
         if (ribCap) ribCap.innerHTML = `<i class="fa-solid fa-bolt" style="color: var(--green);"></i> Margin: <strong>₹${marginVal.toLocaleString('en-IN')}</strong> <span style="opacity: 0.85;">(5x: ₹${exposureVal.toLocaleString('en-IN')})</span>`;
-        if (ribSl) ribSl.innerHTML = (stratVal === 'SMC_LIQUIDITY_SWEEP') ? `<i class="fa-solid fa-shield-halved"></i> SL: <strong>Sweep Wick (Max ${slVal}%)</strong>` : ((stratVal === '123_REVERSAL') ? `<i class="fa-solid fa-shield-halved"></i> SL: <strong>Point 3 (Max ${slVal}%)</strong>` : `<i class="fa-solid fa-shield-halved"></i> SL: <strong>${slVal}%</strong>`);
-        if (ribTp) ribTp.innerHTML = (stratVal === 'SMC_LIQUIDITY_SWEEP') ? `<i class="fa-solid fa-bullseye"></i> TP: <strong>1:2.8 Institutional Target</strong>` : ((stratVal === '123_REVERSAL') ? `<i class="fa-solid fa-bullseye"></i> TP: <strong>Dual (${tpVal}% / Measured Move)</strong>` : `<i class="fa-solid fa-bullseye"></i> TP: <strong>${tpVal}%</strong>`);
+        if (ribSl) ribSl.innerHTML = (stratVal === 'AUTO_ENSEMBLE') ? `<i class="fa-solid fa-robot" style="color: #00f090;"></i> SL: <strong>Adaptive Auto (Max ${slVal}%)</strong>` : ((stratVal === 'SMC_LIQUIDITY_SWEEP') ? `<i class="fa-solid fa-shield-halved"></i> SL: <strong>Sweep Wick (Max ${slVal}%)</strong>` : ((stratVal === '123_REVERSAL') ? `<i class="fa-solid fa-shield-halved"></i> SL: <strong>Point 3 (Max ${slVal}%)</strong>` : `<i class="fa-solid fa-shield-halved"></i> SL: <strong>${slVal}%</strong>`));
+        if (ribTp) ribTp.innerHTML = (stratVal === 'AUTO_ENSEMBLE') ? `<i class="fa-solid fa-bullseye" style="color: #00f090;"></i> TP: <strong>Adaptive 1:2.8+ Target</strong>` : ((stratVal === 'SMC_LIQUIDITY_SWEEP') ? `<i class="fa-solid fa-bullseye"></i> TP: <strong>1:2.8 Institutional Target</strong>` : ((stratVal === '123_REVERSAL') ? `<i class="fa-solid fa-bullseye"></i> TP: <strong>Dual (${tpVal}% / Measured Move)</strong>` : `<i class="fa-solid fa-bullseye"></i> TP: <strong>${tpVal}%</strong>`));
         if (ribEma) ribEma.innerHTML = emaOn ? `<i class="fa-solid fa-filter" style="color: var(--green);"></i> 200 EMA: <strong>ON</strong>` : `<i class="fa-solid fa-filter" style="color: var(--text-muted);"></i> 200 EMA: <strong>OFF</strong>`;
         const regStr = window.lastNiftyRegime || 'BULLISH';
         const regCol = regStr === 'BULLISH' ? '#06d6a0' : (regStr === 'BEARISH' ? '#ff3366' : '#ffd166');
@@ -2537,14 +2538,16 @@
             unlBadge.innerHTML = (isNaN(pVal) || pVal <= 0) ? '✨ Unlimited Holdings (No Limit)' : `✨ Max ${pVal} Positions`;
             unlBadge.style.display = 'inline-block';
         }
+        const isAuto = (!stratSelect || stratSelect.value === 'AUTO_ENSEMBLE');
         const is200 = (stratSelect && stratSelect.value === 'DMA_200');
         const isSmc = (stratSelect && stratSelect.value === 'SMC_LIQUIDITY_SWEEP');
+        const is123 = (stratSelect && stratSelect.value === '123_REVERSAL');
         if (slBadge) {
-            slBadge.innerHTML = isSmc ? '🛡️ Sweep Wick Dynamic Stop (Max Clamped Ceiling)' : (is200 ? '🛡️ Exact 200 DMA Dynamic Trailing Stop' : (is123 ? '🛡️ Point 3 Stop (Max Clamped Ceiling)' : '🛑 Fixed % Stop-Loss'));
+            slBadge.innerHTML = isAuto ? '🤖 Adaptive Smart Money SL (Wick / Point 3, Max 1% Ceiling)' : (isSmc ? '🛡️ Sweep Wick Dynamic Stop (Max Clamped Ceiling)' : (is200 ? '🛡️ Exact 200 DMA Dynamic Trailing Stop' : (is123 ? '🛡️ Point 3 Stop (Max Clamped Ceiling)' : '🛑 Fixed % Stop-Loss')));
             slBadge.style.display = 'inline-block';
         }
         if (tpBadge) {
-            tpBadge.innerHTML = isSmc ? '🎯 1:2.8 Institutional Target' : (is200 ? '🎯 1:2.8+ Macro Trend Target' : (is123 ? '🎯 Dual Target: % Gain OR Measured Move' : '🎯 % Target'));
+            tpBadge.innerHTML = isAuto ? '🎯 Adaptive Institutional TP (1:2.6 - 1:2.8+ R:R)' : (isSmc ? '🎯 1:2.8 Institutional Target' : (is200 ? '🎯 1:2.8+ Macro Trend Target' : (is123 ? '🎯 Dual Target: % Gain OR Measured Move' : '🎯 % Target')));
             tpBadge.style.display = 'inline-block';
         }
 

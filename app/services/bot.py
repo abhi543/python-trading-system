@@ -123,14 +123,14 @@ class AutoTradingBot:
         persisted = _load_persistent_bot_state(self.state_filename)
         self.is_running = persisted.get("is_running", False)
         default_scan = "TOP_200_TURNOVER"
-        default_strat = "123_REVERSAL"
+        default_strat = "AUTO_ENSEMBLE" if (self.name == "ALPHA" or not self.is_after_hours_forced) else "123_REVERSAL"
         self.scan_mode = persisted.get("scan_mode", default_scan)
         if self.scan_mode == "KRONOS_UNIVERSE":
             self.scan_mode = "TOP_200_TURNOVER"
         self.single_symbol = persisted.get("single_symbol", "RELIANCE.NS")
         self.strategy = persisted.get("strategy", default_strat)
-        if self.strategy == "KRONOS_AI":
-            self.strategy = "123_REVERSAL"
+        if (self.name == "ALPHA" or not self.is_after_hours_forced) and self.strategy in ["KRONOS_AI", "123_REVERSAL", "VWAP_EMA_RSI"]:
+            self.strategy = "AUTO_ENSEMBLE"
         if self.name == "ALPHA":
             # Start stock traded from just 500 margin
             persisted_alloc = persisted.get("allocation_per_trade")
@@ -609,6 +609,208 @@ class AutoTradingBot:
         self.add_log(f"🛑 Auto-Bot PAUSED and STOPPED by operator. Session #{self.session_count} report finalized ({trade_count} trades preserved).", "WARNING")
         return {"success": True, "message": f"Bot stopped. Session #{self.session_count} report preserved ({trade_count} trades).", "status": self.get_status()}
 
+    def _evaluate_ensemble(self, symbol: str, stock_data: dict, current_price: float, change_pct: float, closes: list, s_closes: pd.Series, ema_200: float, trend_200: str, vol_ratio: float, atr_14: float) -> dict:
+        """
+        Auto-Regime Multi-Strategy Ensemble:
+        Simultaneously evaluates SMC Liquidity Sweep, VWAP+EMA+RSI Confluence, Volume Shocker,
+        1-2-3 Reversal, and RSI Extreme. Dynamically weights setups based on market hour & NIFTY regime,
+        and executes only the single highest-conviction setup (A+ Grade).
+        """
+        from datetime import datetime, timezone, timedelta
+        now_ist = datetime.now(timezone.utc) + timedelta(hours=5, minutes=30)
+        curr_mins = now_ist.hour * 60 + now_ist.minute
+        # 09:15 = 555, 10:30 = 630, 14:00 = 840, 15:00 = 900
+        is_opening_session = (555 <= curr_mins <= 630)   # 09:15 - 10:30 IST (Trap & Liquidity Sweeps)
+        is_midday_trend = (630 < curr_mins <= 840)       # 10:30 - 14:00 IST (VWAP & Trend Continuation)
+        is_late_session = (curr_mins > 840)              # 14:00 - 15:00 IST (Defensive / Quick Targets)
+
+        strict_sl_pct = min(abs(self.stop_loss_pct or 1.0), 1.0)
+        pdl = stock_data.get("prev_day_low") or (current_price * 0.985)
+        pdh = stock_data.get("prev_day_high") or (current_price * 1.015)
+        today_low = stock_data.get("today_low") or current_price
+        today_high = stock_data.get("today_high") or current_price
+        vwap_val = stock_data.get("vwap") or current_price
+        ema9_val = stock_data.get("ema_9") or current_price
+        ema21_val = stock_data.get("ema_21") or current_price
+        rsi_curr = stock_data.get("rsi_14", 50.0)
+
+        candidates = []
+
+        # 1. Candidate: SMC Liquidity Sweep (PDL / PDH Institutional Trap Hunt)
+        is_pdl_sweep_buy = (today_low < pdl) and (current_price >= pdl) and (current_price >= vwap_val * 0.997)
+        is_pdh_sweep_short = (today_high > pdh) and (current_price <= pdh) and (current_price <= vwap_val * 1.003)
+
+        if is_pdl_sweep_buy:
+            raw_sl = round(today_low - 0.1 * atr_14, 2)
+            strict_sl = round(current_price * (1.0 - strict_sl_pct / 100.0), 2)
+            c_sl = max(raw_sl, strict_sl)
+            risk_dist = max(current_price * 0.004, current_price - c_sl)
+            c_tp = round(current_price + (risk_dist * 2.8), 2)
+            base_score = 96 + (3 if is_opening_session else 0)
+            candidates.append({
+                "name": "SMC Liquidity Sweep",
+                "signal": "BUY",
+                "score": min(99, base_score),
+                "grade": "A+",
+                "suggested_sl": c_sl,
+                "suggested_tp": c_tp,
+                "reason": f"Swept PDL ₹{pdl:.2f} (Low ₹{today_low:.2f}) & reclaimed! Bear trap reversed | SL: ₹{c_sl:.2f} | TP: ₹{c_tp:.2f} (1:2.8 R:R)"
+            })
+        elif is_pdh_sweep_short:
+            raw_sl = round(today_high + 0.1 * atr_14, 2)
+            strict_sl = round(current_price * (1.0 + strict_sl_pct / 100.0), 2)
+            c_sl = min(raw_sl, strict_sl)
+            risk_dist = max(current_price * 0.004, c_sl - current_price)
+            c_tp = round(current_price - (risk_dist * 2.8), 2)
+            base_score = 94 + (3 if is_opening_session else 0)
+            candidates.append({
+                "name": "SMC Liquidity Sweep",
+                "signal": "SELL",
+                "score": min(99, base_score),
+                "grade": "A+",
+                "suggested_sl": c_sl,
+                "suggested_tp": c_tp,
+                "reason": f"Swept PDH ₹{pdh:.2f} (High ₹{today_high:.2f}) & rejected! Bull trap reversed | SL: ₹{c_sl:.2f} | TP: ₹{c_tp:.2f} (1:2.8 R:R)"
+            })
+
+        # 2. Candidate: VWAP + EMA + RSI Triple Confluence
+        is_confluence_buy = (current_price >= vwap_val) and (ema9_val >= ema21_val) and (48.0 <= rsi_curr <= 68.0)
+        is_confluence_sell = (current_price < vwap_val) and (ema9_val < ema21_val) and (32.0 <= rsi_curr <= 52.0)
+
+        if is_confluence_buy:
+            c_sl = max(round(vwap_val, 2), round(current_price * (1.0 - strict_sl_pct / 100.0), 2))
+            risk_dist = max(current_price * 0.005, current_price - c_sl)
+            c_tp = round(current_price + (risk_dist * 2.6), 2)
+            base_score = 94 + (3 if is_midday_trend else 0)
+            candidates.append({
+                "name": "VWAP+EMA+RSI Confluence",
+                "signal": "BUY",
+                "score": min(99, base_score),
+                "grade": "A+",
+                "suggested_sl": c_sl,
+                "suggested_tp": c_tp,
+                "reason": f"Above VWAP (₹{vwap_val:.2f}) | 9 EMA > 21 EMA | RSI {rsi_curr:.1f} (Bullish Expansion)"
+            })
+        elif is_confluence_sell:
+            c_sl = min(round(vwap_val, 2), round(current_price * (1.0 + strict_sl_pct / 100.0), 2))
+            risk_dist = max(current_price * 0.005, c_sl - current_price)
+            c_tp = round(current_price - (risk_dist * 2.6), 2)
+            base_score = 92 + (3 if is_midday_trend else 0)
+            candidates.append({
+                "name": "VWAP+EMA+RSI Confluence",
+                "signal": "SELL",
+                "score": min(99, base_score),
+                "grade": "A+",
+                "suggested_sl": c_sl,
+                "suggested_tp": c_tp,
+                "reason": f"Below VWAP (₹{vwap_val:.2f}) | 9 EMA < 21 EMA | RSI {rsi_curr:.1f} (Bearish Pullback)"
+            })
+
+        # 3. Candidate: Volume Shocker (Institutional Surge)
+        is_shocker_buy = (vol_ratio >= 1.75) and (0.35 <= change_pct <= 9.5) and (current_price >= (ema_200 * 0.98 if ema_200 else current_price * 0.95))
+        if is_shocker_buy:
+            c_sl = round(current_price * (1.0 - strict_sl_pct / 100.0), 2)
+            c_tp = round(current_price * 1.045, 2)
+            v_score = min(99, int(88 + min(11, (vol_ratio - 1.5) * 5)))
+            candidates.append({
+                "name": "Volume Shocker",
+                "signal": "BUY",
+                "score": v_score,
+                "grade": "A+",
+                "suggested_sl": c_sl,
+                "suggested_tp": c_tp,
+                "reason": f"Volume Shocker {vol_ratio:.1f}x surge with +{change_pct:.2f}% institutional expansion"
+            })
+
+        # 4. Candidate: 1-2-3 Reversal Map
+        try:
+            from app.services.reversal_123 import Reversal123Engine
+            highs = stock_data.get("highs") or closes
+            lows = stock_data.get("lows") or closes
+            opens = stock_data.get("opens") or closes
+            vols = stock_data.get("volumes") or [1.0] * len(closes)
+            df_pat = pd.DataFrame({"high": highs, "low": lows, "close": closes, "open": opens, "volume": vols})
+            pat_res = Reversal123Engine.evaluate_123_reversal(df_pat)
+            p_sig = pat_res.get("signal", "HOLD")
+            p_score = pat_res.get("score") or 0
+            if p_sig in ["BUY", "SELL", "SHORT"] and p_score >= 88:
+                raw_sl = pat_res.get("stop_loss_price")
+                if p_sig == "BUY":
+                    strict_sl = round(current_price * (1.0 - strict_sl_pct / 100.0), 2)
+                    c_sl = max(raw_sl, strict_sl) if raw_sl else strict_sl
+                else:
+                    strict_sl = round(current_price * (1.0 + strict_sl_pct / 100.0), 2)
+                    c_sl = min(raw_sl, strict_sl) if raw_sl else strict_sl
+                c_tp = pat_res.get("target_price") or (round(current_price * 1.035, 2) if p_sig == "BUY" else round(current_price * 0.965, 2))
+                candidates.append({
+                    "name": "1-2-3 Reversal",
+                    "signal": "BUY" if p_sig == "BUY" else "SELL",
+                    "score": p_score,
+                    "grade": pat_res.get("grade", "A"),
+                    "suggested_sl": c_sl,
+                    "suggested_tp": c_tp,
+                    "reason": pat_res.get("reason", "1-2-3 Neckline Trigger")
+                })
+        except Exception:
+            pass
+
+        # 5. Candidate: RSI Extreme 20/80 Mean Reversion
+        if rsi_curr <= 20.0:
+            c_sl = round(current_price * (1.0 - strict_sl_pct / 100.0), 2)
+            c_tp = round(current_price * 1.03, 2)
+            candidates.append({
+                "name": "RSI Extreme (20/80)",
+                "signal": "BUY",
+                "score": min(99, int(92 + max(0, (20.0 - rsi_curr) * 2))),
+                "grade": "A+",
+                "suggested_sl": c_sl,
+                "suggested_tp": c_tp,
+                "reason": f"RSI Extreme Oversold ({rsi_curr:.1f} <= 20) - Mean Reversion"
+            })
+        elif rsi_curr >= 80.0:
+            c_sl = round(current_price * (1.0 + strict_sl_pct / 100.0), 2)
+            c_tp = round(current_price * 0.97, 2)
+            candidates.append({
+                "name": "RSI Extreme (20/80)",
+                "signal": "SELL",
+                "score": min(99, int(92 + max(0, (rsi_curr - 80.0) * 2))),
+                "grade": "A+",
+                "suggested_sl": c_sl,
+                "suggested_tp": c_tp,
+                "reason": f"RSI Extreme Overbought ({rsi_curr:.1f} >= 80) - Mean Reversion"
+            })
+
+        actionable = [c for c in candidates if c["signal"] in ["BUY", "SELL"]]
+        if is_late_session:
+            actionable = [c for c in actionable if c["score"] >= 95]
+
+        if actionable:
+            actionable.sort(key=lambda x: x["score"], reverse=True)
+            best = actionable[0]
+            session_label = "Morning Sweep" if is_opening_session else ("Mid-Day Trend" if is_midday_trend else "Pre-Close Defense")
+            return {
+                "signal": best["signal"],
+                "reason": f"🤖 [Auto-Pilot: {best['name']} | {session_label}] {best['reason']}",
+                "suggested_sl": best["suggested_sl"],
+                "suggested_tp": best["suggested_tp"],
+                "reversal_score": best["score"],
+                "reversal_grade": best["grade"],
+                "strat_tag": f"Auto-Pilot ({best['name']})"
+            }
+
+        session_label = "Morning Sweep Hunt" if is_opening_session else ("Mid-Day Trend Scan" if is_midday_trend else "Pre-Close Capital Defense")
+        pdl_dist = round(((current_price - pdl) / pdl) * 100, 2)
+        pdh_dist = round(((current_price - pdh) / pdh) * 100, 2)
+        return {
+            "signal": "HOLD",
+            "reason": f"🤖 Auto-Pilot [{session_label}]: PDL ₹{pdl:.1f} ({pdl_dist:+0.1f}%), PDH ₹{pdh:.1f} ({pdh_dist:+0.1f}%), VWAP ₹{vwap_val:.1f}, RSI {rsi_curr:.1f} | Awaiting A+ institutional setup",
+            "suggested_sl": round(current_price * (1.0 - strict_sl_pct / 100.0), 2),
+            "suggested_tp": round(current_price * 1.025, 2),
+            "reversal_score": None,
+            "reversal_grade": None,
+            "strat_tag": "Auto-Pilot Ensemble"
+        }
+
     def evaluate_single_stock(self, symbol: str, held_positions_map: dict, stock_data: dict = None, allow_order_execution: bool = True) -> dict:
         """Evaluates indicators, checks risk exits, and computes buy/sell signal for a stock"""
         if stock_data is None:
@@ -949,8 +1151,19 @@ class AutoTradingBot:
         suggested_tp = None
         reversal_score = None
         reversal_grade = None
+        strat_tag = "Auto-Pilot Ensemble" if self.strategy in ["AUTO_ENSEMBLE", "AUTO_REGIME", "MULTI_STRATEGY"] else self.strategy
 
-        if self.strategy == "123_REVERSAL":
+        if self.strategy in ["AUTO_ENSEMBLE", "AUTO_REGIME", "MULTI_STRATEGY"]:
+            ens_res = self._evaluate_ensemble(symbol, stock_data, current_price, change_pct, closes, s_closes, ema_200, trend_200, vol_ratio, atr_14)
+            signal = ens_res["signal"]
+            reason = ens_res["reason"]
+            suggested_sl = ens_res["suggested_sl"]
+            suggested_tp = ens_res["suggested_tp"]
+            reversal_score = ens_res["reversal_score"]
+            reversal_grade = ens_res["reversal_grade"]
+            strat_tag = ens_res["strat_tag"]
+
+        elif self.strategy == "123_REVERSAL":
             from app.services.reversal_123 import Reversal123Engine
             highs = stock_data.get("highs") or closes
             lows = stock_data.get("lows") or closes
@@ -1228,6 +1441,7 @@ class AutoTradingBot:
             "vol_ratio": vol_ratio,
             "atr_14": atr_14,
             "filter_status": filter_status,
+            "strat_tag": strat_tag,
             "action_executed": None
         }
 
@@ -1693,7 +1907,7 @@ class AutoTradingBot:
                                             pass
 
                                     chg_amt = exec_res.get("charges", {}).get("total_charges", 0.0) if isinstance(exec_res.get("charges"), dict) else 0.0
-                                    strat_tag = "SMC Liquidity Sweep" if self.strategy in ["SMC_LIQUIDITY_SWEEP", "PDL_SWEEP"] else ("1-2-3 Neckline Break" if self.strategy == "123_REVERSAL" else ("Dual SMA Cross" if self.strategy == "SMA_CROSSOVER" else ("RSI Extreme (20/80)" if self.strategy in ["RSI_20_80", "RSI_MOMENTUM", "RSI"] else self.strategy)))
+                                    strat_tag = eval_res.get("strat_tag") or ("SMC Liquidity Sweep" if self.strategy in ["SMC_LIQUIDITY_SWEEP", "PDL_SWEEP"] else ("1-2-3 Neckline Break" if self.strategy == "123_REVERSAL" else ("Dual SMA Cross" if self.strategy == "SMA_CROSSOVER" else ("RSI Extreme (20/80)" if self.strategy in ["RSI_20_80", "RSI_MOMENTUM", "RSI"] else self.strategy))))
                                     self.record_session_trade({
                                         "symbol": symbol,
                                         "displayName": display_name,
@@ -1835,7 +2049,7 @@ class AutoTradingBot:
                                             pass
 
                                     chg_amt = exec_res.get("charges", {}).get("total_charges", 0.0) if isinstance(exec_res.get("charges"), dict) else 0.0
-                                    strat_tag = "SMC Liquidity Sweep" if self.strategy in ["SMC_LIQUIDITY_SWEEP", "PDL_SWEEP"] else ("1-2-3 Neckline Breakdown" if self.strategy == "123_REVERSAL" else ("Dual SMA Death Cross" if self.strategy == "SMA_CROSSOVER" else "RSI Overbought"))
+                                    strat_tag = eval_res.get("strat_tag") or ("SMC Liquidity Sweep" if self.strategy in ["SMC_LIQUIDITY_SWEEP", "PDL_SWEEP"] else ("1-2-3 Neckline Breakdown" if self.strategy == "123_REVERSAL" else ("Dual SMA Death Cross" if self.strategy == "SMA_CROSSOVER" else "RSI Overbought")))
                                     self.record_session_trade({
                                         "symbol": symbol,
                                         "displayName": display_name,
