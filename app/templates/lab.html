@@ -852,7 +852,7 @@
         }
     }
 
-    let allNSEStocksList = [];
+    let allNSEStocksList = {{ nse_stocks_json|default('[]')|safe }};
     const POPULAR_SYMBOLS = [
         'RELIANCE.NS', 'TCS.NS', 'HDFCBANK.NS', 'INFY.NS', 'ICICIBANK.NS',
         'BHARTIARTL.NS', 'ITC.NS', 'SBIN.NS', 'LT.NS', 'TATAMOTORS.NS',
@@ -864,23 +864,36 @@
     let currentCategoryFilter = 'POPULAR';
     let currentAlphabetFilter = 'ALL';
 
+    // Populate lookup map immediately if stocks were pre-rendered from server
+    if (Array.isArray(allNSEStocksList) && allNSEStocksList.length > 0) {
+        allNSEStocksList.forEach(s => {
+            const sym = s.symbol || s.ticker;
+            const name = s.name || sym;
+            window.nseStocksMap[sym] = name;
+            if (s.ticker) window.nseStocksMap[s.ticker] = name;
+        });
+    }
+
     async function loadNSEUniverseCatalog() {
-        try {
-            const res = await fetch('/api/nse/stocks?limit=2500');
-            const data = await res.json();
-            if (data && data.success && Array.isArray(data.stocks)) {
-                allNSEStocksList = data.stocks;
-                data.stocks.forEach(s => {
-                    const sym = s.symbol || s.ticker;
-                    const name = s.name || sym;
-                    window.nseStocksMap[sym] = name;
-                    if (s.ticker) window.nseStocksMap[s.ticker] = name;
-                });
-                renderStockSelectOptions();
+        if (!Array.isArray(allNSEStocksList) || allNSEStocksList.length === 0) {
+            try {
+                const res = await fetch('/api/nse/stocks?limit=2500');
+                const data = await res.json();
+                const stocks = data.stocks || (Array.isArray(data) ? data : []);
+                if (Array.isArray(stocks) && stocks.length > 0) {
+                    allNSEStocksList = stocks;
+                    stocks.forEach(s => {
+                        const sym = s.symbol || s.ticker;
+                        const name = s.name || sym;
+                        window.nseStocksMap[sym] = name;
+                        if (s.ticker) window.nseStocksMap[s.ticker] = name;
+                    });
+                }
+            } catch (e) {
+                console.warn('Could not preload full NSE universe catalog:', e);
             }
-        } catch (e) {
-            console.warn('Could not preload full NSE universe catalog:', e);
         }
+        renderStockSelectOptions();
     }
 
     function renderStockSelectOptions(customFilteredList = null) {
@@ -889,7 +902,12 @@
 
         let listToRender = customFilteredList;
         if (!listToRender) {
-            if (currentCategoryFilter === 'POPULAR') {
+            if (currentAlphabetFilter !== 'ALL') {
+                listToRender = allNSEStocksList.filter(s => {
+                    const t = (s.ticker || s.symbol || '').toUpperCase().replace('^', '');
+                    return t.startsWith(currentAlphabetFilter);
+                });
+            } else if (currentCategoryFilter === 'POPULAR') {
                 listToRender = allNSEStocksList.filter(s => {
                     const sym = s.symbol || (s.ticker + '.NS');
                     return POPULAR_SYMBOLS.includes(sym) || POPULAR_SYMBOLS.includes(s.ticker);
@@ -903,30 +921,26 @@
             } else {
                 listToRender = allNSEStocksList;
             }
-
-            if (currentAlphabetFilter !== 'ALL') {
-                listToRender = listToRender.filter(s => {
-                    const t = (s.ticker || s.symbol || '').toUpperCase();
-                    return t.startsWith(currentAlphabetFilter);
-                });
-            }
         }
 
         const countBadge = document.getElementById('filtered-stocks-count');
         if (countBadge) {
-            countBadge.innerText = `${listToRender.length} Stocks in Dropdown`;
+            const countLabel = currentAlphabetFilter !== 'ALL' 
+                ? `Letter "${currentAlphabetFilter}": ${listToRender.length} Stocks` 
+                : `${listToRender.length} Stocks in Dropdown`;
+            countBadge.innerText = countLabel;
         }
 
         const currentVal = document.getElementById('lab-symbol').value || 'RELIANCE.NS';
         let optionsHtml = '';
 
         if (listToRender.length === 0) {
-            optionsHtml = `<option value="">No matching stocks found in category</option>`;
+            optionsHtml = `<option value="">No stocks found starting with "${currentAlphabetFilter}"</option>`;
         } else {
-            listToRender.forEach(s => {
+            listToRender.forEach((s, idx) => {
                 const sym = s.symbol || (s.ticker + '.NS');
                 const name = s.name || sym;
-                const isSelected = (sym === currentVal || s.ticker === currentVal) ? 'selected' : '';
+                const isSelected = (sym === currentVal || s.ticker === currentVal || (currentAlphabetFilter !== 'ALL' && idx === 0 && !listToRender.some(x => x.symbol === currentVal || x.ticker === currentVal))) ? 'selected' : '';
                 optionsHtml += `<option value="${sym}" ${isSelected}>${sym} — ${name}</option>`;
             });
         }
@@ -949,11 +963,10 @@
 
     function jumpToAlphabet(letter, btnEl) {
         currentAlphabetFilter = letter;
-        if (letter !== 'ALL') {
-            currentCategoryFilter = 'ALL';
-            const catSel = document.getElementById('stock-category-filter');
-            if (catSel) catSel.value = 'ALL';
-        }
+        currentCategoryFilter = (letter === 'ALL') ? 'POPULAR' : 'ALL';
+        const catSel = document.getElementById('stock-category-filter');
+        if (catSel) catSel.value = currentCategoryFilter;
+
         updateAlphaButtons(letter);
         const searchInput = document.getElementById('lab-symbol-filter-input');
         if (searchInput) searchInput.value = '';

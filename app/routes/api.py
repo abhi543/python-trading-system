@@ -30,9 +30,9 @@ def get_nse_stocks():
     limit = int(request.args.get('limit', 100))
     from app.models.nse_universe import _NSE_STOCKS_DATA
     if not query:
-        return jsonify({"total": len(_NSE_STOCKS_DATA), "stocks": _NSE_STOCKS_DATA[:limit]})
+        return jsonify({"success": True, "total": len(_NSE_STOCKS_DATA), "stocks": _NSE_STOCKS_DATA[:limit]})
     matches = [s for s in _NSE_STOCKS_DATA if query in s.get('ticker', '') or query in s.get('symbol', '') or query in s.get('name', '').upper()][:limit]
-    return jsonify({"total": len(matches), "query": query, "stocks": matches})
+    return jsonify({"success": True, "total": len(matches), "query": query, "stocks": matches})
 
 @api_bp.route('/nse/top-turnover', methods=['GET'])
 def get_top_turnover():

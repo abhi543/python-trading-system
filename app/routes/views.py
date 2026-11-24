@@ -32,7 +32,13 @@ def scanner_page():
 @views_bp.route('/backtest')
 @views_bp.route('/strategy-lab')
 def lab_page():
-    return render_template('lab.html')
+    try:
+        from app.models.nse_universe import _NSE_STOCKS_DATA
+        import json
+        stocks_json = json.dumps(_NSE_STOCKS_DATA)
+    except Exception:
+        stocks_json = "[]"
+    return render_template('lab.html', nse_stocks_json=stocks_json)
 
 @views_bp.route('/debug-env')
 def debug_env():
