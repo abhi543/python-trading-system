@@ -149,9 +149,13 @@
                 <div class="config-item">
                     <label><i class="fa-solid fa-chart-line"></i> STRATEGY MODEL</label>
                     <select id="bot-strategy" class="config-select" onchange="onStrategyChange()">
+                        <option value="AUTO_ENSEMBLE" selected>🤖 Auto-Pilot Ensemble (Self-Adaptive Regime Engine)</option>
+                        <option value="SMC_LIQUIDITY_SWEEP">⚡ SMC Liquidity Sweep (PDL / PDH Bear &amp; Bull Trap Hunt)</option>
                         <option value="RSI_20_80">⚡ RSI Extreme (Buy &le; 20 / Sell &ge; 80 Mean Reversion)</option>
                         <option value="VWAP_EMA_RSI">⚡ VWAP + EMA + RSI Confluence (Volume Anchor &amp; Momentum)</option>
-                        <option value="123_REVERSAL" selected>1-2-3 Reversal Map [AGPro Series v2.1] (Neckline Break &amp; Target)</option>
+                        <option value="DMA_200">📈 200 DMA Regime Trend (Buy Above / Short Below 200 DMA)</option>
+                        <option value="VOLUME_SHOCKER">⚡ Volume Shocker Breakout (Institutional RVOL &ge; 1.75x)</option>
+                        <option value="123_REVERSAL">1-2-3 Reversal Map [AGPro Series v2.1] (Neckline Break &amp; Target)</option>
                         <option value="SMA_CROSSOVER">Dual SMA Golden/Death Cross (9 / 21)</option>
                         <option value="RSI_MOMENTUM">RSI Mean Reversion (14-Period, 35/65)</option>
                     </select>
@@ -840,34 +844,34 @@
                     </div>
                     <div class="rules-body">
                         <div class="rule-item">
-                            <div class="rule-icon"><i class="fa-solid fa-draw-polygon" style="color: #ffd166;"></i></div>
+                            <div class="rule-icon"><i class="fa-solid fa-robot" style="color: #ffd166;"></i></div>
                             <div>
-                                <h4>1-2-3 Reversal Map [AGPro Series v2.1]</h4>
-                                <p>Maps confirmed Point 1 (Swing Low/High), Point 2 (Neckline), and Point 3 (Higher Low / Lower High). Confirms on Neckline break with 0-100 Reversal Score, <strong>Measured Move Target</strong> ($P1 \to P2$ height), and <strong>Point 3 Stop Loss Buffer</strong>.</p>
-                            </div>
-                        </div>
-
-                        <div class="rule-item">
-                            <div class="rule-icon"><i class="fa-solid fa-arrows-split-up-and-left" style="color: var(--blue);"></i></div>
-                            <div>
-                                <h4>Two-Way Trading: Long &amp; Short Execution</h4>
-                                <p>Takes <strong>LONG (BUY)</strong> positions on bullish neckline breakouts, and <strong>SHORT (SELL)</strong> positions on bearish breakdowns using 5x intraday leverage.</p>
+                                <h4>Auto-Pilot Ensemble Regime Engine [DEFAULT]</h4>
+                                <p>Self-adaptive multi-model engine: simultaneously scans <strong>SMC Liquidity Sweeps</strong> (PDL/PDH), <strong>VWAP+EMA+RSI Confluence</strong>, <strong>Volume Shockers</strong>, <strong>1-2-3 Necklines</strong>, and <strong>RSI Extreme (20/80)</strong>. Dynamically executes only the single highest-conviction A+ setup.</p>
                             </div>
                         </div>
 
                         <div class="rule-item">
                             <div class="rule-icon"><i class="fa-solid fa-shield-halved" style="color: var(--green);"></i></div>
                             <div>
-                                <h4>200 EMA Macro Trend Filter</h4>
-                                <p>Filters out counter-trend entries: Only permits <strong>BUY (Long)</strong> if price &gt; 200 EMA, and only permits <strong>SELL (Short)</strong> if price &lt; 200 EMA.</p>
+                                <h4>Green Day Blueprint: Strict 1.0% Stop-Loss Ceiling</h4>
+                                <p>Hard risk cap enforced on every trade: Stop-loss is dynamically calculated with candle wick buffer and <strong>strictly capped at 1.0% maximum risk</strong>. No single trade can ever inflict more than 1.0% capital damage.</p>
                             </div>
                         </div>
 
                         <div class="rule-item">
-                            <div class="rule-icon"><i class="fa-solid fa-shield-heart" style="color: var(--blue);"></i></div>
+                            <div class="rule-icon"><i class="fa-solid fa-arrows-split-up-and-left" style="color: var(--blue);"></i></div>
                             <div>
-                                <h4>Breakeven Shield & Trailing Stop (Option B)</h4>
-                                <p>Once gain touches <strong>+2.0%</strong>, the stop loss ratchets up to entry price (100% Risk-Free). Trails higher peaks at $1.5 \times ATR$ distance.</p>
+                                <h4>SMC Liquidity Sweeps: PDL / PDH Institutional Traps</h4>
+                                <p>Hunts institutional false breakouts: Takes <strong>BUY</strong> when price sweeps Previous Day Low (PDL) and aggressively reclaims VWAP; takes <strong>SELL</strong> when price sweeps Previous Day High (PDH) and rejects downward.</p>
+                            </div>
+                        </div>
+
+                        <div class="rule-item">
+                            <div class="rule-icon"><i class="fa-solid fa-bullseye" style="color: #00f090;"></i></div>
+                            <div>
+                                <h4>1:2.8 Risk-Reward &amp; Breakeven Trailing Shield</h4>
+                                <p>Targets asymmetric <strong>1:2.8 R:R profit targets</strong>. Once profit reaches +1.2%, the stop loss automatically ratchets up to entry price (100% Risk-Free) and trails higher peaks to lock in green day returns.</p>
                             </div>
                         </div>
 
@@ -875,7 +879,7 @@
                             <div class="rule-icon"><i class="fa-solid fa-bolt" style="color: #ffd166;"></i></div>
                             <div>
                                 <h4>₹1,00,00,000 (1 Crore) Capital &amp; 5x Leverage</h4>
-                                <p>Trades with isolated <strong>₹1 Crore cash desk</strong> with standard <strong>5x leverage (20% margin)</strong> on NSE equities. Allocates <strong>₹2,00,000 margin</strong> to control <strong>₹10,00,000 buying power</strong> per position, completely decoupled from Bot ALPHA.</p>
+                                <p>Operates with an isolated <strong>₹1 Crore cash desk</strong> with standard <strong>5x leverage (20% margin)</strong> on NSE equities. Allocates <strong>₹2,00,000 margin</strong> to control <strong>₹10,00,000 buying power</strong> per position, completely decoupled from Bot ALPHA.</p>
                             </div>
                         </div>
                     </div>
@@ -2036,7 +2040,11 @@
     window.cachedActivePositions = [];
 
     document.addEventListener('DOMContentLoaded', () => {
-        const savedStrat = localStorage.getItem('ah_bot_strategy') || '123_REVERSAL';
+        let savedStrat = localStorage.getItem('ah_bot_strategy');
+        if (!savedStrat || savedStrat === '123_REVERSAL' || savedStrat === 'KRONOS_AI') {
+            savedStrat = 'AUTO_ENSEMBLE';
+            localStorage.setItem('ah_bot_strategy', 'AUTO_ENSEMBLE');
+        }
         const stratEl = document.getElementById('bot-strategy');
         if (stratEl) stratEl.value = savedStrat;
 
@@ -2312,7 +2320,11 @@
         if (data.single_symbol && !document.getElementById('bot-symbol').matches(':focus')) {
             document.getElementById('bot-symbol').value = data.single_symbol;
         }
-        const savedStrat = localStorage.getItem('ah_bot_strategy');
+        let savedStrat = localStorage.getItem('ah_bot_strategy');
+        if (!savedStrat || savedStrat === '123_REVERSAL' || savedStrat === 'KRONOS_AI') {
+            savedStrat = 'AUTO_ENSEMBLE';
+            localStorage.setItem('ah_bot_strategy', 'AUTO_ENSEMBLE');
+        }
         if (savedStrat) {
             document.getElementById('bot-strategy').value = savedStrat;
         } else if (data.strategy && !document.getElementById('bot-strategy').matches(':focus')) {
@@ -2428,8 +2440,17 @@
     }
 
     function updateConfigSummaryRibbon() {
-        const stratVal = document.getElementById('bot-strategy')?.value || '123_REVERSAL';
-        const stratName = (stratVal === '123_REVERSAL') ? '1-2-3 Reversal Map' : (stratVal === 'RSI_20_80' ? 'RSI 20/80 Reversal' : (stratVal === 'VWAP_EMA_RSI' ? 'VWAP+EMA+RSI' : (stratVal === 'SMA_CROSSOVER' ? 'Dual SMA (9/21)' : 'RSI Reversion')));
+        const stratVal = document.getElementById('bot-strategy')?.value || 'AUTO_ENSEMBLE';
+        let stratName = 'Auto-Pilot Ensemble';
+        if (stratVal === 'AUTO_ENSEMBLE') stratName = 'Auto-Pilot Ensemble';
+        else if (stratVal === 'SMC_LIQUIDITY_SWEEP') stratName = 'SMC Liquidity Sweep';
+        else if (stratVal === '123_REVERSAL') stratName = '1-2-3 Reversal Map';
+        else if (stratVal === 'RSI_20_80') stratName = 'RSI 20/80 Extreme';
+        else if (stratVal === 'VWAP_EMA_RSI') stratName = 'VWAP+EMA+RSI Confluence';
+        else if (stratVal === 'VOLUME_SHOCKER') stratName = 'Volume Shocker Breakout';
+        else if (stratVal === 'DMA_200') stratName = '200 DMA Regime Trend';
+        else if (stratVal === 'SMA_CROSSOVER') stratName = 'Dual SMA (9/21)';
+        else stratName = stratVal;
         const mode = document.getElementById('bot-scan-mode')?.value || 'ALL_NIFTY_200';
         const universeName = (mode === 'ALL_NIFTY_200') ? 'NIFTY 200' : (mode === 'SINGLE' ? 'Single Focus' : 'NIFTY 50');
         const capital = document.getElementById('bot-allocation')?.value || '200000';
@@ -2800,7 +2821,7 @@
             use_ai_filter: (typeof currentStrictAiMode !== 'undefined' ? currentStrictAiMode : false),
             scan_mode: document.getElementById('bot-scan-mode')?.value || 'ALL_NIFTY_200',
             single_symbol: document.getElementById('bot-symbol')?.value?.trim()?.toUpperCase() || 'RELIANCE.NS',
-            strategy: document.getElementById('bot-strategy')?.value || '123_REVERSAL',
+            strategy: document.getElementById('bot-strategy')?.value || 'AUTO_ENSEMBLE',
             allocation_per_trade: parseFloat(document.getElementById('bot-allocation')?.value) || 200000,
             max_positions: isNaN(maxPos) ? 0 : maxPos,
             slippage_pct: isNaN(slippage) ? 0.0 : slippage,

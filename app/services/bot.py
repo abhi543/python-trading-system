@@ -123,13 +123,13 @@ class AutoTradingBot:
         persisted = _load_persistent_bot_state(self.state_filename)
         self.is_running = persisted.get("is_running", False)
         default_scan = "TOP_200_TURNOVER"
-        default_strat = "AUTO_ENSEMBLE" if (self.name == "ALPHA" or not self.is_after_hours_forced) else "123_REVERSAL"
+        default_strat = "AUTO_ENSEMBLE"
         self.scan_mode = persisted.get("scan_mode", default_scan)
         if self.scan_mode == "KRONOS_UNIVERSE":
             self.scan_mode = "TOP_200_TURNOVER"
         self.single_symbol = persisted.get("single_symbol", "RELIANCE.NS")
         self.strategy = persisted.get("strategy", default_strat)
-        if (self.name == "ALPHA" or not self.is_after_hours_forced) and self.strategy in ["KRONOS_AI", "123_REVERSAL", "VWAP_EMA_RSI"]:
+        if self.strategy in ["KRONOS_AI", "123_REVERSAL", "VWAP_EMA_RSI"]:
             self.strategy = "AUTO_ENSEMBLE"
         if self.name == "ALPHA":
             # Start stock traded from just 500 margin
@@ -620,9 +620,14 @@ class AutoTradingBot:
         now_ist = datetime.now(timezone.utc) + timedelta(hours=5, minutes=30)
         curr_mins = now_ist.hour * 60 + now_ist.minute
         # 09:15 = 555, 10:30 = 630, 14:00 = 840, 15:00 = 900
-        is_opening_session = (555 <= curr_mins <= 630)   # 09:15 - 10:30 IST (Trap & Liquidity Sweeps)
-        is_midday_trend = (630 < curr_mins <= 840)       # 10:30 - 14:00 IST (VWAP & Trend Continuation)
-        is_late_session = (curr_mins > 840)              # 14:00 - 15:00 IST (Defensive / Quick Targets)
+        if self.is_after_hours_forced:
+            is_opening_session = False
+            is_midday_trend = True       # Full institutional swing & trend scanning
+            is_late_session = False
+        else:
+            is_opening_session = (555 <= curr_mins <= 630)   # 09:15 - 10:30 IST (Trap & Liquidity Sweeps)
+            is_midday_trend = (630 < curr_mins <= 840)       # 10:30 - 14:00 IST (VWAP & Trend Continuation)
+            is_late_session = (curr_mins > 840)              # 14:00 - 15:00 IST (Defensive / Quick Targets)
 
         strict_sl_pct = min(abs(self.stop_loss_pct or 1.0), 1.0)
         pdl = stock_data.get("prev_day_low") or (current_price * 0.985)
@@ -787,7 +792,10 @@ class AutoTradingBot:
         if actionable:
             actionable.sort(key=lambda x: x["score"], reverse=True)
             best = actionable[0]
-            session_label = "Morning Sweep" if is_opening_session else ("Mid-Day Trend" if is_midday_trend else "Pre-Close Defense")
+            if self.is_after_hours_forced:
+                session_label = "Night Hawk 24/7 Swing Scan"
+            else:
+                session_label = "Morning Sweep" if is_opening_session else ("Mid-Day Trend" if is_midday_trend else "Pre-Close Defense")
             return {
                 "signal": best["signal"],
                 "reason": f"🤖 [Auto-Pilot: {best['name']} | {session_label}] {best['reason']}",
@@ -798,7 +806,10 @@ class AutoTradingBot:
                 "strat_tag": f"Auto-Pilot ({best['name']})"
             }
 
-        session_label = "Morning Sweep Hunt" if is_opening_session else ("Mid-Day Trend Scan" if is_midday_trend else "Pre-Close Capital Defense")
+        if self.is_after_hours_forced:
+            session_label = "Night Hawk 24/7 Setup Scan"
+        else:
+            session_label = "Morning Sweep Hunt" if is_opening_session else ("Mid-Day Trend Scan" if is_midday_trend else "Pre-Close Capital Defense")
         pdl_dist = round(((current_price - pdl) / pdl) * 100, 2)
         pdh_dist = round(((current_price - pdh) / pdh) * 100, 2)
         return {
