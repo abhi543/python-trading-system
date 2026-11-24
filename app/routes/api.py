@@ -1065,8 +1065,18 @@ def complete_system_reset():
         ah_account = AfterHoursAccount.query.first()
         if ah_account:
             ah_account.cash_balance = 1000000.0
+            ah_account.total_equity = 1000000.0
+            ah_account.realized_pnl = 0.0
+            ah_account.unrealized_pnl = 0.0
+            ah_account.margin_used = 0.0
         else:
-            db.session.add(AfterHoursAccount(cash_balance=1000000.0))
+            db.session.add(AfterHoursAccount(
+                cash_balance=1000000.0,
+                total_equity=1000000.0,
+                realized_pnl=0.0,
+                unrealized_pnl=0.0,
+                margin_used=0.0
+            ))
 
         after_hours_bot_instance.logs = []
         after_hours_bot_instance.last_scan_summary = {

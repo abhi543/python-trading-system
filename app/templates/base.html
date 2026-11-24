@@ -189,14 +189,14 @@
                             </svg>
                             <div class="stat-chip-info">
                                 <span class="stat-chip-label"><i class="fa-solid fa-moon" style="color: #ffd166;"></i> NIGHTHAWK EQUITY</span>
-                                <span class="stat-chip-val text-green" id="nav-total-equity">₹1,00,00,000.00</span>
+                                <span class="stat-chip-val text-green" id="nav-total-equity">₹10,00,000.00</span>
                             </div>
                             <span class="stat-subdelta text-green" id="nav-equity-delta">+0.00%</span>
                         </div>
                         <div class="stat-chip">
                             <div class="stat-chip-info">
                                 <span class="stat-chip-label"><i class="fa-solid fa-wallet" style="color: #ffd166;"></i> WALLET</span>
-                                <span class="stat-chip-val" id="nav-cash-balance">₹1,00,00,000.00</span>
+                                <span class="stat-chip-val" id="nav-cash-balance">₹10,00,000.00</span>
                             </div>
                         </div>
                         <div class="stat-chip stat-chip-pnl" id="nav-realized-chip" style="cursor: pointer;" onclick="if(typeof switchLedgerTab === 'function') switchLedgerTab('closed');" title="Click to view Realized P&amp;L Vault">
@@ -446,6 +446,8 @@
                 localStorage.removeItem('ah_session_trades_v1');
                 localStorage.removeItem('alpha_closed_trades_v1');
                 localStorage.removeItem('ah_closed_trades_v1');
+                localStorage.removeItem('nighthawk_closed_trades_ledger_v1');
+                localStorage.removeItem('nighthawk_closed_trades_ledger_v2');
             } catch (e) {}
 
             // 2. Set permanent anti-resurrection flags on window & clear arrays
@@ -456,8 +458,8 @@
             if (typeof allPositions !== 'undefined') allPositions = [];
 
             // 3. Immediately zero out all navbar metrics visually (Zero Delay!)
-            const defaultCash = isSwing ? '₹1,00,000.00' : (isAH ? '₹1,00,00,000.00' : '₹50,000.00');
-            const defaultBp = isSwing ? '₹0.00' : (isAH ? '₹5,00,00,000.00' : '₹2,50,000.00');
+            const defaultCash = isSwing ? '₹1,00,000.00' : (isAH ? '₹10,00,000.00' : '₹50,000.00');
+            const defaultBp = isSwing ? '₹0.00' : (isAH ? '₹50,00,000.00' : '₹2,50,000.00');
 
             const elEq = document.getElementById('nav-total-equity');
             if (elEq) elEq.innerText = defaultCash;
