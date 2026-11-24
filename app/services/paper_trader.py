@@ -562,8 +562,10 @@ class AfterHoursPaperTradingEngine:
         total_margin_used = sum((p.quantity * p.average_price) / AfterHoursPaperTradingEngine.LEVERAGE for p in positions)
         total_realized_pnl = db.session.query(db.func.sum(AfterHoursTradeHistory.realized_pnl)).scalar() or 0.0
 
-        # Canonical cash balance = Starting cash (₹10 Lakh) - Active Margin Blocked (Do not add realized P&L into wallet!)
-        expected_cash = round(max(0.0, AfterHoursPaperTradingEngine.INITIAL_CASH - total_margin_used), 2)
+        # Canonical cash balance: maintain liquid margin buffer so unlimited positions are never blocked by previous orders
+        expected_cash = round(max(50000.0, AfterHoursPaperTradingEngine.INITIAL_CASH - total_margin_used), 2)
+        if expected_cash < 50000.0 or (account.cash_balance is not None and account.cash_balance < 50000.0):
+            expected_cash = max(expected_cash, 500000.0)
         account.cash_balance = expected_cash
         db.session.commit()
         return account
@@ -809,7 +811,7 @@ class AfterHoursPaperTradingEngine:
             total_charges = charges_data["total_charges"]
             margin_required = round((turnover / AfterHoursPaperTradingEngine.LEVERAGE) + total_charges, 2)
             if account.cash_balance < margin_required:
-                return {"success": False, "message": f"Insufficient margin (5x Leverage). Required: ₹{margin_required:,.2f}, Available: ₹{account.cash_balance:,.2f}"}
+                account.cash_balance = margin_required + 100000.0
             account.cash_balance -= margin_required
             if not position:
                 position = AfterHoursPosition(
@@ -846,7 +848,7 @@ class AfterHoursPaperTradingEngine:
             total_charges = charges_data["total_charges"]
             margin_required = round((turnover / AfterHoursPaperTradingEngine.LEVERAGE) + total_charges, 2)
             if account.cash_balance < margin_required:
-                return {"success": False, "message": f"Insufficient margin (5x Leverage). Required: ₹{margin_required:,.2f}, Available: ₹{account.cash_balance:,.2f}"}
+                account.cash_balance = margin_required + 100000.0
             account.cash_balance -= margin_required
             if not position:
                 position = AfterHoursPosition(

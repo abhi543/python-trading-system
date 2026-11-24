@@ -1884,10 +1884,16 @@ class AutoTradingBot:
                             trade_qty = max(1, int(buying_power / price))
                             margin_needed = round((trade_qty * price) / self.leverage, 2)
 
+                            # Unlimited positions: never block new orders because of previous orders or margin pool depletion
+                            if self.is_after_hours_forced or max_limit <= 0:
+                                if available_cash < margin_needed:
+                                    available_cash = margin_needed + 100000.0
+
                             if available_cash >= margin_needed:
                                 exec_res = self.engine.execute_order(symbol, "BUY", trade_qty, execution_price=price, force_bypass_day_limit=True)
                                 if exec_res.get("success"):
-                                    already_traded_today.add(symbol)
+                                    if not self.is_after_hours_forced:
+                                        already_traded_today.add(symbol)
                                     trades_executed += 1
                                     available_cash -= margin_needed
                                     eval_res["action_executed"] = f"BOUGHT {trade_qty} (5x)"
@@ -1956,7 +1962,6 @@ class AutoTradingBot:
                             else:
                                 eval_res["action_executed"] = f"SKIPPED (Margin ₹{margin_needed:,.0f} > Avail ₹{available_cash:,.0f})"
                                 self.add_log(f"⚡ [MARGIN LIMIT] BUY on {display_name} skipped: Needed margin ₹{margin_needed:,.2f}, Available cash ₹{available_cash:,.2f}", "WARNING")
-                            self.add_log(f"⚡ [MARGIN LIMIT] BUY on {display_name} skipped: Needed margin ₹{margin_needed:,.2f}, Available cash ₹{available_cash:,.2f}", "WARNING")
                     elif symbol not in held_map and not has_position_slot:
                         eval_res["action_executed"] = f"SKIPPED (Max Positions {max_limit} Reached)"
                         self.add_log(f"⚡ [MAX POSITIONS] BUY on {display_name} skipped: Max slots ({max_limit}) reached", "WARNING")
@@ -2026,10 +2031,16 @@ class AutoTradingBot:
                             trade_qty = max(1, int(buying_power / price))
                             margin_needed = round((trade_qty * price) / self.leverage, 2)
 
+                            # Unlimited positions: never block new orders because of previous orders or margin pool depletion
+                            if self.is_after_hours_forced or max_limit <= 0:
+                                if available_cash < margin_needed:
+                                    available_cash = margin_needed + 100000.0
+
                             if available_cash >= margin_needed:
                                 exec_res = self.engine.execute_order(symbol, "SHORT", trade_qty, execution_price=price, force_bypass_day_limit=True)
                                 if exec_res.get("success"):
-                                    already_traded_today.add(symbol)
+                                    if not self.is_after_hours_forced:
+                                        already_traded_today.add(symbol)
                                     trades_executed += 1
                                     available_cash -= margin_needed
                                     eval_res["action_executed"] = f"SHORTED {trade_qty} (5x)"
