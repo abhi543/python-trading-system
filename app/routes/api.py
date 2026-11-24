@@ -252,36 +252,9 @@ def sync_closed_trades_from_client(client_closed_trades):
         pass
 
 def sync_after_hours_closed_trades_from_client(client_closed_trades):
-    if not client_closed_trades or not isinstance(client_closed_trades, list):
-        return
-    try:
-        from app.models.trading import AfterHoursTradeHistory
-        from app import db
-        from datetime import datetime
-        existing_count = AfterHoursTradeHistory.query.count()
-        if existing_count == 0 and len(client_closed_trades) > 0:
-            for ct in client_closed_trades[:100]:
-                ts_str = ct.get("timestamp")
-                try:
-                    ts = datetime.strptime(ts_str, "%Y-%m-%d %H:%M:%S") if ts_str else datetime.now()
-                except Exception:
-                    ts = datetime.now()
-                trade = AfterHoursTradeHistory(
-                    symbol=ct.get("symbol", "NIFTY"),
-                    side=ct.get("side", "SELL"),
-                    quantity=float(ct.get("quantity", 0)),
-                    price=float(ct.get("price") or ct.get("exit_price") or 0.0),
-                    total_value=float(ct.get("total_value", 0.0)),
-                    realized_pnl=float(ct.get("realized_pnl", 0.0)),
-                    charges=float(ct.get("charges", 0.0)),
-                    timestamp=ts
-                )
-                db.session.add(trade)
-            db.session.commit()
-            from app.services.paper_trader import prune_old_trades
-            prune_old_trades(AfterHoursTradeHistory, 100)
-    except Exception:
-        pass
+    # Closed trade history in database is the definitive source of truth.
+    # We do NOT resurrect old deleted trades from client localStorage.
+    return
 
 @api_bp.route('/portfolio', methods=['GET', 'POST'])
 def get_portfolio():
@@ -1078,12 +1051,20 @@ def complete_system_reset():
                 margin_used=0.0
             ))
 
+        after_hours_bot_instance.stop()
+        after_hours_bot_instance.is_running = False
+        after_hours_bot_instance.session_status = "STOPPED"
         after_hours_bot_instance.logs = []
         after_hours_bot_instance.last_scan_summary = {
             "total_scanned": 0, "buys_found": 0, "sells_found": 0,
             "trades_executed": 0, "scanner_results": []
         }
-        after_hours_bot_instance.start_new_session()
+        after_hours_bot_instance.session_trades = []
+        after_hours_bot_instance.session_metrics = {
+            "total_trades": 0, "total_buys": 0, "total_sells": 0, "net_realized_pnl": 0.0,
+            "total_charges": 0.0, "win_rate": 0.0, "wins": 0, "losses": 0
+        }
+        after_hours_bot_instance.persist_state()
 
     # 3. Reset TITAN (Swing Desk)
     if desk in ('all', 'titan', 'swing'):
@@ -1495,9 +1476,8 @@ def get_after_hours_overview():
         sync_after_hours_positions_from_client(client_positions, explicit_clear=explicit_clear)
         client_closed_trades = body.get('client_closed_trades')
         sync_after_hours_closed_trades_from_client(client_closed_trades)
-        client_running = body.get('is_running')
-        if client_running is not None:
-            after_hours_bot_instance.is_running = bool(client_running)
+        # Bot running state is controlled strictly via explicit /start, /stop, and /reset endpoints.
+        # Background polling should NOT inadvertently restart a stopped bot.
         client_ai_signals = body.get('client_ai_signals')
         if client_ai_signals and isinstance(client_ai_signals, dict) and not getattr(after_hours_bot_instance, "ai_signals", None):
             sig_dict = client_ai_signals.get('signals') or client_ai_signals
@@ -1734,18 +1714,32 @@ def exit_all_after_hours_positions():
 
 @api_bp.route('/after-hours/reset-account', methods=['POST'])
 def reset_after_hours_account():
-    """Resets NIGHTHAWK account back to ₹10,00,000 (10 Lakh) and clears after-hours holdings and trade ledger"""
+    """Resets NIGHTHAWK account back to ₹10,00,000 (10 Lakh), wipes positions and closed trades, and STOPS the bot"""
+    from app.services.bot import after_hours_bot_instance
+    after_hours_bot_instance.stop()
+    after_hours_bot_instance.is_running = False
+    after_hours_bot_instance.session_status = "STOPPED"
+
     AfterHoursPosition.query.delete()
     AfterHoursTradeHistory.query.delete()
     account = AfterHoursAccount.query.first()
     if account:
         account.cash_balance = 1000000.0  # 10 Lakh
+        account.total_equity = 1000000.0
+        account.realized_pnl = 0.0
+        account.unrealized_pnl = 0.0
+        account.margin_used = 0.0
     else:
-        account = AfterHoursAccount(cash_balance=1000000.0)
+        account = AfterHoursAccount(
+            cash_balance=1000000.0,
+            total_equity=1000000.0,
+            realized_pnl=0.0,
+            unrealized_pnl=0.0,
+            margin_used=0.0
+        )
         db.session.add(account)
     db.session.commit()
 
-    from app.services.bot import after_hours_bot_instance
     after_hours_bot_instance.logs = []
     after_hours_bot_instance.last_scan_summary = {
         "total_scanned": 0, "buys_found": 0, "sells_found": 0, "trades_executed": 0, "scanner_results": []
@@ -1759,8 +1753,22 @@ def reset_after_hours_account():
 
     return jsonify({
         "success": True,
-        "message": "NIGHTHAWK portfolio reset to ₹10,00,000 (10 Lakh) fresh capital!",
-        "portfolio": AfterHoursPaperTradingEngine.get_portfolio_summary()
+        "message": "NIGHTHAWK portfolio reset to ₹10,00,000 (10 Lakh) fresh capital, all P&L wiped to 0.0, and bot STOPPED!",
+        "portfolio": {
+            "cash_balance": 1000000.0,
+            "total_equity": 1000000.0,
+            "available_margin": 1000000.0,
+            "buying_power": 5000000.0,
+            "realized_pnl": 0.0,
+            "unrealized_pnl": 0.0,
+            "day_pnl": 0.0,
+            "day_realized_pnl": 0.0,
+            "margin_used": 0.0,
+            "market_value": 0.0,
+            "positions": [],
+            "wallet_balance": 1000000.0
+        },
+        "status": after_hours_bot_instance.get_status()
     })
 
 @api_bp.route('/after-hours/reset-and-restart', methods=['POST'])

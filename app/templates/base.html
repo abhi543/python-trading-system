@@ -435,6 +435,8 @@
 
             // 1. Immediately wipe ALL position caches & locks from LocalStorage
             try {
+                localStorage.setItem('ah_bot_active_v1', 'false');
+                localStorage.removeItem('ah_bot_active_v1');
                 localStorage.removeItem('nifty_active_holdings_v3');
                 localStorage.removeItem('nifty_positions_entry_lock_v1');
                 localStorage.removeItem('ah_active_holdings_v1');
@@ -448,6 +450,7 @@
                 localStorage.removeItem('ah_closed_trades_v1');
                 localStorage.removeItem('nighthawk_closed_trades_ledger_v1');
                 localStorage.removeItem('nighthawk_closed_trades_ledger_v2');
+                try { fetch('/api/after-hours/stop', { method: 'POST' }); } catch(err){}
             } catch (e) {}
 
             // 2. Set permanent anti-resurrection flags on window & clear arrays

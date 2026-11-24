@@ -88,8 +88,8 @@
                 <button id="bot-square-off-btn" class="btn-bot-scan" style="border-color: rgba(255, 75, 75, 0.5); color: #ff7575; font-weight: 700;" onclick="manualSquareOffAll()" title="Immediately close and liquidate all open positions at live market prices">
                     <i class="fa-solid fa-person-running"></i> EXIT ALL POSITIONS (<span id="hero-holdings-count">0</span>)
                 </button>
-                <button id="bot-reset-restart-btn" class="btn-bot-scan" style="border-color: rgba(167, 139, 250, 0.5); color: #c4b5fd; font-weight: 700;" onclick="resetAndRestartBot()" title="Square off all positions, reset desk to ₹10,00,000 (10 Lakh) and restart bot">
-                    <i class="fa-solid fa-arrows-rotate"></i> RESET &amp; RESTART BOT
+                <button id="bot-reset-restart-btn" class="btn-bot-scan" style="border-color: rgba(167, 139, 250, 0.5); color: #c4b5fd; font-weight: 700;" onclick="resetPortfolioTo1Crore()" title="Reset desk to ₹10,00,000 (10 Lakh), wipe P&L to ₹0.00, and stop bot">
+                    <i class="fa-solid fa-rotate-left"></i> RESET DESK (₹10 LAKH)
                 </button>
                 <button id="bot-stop-both-btn" class="btn-bot-scan" style="border-color: rgba(239, 68, 68, 0.6); background: linear-gradient(135deg, rgba(239, 68, 68, 0.16) 0%, rgba(185, 28, 28, 0.28) 100%); color: #ff6b6b; font-weight: 800;" onclick="globalStopBothBots()" title="Emergency Kill Switch: Stop both ALPHA and NIGHTHAWK bots immediately">
                     <i class="fa-solid fa-power-off"></i> STOP BOTH BOTS
@@ -2093,6 +2093,7 @@
             setBotActiveState(true, false);
             botSession.status = 'RUNNING';
         } else {
+            setBotActiveState(false, false);
             botSession.status = 'STOPPED';
         }
         renderBotSessionReport();
@@ -2275,12 +2276,15 @@
     function updateBotUI(data) {
         if (!data) return;
 
-        // Honor user's explicit local activation state so serverless restarts do not prematurely pause the bot
-        const localActive = localStorage.getItem('ah_bot_active_v1') === 'true';
-        if (localActive && !isBotActive) {
-            setBotActiveState(true, false);
-        } else if (!localActive && isBotActive) {
+        // Respect server bot status: if server says stopped, stop client bot immediately
+        if (data.is_running === false) {
             setBotActiveState(false, false);
+            try { localStorage.setItem('ah_bot_active_v1', 'false'); } catch(e){}
+        } else if (data.is_running === true && !isBotActive) {
+            const localActive = localStorage.getItem('ah_bot_active_v1') === 'true';
+            if (localActive) {
+                setBotActiveState(true, false);
+            }
         }
 
         window.isMarketOpen = (data.is_market_open !== undefined) ? !!data.is_market_open : !data.is_after_hours;
@@ -3234,8 +3238,19 @@
             }
         });
 
-        const realizedPnl = (Math.abs(clientTotalRealized) > 0 && serverRealized === 0) ? clientTotalRealized : serverRealized;
-        const effectiveDayRealized = (Math.abs(clientTodayRealized) > 0 && serverDayRealized === 0) ? clientTodayRealized : serverDayRealized;
+        let realizedPnl = serverRealized;
+        let effectiveDayRealized = serverDayRealized;
+        if (serverRealized === 0 && (!data.trades || data.trades.length === 0)) {
+            clientTotalRealized = 0.0;
+            clientTodayRealized = 0.0;
+            realizedPnl = 0.0;
+            effectiveDayRealized = 0.0;
+            saveStoredClosedTrades([]);
+            cachedClosedTrades = [];
+        } else if (Math.abs(clientTotalRealized) > 0 && serverRealized === 0) {
+            realizedPnl = clientTotalRealized;
+            effectiveDayRealized = clientTodayRealized;
+        }
         // Day P&L strictly reflects booked/realized profit today (unrealized floating stays in nav-pnl)
         const dayPnl = Math.round(effectiveDayRealized * 100) / 100;
 
@@ -4165,7 +4180,14 @@
     function renderClosedTradesUI(data) {
         if (!data) return;
         const serverTrades = data.trades || [];
-        const localTrades = getStoredClosedTrades();
+        
+        // If server trades are empty (clean desk reset), wipe local trade caches immediately
+        if (serverTrades.length === 0) {
+            saveStoredClosedTrades([]);
+            cachedClosedTrades = [];
+        }
+
+        const localTrades = (serverTrades.length === 0) ? [] : getStoredClosedTrades();
 
         // Merge server and local trades so trades NEVER vanish across Vercel deployments/cold starts
         const tradeMap = new Map();
@@ -4813,67 +4835,92 @@
     }
 
     async function resetAndRestartBot() {
-        if (!confirm('Are you sure you want to RESET & RESTART NIGHTHAWK?\n\n• All open positions will be squared off\n• Desk capital restored to ₹10,00,000 (10 Lakh) cash\n• Intraday limits cleared\n• Fresh bot session initiated\n• Bot will immediately restart autonomous scanning')) return;
-
-        try {
-            const res = await fetch('/api/after-hours/reset-and-restart', { method: 'POST' });
-            const data = await res.json();
-            if (data.success) {
-                window.explicitSquareOffDone = true;
-                try { 
-                    localStorage.removeItem(ACTIVE_HOLDINGS_KEY);
-                    localStorage.removeItem(POS_ENTRY_LOCK_KEY); 
-                    localStorage.removeItem(AH_CLOSED_TRADES_KEY);
-                } catch(e){}
-                saveStoredActivePositions([]);
-                saveStoredClosedTrades([]);
-                window.cachedActivePositions = [];
-                window.cachedClosedTrades = [];
-                if (window.recentlyExitedSymbols) window.recentlyExitedSymbols.clear();
-                const pnlEl = document.getElementById('nav-pnl');
-                if (pnlEl) {
-                    pnlEl.innerText = '₹0.00';
-                    pnlEl.className = 'metric-value text-green';
-                }
-                resetBotSessionReport(false);
-                if (typeof resetElapsedTimer === 'function') resetElapsedTimer();
-                showToast('NIGHTHAWK reset and restarted with fresh ₹10 Lakh capital!', 'success');
-                loadAccountMetrics();
-                loadBotHoldings();
-                loadClosedTrades();
-                fetchBotStatus();
-            } else {
-                showToast(`Reset & Restart failed: ${data.message || data.error}`, 'error');
-            }
-        } catch (e) {
-            showToast('Reset & Restart request failed: ' + e.message, 'error');
-        }
+        return resetPortfolioTo1Crore();
     }
 
     async function resetPortfolioTo1Crore() {
-        if (!confirm('Are you sure you want to reset NIGHTHAWK portfolio back to ₹10,00,000 (10 Lakh)?\n\n• Cash balance will be restored to ₹10 Lakh\n• All open positions will be cleared\n• Trade history and closed trades report will be reset\n• Bot session trades report will be reset')) return;
+        if (!confirm('Are you sure you want to reset NIGHTHAWK portfolio back to ₹10,00,000 (10 Lakh)?\n\n• Balance will be reset to ₹10 Lakh\n• Realized P&L and Day P&L will be reset to ₹0.00\n• Unrealized P&L will be reset to ₹0.00\n• All open positions and closed trades will be cleared\n• The bot will be STOPPED until you click Start')) return;
 
         try {
-            const res = await fetch('/api/after-hours/reset-account', { method: 'POST' });
+            // 1. Immediately STOP the bot on client and server
+            setBotActiveState(false, false);
+            try {
+                localStorage.setItem('ah_bot_active_v1', 'false');
+                localStorage.removeItem('ah_bot_active_v1');
+                localStorage.removeItem(ACTIVE_HOLDINGS_KEY);
+                localStorage.removeItem(POS_ENTRY_LOCK_KEY); 
+                localStorage.removeItem(AH_CLOSED_TRADES_KEY);
+                localStorage.removeItem('nighthawk_closed_trades_ledger_v1');
+                localStorage.removeItem('nighthawk_closed_trades_ledger_v2');
+                localStorage.removeItem('ah_bot_session_v1');
+                localStorage.removeItem('ah_active_holdings_v1');
+            } catch(e){}
+
+            if (typeof botSession !== 'undefined') {
+                botSession.status = 'STOPPED';
+                botSession.trades = [];
+                botSession.metrics = { total_trades: 0, total_buys: 0, total_sells: 0, net_realized_pnl: 0, total_charges: 0, win_rate: 0, wins: 0, losses: 0 };
+            }
+
+            saveStoredActivePositions([]);
+            saveStoredClosedTrades([]);
+            window.cachedActivePositions = [];
+            window.cachedClosedTrades = [];
+            window.explicitSquareOffDone = true;
+            if (window.recentlyExitedSymbols) window.recentlyExitedSymbols.clear();
+
+            // 2. Immediately zero out all navbar & scorecard metrics visually
+            const pnlEl = document.getElementById('nav-pnl');
+            if (pnlEl) {
+                pnlEl.innerText = '₹0.00';
+                pnlEl.className = 'metric-value text-green';
+            }
+            const navEq = document.getElementById('nav-total-equity');
+            if (navEq) navEq.innerText = '₹10,00,000.00';
+            const navCash = document.getElementById('nav-cash-balance');
+            if (navCash) navCash.innerText = '₹10,00,000.00';
+            const navBp = document.getElementById('nav-buying-power');
+            if (navBp) navBp.innerText = '₹50,00,000.00';
+            const navDelta = document.getElementById('nav-equity-delta');
+            if (navDelta) {
+                navDelta.innerText = '+0.00% Today';
+                navDelta.className = 'stat-subdelta text-green';
+            }
+            const navRealized = document.getElementById('nav-realized-pnl');
+            if (navRealized) navRealized.innerText = '₹0.00';
+            const navDayRealized = document.getElementById('nav-day-pnl');
+            if (navDayRealized) navDayRealized.innerText = '₹0.00';
+
+            const closedToday = document.getElementById('closed-today-realized');
+            if (closedToday) closedToday.innerText = '₹0.00';
+            const closedWallet = document.getElementById('closed-wallet-balance');
+            if (closedWallet) closedWallet.innerText = '₹10,00,000.00';
+            const closedWinRate = document.getElementById('closed-win-rate');
+            if (closedWinRate) closedWinRate.innerText = '0.0%';
+            const closedWinCount = document.getElementById('closed-win-count');
+            if (closedWinCount) closedWinCount.innerText = '0 Wins / 0 Losses';
+
+            const tbody = document.getElementById('bot-holdings-tbody');
+            if (tbody) {
+                tbody.innerHTML = '<tr><td colspan="13" class="text-center" style="padding: 2.5rem; color: var(--text-muted);"><i class="fa-solid fa-inbox" style="font-size: 2rem; margin-bottom: 0.5rem; display: block; opacity: 0.4;"></i> Desk reset to clean ₹10,00,000 capital. No active positions.</td></tr>';
+            }
+            const closedTbody = document.getElementById('closed-trades-tbody');
+            if (closedTbody) {
+                closedTbody.innerHTML = '<tr><td colspan="12" class="text-center" style="padding: 2rem; color: var(--text-muted);"><i class="fa-solid fa-inbox"></i> Trade history reset to 0.</td></tr>';
+            }
+
+            // 3. Stop bot on server
+            try { await fetch('/api/after-hours/stop', { method: 'POST' }); } catch(e){}
+
+            // 4. Call server reset endpoint with explicit_clear
+            const res = await fetch('/api/after-hours/reset-account', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ explicit_clear: true })
+            });
             const data = await res.json();
             if (data.success) {
-                window.explicitSquareOffDone = true;
-                try { 
-                    localStorage.removeItem(ACTIVE_HOLDINGS_KEY);
-                    localStorage.removeItem(POS_ENTRY_LOCK_KEY); 
-                    localStorage.removeItem(AH_CLOSED_TRADES_KEY);
-                } catch(e){}
-                saveStoredActivePositions([]);
-                saveStoredClosedTrades([]);
-                window.cachedActivePositions = [];
-                window.cachedClosedTrades = [];
-                if (window.recentlyExitedSymbols) window.recentlyExitedSymbols.clear();
-                const pnlEl = document.getElementById('nav-pnl');
-                if (pnlEl) {
-                    pnlEl.innerText = '₹0.00';
-                    pnlEl.className = 'metric-value text-green';
-                }
-                showToast('NIGHTHAWK portfolio successfully reset back to ₹10,00,000 (10 Lakh) cash!', 'success');
+                showToast('NIGHTHAWK reset: Balance ₹10 Lakh, Realized P&L ₹0.00, Unrealized P&L ₹0.00, Bot STOPPED!', 'success');
                 resetBotSessionReport(false);
                 if (typeof resetElapsedTimer === 'function') resetElapsedTimer();
                 loadAccountMetrics();
