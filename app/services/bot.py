@@ -104,7 +104,7 @@ class AutoTradingBot:
         self.is_after_hours_forced = is_after_hours_forced
 
         if self.is_after_hours_forced:
-            default_alloc = 200000.0  # ₹2 Lakhs per trade for ₹1 Crore Desk
+            default_alloc = 20000.0  # ₹20,000 per trade for ₹10 Lakhs Desk (5x: ₹1,00,000 exposure)
             from app.models.trading import AfterHoursPosition, AfterHoursTradeHistory, AfterHoursAccount
             from app.services.paper_trader import AfterHoursPaperTradingEngine
             self.pos_model = AfterHoursPosition
@@ -1780,7 +1780,7 @@ class AutoTradingBot:
                         unrealized_today += (p_price - p.average_price) * p.quantity
                 
                 total_session_pnl = realized_today + unrealized_today
-                base_capital = 10000000.0 if self.is_after_hours_forced else 50000.0
+                base_capital = 1000000.0 if self.is_after_hours_forced else 50000.0
                 session_pnl_pct = round((total_session_pnl / base_capital) * 100, 2)
                 max_dd_limit = float(getattr(self, "daily_max_drawdown_pct", 1.5))
 

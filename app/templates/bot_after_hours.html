@@ -15,7 +15,7 @@
                 </div>
                 <div>
                     <div style="font-weight: 800; font-size: 0.9rem; color: #ffd166; letter-spacing: 0.02em;">NIGHTHAWK 24/7 STRATEGY LAB (READY TO RUN)</div>
-                    <div style="font-size: 0.78rem; color: var(--text-muted); margin-top: 1px;">Full testing environment with ₹1 Crore isolated virtual capital. (For live day trading with real NSE quotes, switch to <a href="/bot" style="color: #00f090; font-weight: 700; text-decoration: underline;">ALPHA Day Bot</a>).</div>
+                    <div style="font-size: 0.78rem; color: var(--text-muted); margin-top: 1px;">Full testing environment with ₹10 Lakh isolated virtual capital. (For live day trading with real NSE quotes, switch to <a href="/bot" style="color: #00f090; font-weight: 700; text-decoration: underline;">ALPHA Day Bot</a>).</div>
                 </div>
             </div>
             <a href="/bot" class="btn-sm" style="background: rgba(255, 209, 102, 0.15); color: #ffd166; border: 1px solid rgba(255, 209, 102, 0.35); font-weight: 700; text-decoration: none; padding: 7px 14px; border-radius: 6px; font-size: 0.78rem; white-space: nowrap;">
@@ -88,7 +88,7 @@
                 <button id="bot-square-off-btn" class="btn-bot-scan" style="border-color: rgba(255, 75, 75, 0.5); color: #ff7575; font-weight: 700;" onclick="manualSquareOffAll()" title="Immediately close and liquidate all open positions at live market prices">
                     <i class="fa-solid fa-person-running"></i> EXIT ALL POSITIONS (<span id="hero-holdings-count">0</span>)
                 </button>
-                <button id="bot-reset-restart-btn" class="btn-bot-scan" style="border-color: rgba(167, 139, 250, 0.5); color: #c4b5fd; font-weight: 700;" onclick="resetAndRestartBot()" title="Square off all positions, reset desk to ₹1,00,00,000 (1 Crore) and restart bot">
+                <button id="bot-reset-restart-btn" class="btn-bot-scan" style="border-color: rgba(167, 139, 250, 0.5); color: #c4b5fd; font-weight: 700;" onclick="resetAndRestartBot()" title="Square off all positions, reset desk to ₹10,00,000 (10 Lakh) and restart bot">
                     <i class="fa-solid fa-arrows-rotate"></i> RESET &amp; RESTART BOT
                 </button>
                 <button id="bot-stop-both-btn" class="btn-bot-scan" style="border-color: rgba(239, 68, 68, 0.6); background: linear-gradient(135deg, rgba(239, 68, 68, 0.16) 0%, rgba(185, 28, 28, 0.28) 100%); color: #ff6b6b; font-weight: 800;" onclick="globalStopBothBots()" title="Emergency Kill Switch: Stop both ALPHA and NIGHTHAWK bots immediately">
@@ -163,8 +163,8 @@
 
                 <div class="config-item">
                     <label><i class="fa-solid fa-indian-rupee-sign"></i> MARGIN PER TRADE (₹) [5X LEVERAGE]</label>
-                    <input type="number" id="bot-allocation" class="config-input" value="200000" step="10000" min="5000" onchange="onStrategyChange()">
-                    <span class="badge" style="font-size: 0.68rem; background: rgba(255, 209, 102, 0.15); color: #ffd166; border: 1px solid rgba(255, 209, 102, 0.3); margin-top: 4px; display: inline-block;">⚡ 5x Buying Power: ₹10,00,000 Exposure (Desk: ₹1 Crore)</span>
+                    <input type="number" id="bot-allocation" class="config-input" value="20000" step="5000" min="1000" onchange="onStrategyChange()">
+                    <span class="badge" style="font-size: 0.68rem; background: rgba(255, 209, 102, 0.15); color: #ffd166; border: 1px solid rgba(255, 209, 102, 0.3); margin-top: 4px; display: inline-block;">⚡ 5x Buying Power: ₹1,00,000 Exposure (Desk: ₹10 Lakh)</span>
                 </div>
 
                 <div class="config-item" id="cfg-item-max-positions">
@@ -458,8 +458,8 @@
                             <button class="btn-sm btn-outline" onclick="refreshCurrentLedgerTab()">
                                 <i class="fa-solid fa-rotate"></i> Refresh
                             </button>
-                            <button class="btn-sm btn-outline" style="color: #ffd166; border-color: rgba(255, 209, 102, 0.4); font-weight: 700;" onclick="resetPortfolioTo1Crore()" title="Reset NIGHTHAWK portfolio cash to ₹1,00,00,000 (1 Crore) and clear holdings">
-                                <i class="fa-solid fa-rotate-left"></i> Reset to ₹1 Crore
+                            <button class="btn-sm btn-outline" style="color: #ffd166; border-color: rgba(255, 209, 102, 0.4); font-weight: 700;" onclick="resetPortfolioTo1Crore()" title="Reset NIGHTHAWK portfolio cash to ₹10,00,000 (10 Lakh) and clear holdings">
+                                <i class="fa-solid fa-rotate-left"></i> Reset to ₹10 Lakh
                             </button>
                         </div>
                     </div>
@@ -650,7 +650,7 @@
                             </div>
                             <div class="score-card-item">
                                 <span class="score-label"><i class="fa-solid fa-wallet" style="color: #a78bfa;"></i> CLEAN TRADING WALLET</span>
-                                <span class="score-val" id="closed-wallet-balance" style="color: #fff;">₹1,00,00,000.00</span>
+                                <span class="score-val" id="closed-wallet-balance" style="color: #fff;">₹10,00,000.00</span>
                                 <span class="score-sub" style="color: #a78bfa;">P&amp;L Not Added into Wallet</span>
                             </div>
                             <div class="score-card-item">
@@ -878,8 +878,8 @@
                         <div class="rule-item">
                             <div class="rule-icon"><i class="fa-solid fa-bolt" style="color: #ffd166;"></i></div>
                             <div>
-                                <h4>₹1,00,00,000 (1 Crore) Capital &amp; 5x Leverage</h4>
-                                <p>Operates with an isolated <strong>₹1 Crore cash desk</strong> with standard <strong>5x leverage (20% margin)</strong> on NSE equities. Allocates <strong>₹2,00,000 margin</strong> to control <strong>₹10,00,000 buying power</strong> per position, completely decoupled from Bot ALPHA.</p>
+                                <h4>₹10,00,000 (10 Lakh) Capital &amp; 5x Leverage</h4>
+                                <p>Operates with an isolated <strong>₹10 Lakh cash desk</strong> with standard <strong>5x leverage (20% margin)</strong> on NSE equities. Allocates <strong>₹20,000 margin</strong> to control <strong>₹1,00,000 buying power</strong> per position, completely decoupled from Bot ALPHA.</p>
                             </div>
                         </div>
                     </div>
@@ -3184,8 +3184,8 @@
         localPositions = localPositions || ((typeof getStoredActivePositions === 'function') ? getStoredActivePositions() : []);
 
         // 1. Update Navbar Metrics
-        const cash = (data.cash_balance !== undefined) ? data.cash_balance : (data.account ? data.account.cash_balance : 10000000);
-        const equity = (data.total_equity !== undefined) ? data.total_equity : (data.account ? data.account.total_equity : 10000000);
+        const cash = (data.cash_balance !== undefined) ? data.cash_balance : (data.account ? data.account.cash_balance : 1000000);
+        const equity = (data.total_equity !== undefined) ? data.total_equity : (data.account ? data.account.total_equity : 1000000);
         let pnl = (data.unrealized_pnl !== undefined) ? data.unrealized_pnl : (data.account ? data.account.unrealized_pnl : 0);
         if (!data.positions || data.positions.length === 0) {
             pnl = 0.0;
@@ -3208,7 +3208,7 @@
         }
         const deltaEl = document.getElementById('nav-equity-delta');
         if (deltaEl) {
-            const startCap = 10000000; // 1 Crore
+            const startCap = 1000000; // 10 Lakh
             const deltaPct = ((equity - startCap) / startCap * 100);
             const deltaSign = deltaPct >= 0 ? '+' : '';
             deltaEl.innerText = `${deltaSign}${deltaPct.toFixed(2)}% Today`;
@@ -4813,7 +4813,7 @@
     }
 
     async function resetAndRestartBot() {
-        if (!confirm('Are you sure you want to RESET & RESTART NIGHTHAWK?\n\n• All open positions will be squared off\n• Desk capital restored to ₹1,00,00,000 (1 Crore) cash\n• Intraday limits cleared\n• Fresh bot session initiated\n• Bot will immediately restart autonomous scanning')) return;
+        if (!confirm('Are you sure you want to RESET & RESTART NIGHTHAWK?\n\n• All open positions will be squared off\n• Desk capital restored to ₹10,00,000 (10 Lakh) cash\n• Intraday limits cleared\n• Fresh bot session initiated\n• Bot will immediately restart autonomous scanning')) return;
 
         try {
             const res = await fetch('/api/after-hours/reset-and-restart', { method: 'POST' });
@@ -4823,9 +4823,12 @@
                 try { 
                     localStorage.removeItem(ACTIVE_HOLDINGS_KEY);
                     localStorage.removeItem(POS_ENTRY_LOCK_KEY); 
+                    localStorage.removeItem(AH_CLOSED_TRADES_KEY);
                 } catch(e){}
                 saveStoredActivePositions([]);
+                saveStoredClosedTrades([]);
                 window.cachedActivePositions = [];
+                window.cachedClosedTrades = [];
                 if (window.recentlyExitedSymbols) window.recentlyExitedSymbols.clear();
                 const pnlEl = document.getElementById('nav-pnl');
                 if (pnlEl) {
@@ -4834,7 +4837,7 @@
                 }
                 resetBotSessionReport(false);
                 if (typeof resetElapsedTimer === 'function') resetElapsedTimer();
-                showToast('NIGHTHAWK reset and restarted with fresh ₹1 Crore capital!', 'success');
+                showToast('NIGHTHAWK reset and restarted with fresh ₹10 Lakh capital!', 'success');
                 loadAccountMetrics();
                 loadBotHoldings();
                 loadClosedTrades();
@@ -4848,7 +4851,7 @@
     }
 
     async function resetPortfolioTo1Crore() {
-        if (!confirm('Are you sure you want to reset NIGHTHAWK portfolio back to ₹1,00,00,000 (1 Crore)?\n\n• Cash balance will be restored to ₹1 Crore\n• All open positions will be cleared\n• Trade history and closed trades report will be reset\n• Bot session trades report will be reset')) return;
+        if (!confirm('Are you sure you want to reset NIGHTHAWK portfolio back to ₹10,00,000 (10 Lakh)?\n\n• Cash balance will be restored to ₹10 Lakh\n• All open positions will be cleared\n• Trade history and closed trades report will be reset\n• Bot session trades report will be reset')) return;
 
         try {
             const res = await fetch('/api/after-hours/reset-account', { method: 'POST' });
@@ -4858,16 +4861,19 @@
                 try { 
                     localStorage.removeItem(ACTIVE_HOLDINGS_KEY);
                     localStorage.removeItem(POS_ENTRY_LOCK_KEY); 
+                    localStorage.removeItem(AH_CLOSED_TRADES_KEY);
                 } catch(e){}
                 saveStoredActivePositions([]);
+                saveStoredClosedTrades([]);
                 window.cachedActivePositions = [];
+                window.cachedClosedTrades = [];
                 if (window.recentlyExitedSymbols) window.recentlyExitedSymbols.clear();
                 const pnlEl = document.getElementById('nav-pnl');
                 if (pnlEl) {
                     pnlEl.innerText = '₹0.00';
                     pnlEl.className = 'metric-value text-green';
                 }
-                showToast('NIGHTHAWK portfolio successfully reset back to ₹1,00,00,000 (1 Crore) cash!', 'success');
+                showToast('NIGHTHAWK portfolio successfully reset back to ₹10,00,000 (10 Lakh) cash!', 'success');
                 resetBotSessionReport(false);
                 if (typeof resetElapsedTimer === 'function') resetElapsedTimer();
                 loadAccountMetrics();

@@ -108,12 +108,12 @@ class WatchlistItem(db.Model):
     added_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
 # ==============================================================================
-# NIGHTHAWK ISOLATED MODELS: 1 CRORE (₹10,000,000) DESK
+# NIGHTHAWK ISOLATED MODELS: 10 LAKH (₹1,000,000) DESK
 # ==============================================================================
 class AfterHoursAccount(db.Model):
     __tablename__ = 'after_hours_accounts'
     id = db.Column(db.Integer, primary_key=True)
-    cash_balance = db.Column(db.Float, nullable=False, default=10000000.0) # ₹1,00,00,000 (1 Crore)
+    cash_balance = db.Column(db.Float, nullable=False, default=1000000.0) # ₹10,00,000 (10 Lakh)
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
@@ -199,7 +199,7 @@ class SwingTradeHistory(db.Model):
     net_total = db.Column(db.Float, default=0.0)
     timestamp = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
-def init_default_data(initial_cash=50000.0, after_hours_initial_cash=10000000.0, swing_initial_cash=100000.0):
+def init_default_data(initial_cash=50000.0, after_hours_initial_cash=1000000.0, swing_initial_cash=100000.0):
     if not Account.query.first():
         db.session.add(Account(cash_balance=initial_cash))
         db.session.commit()

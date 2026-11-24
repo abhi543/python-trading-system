@@ -540,11 +540,11 @@ class PaperTradingEngine:
 
 
 # ==============================================================================
-# NIGHTHAWK ISOLATED PAPER TRADING ENGINE (₹1 CRORE / ₹10,000,000 BASE BALANCE)
+# NIGHTHAWK ISOLATED PAPER TRADING ENGINE (₹10 LAKH / ₹1,000,000 BASE BALANCE)
 # ==============================================================================
 class AfterHoursPaperTradingEngine:
     LEVERAGE = 5.0
-    INITIAL_CASH = 10000000.0  # ₹1 Crore (₹10,000,000)
+    INITIAL_CASH = 1000000.0  # ₹10 Lakhs (₹1,000,000)
     slippage_pct = 0.0
 
     @staticmethod
@@ -562,7 +562,7 @@ class AfterHoursPaperTradingEngine:
         total_margin_used = sum((p.quantity * p.average_price) / AfterHoursPaperTradingEngine.LEVERAGE for p in positions)
         total_realized_pnl = db.session.query(db.func.sum(AfterHoursTradeHistory.realized_pnl)).scalar() or 0.0
 
-        # Canonical cash balance = Starting cash (₹1 Crore) - Active Margin Blocked (Do not add realized P&L into wallet!)
+        # Canonical cash balance = Starting cash (₹10 Lakh) - Active Margin Blocked (Do not add realized P&L into wallet!)
         expected_cash = round(max(0.0, AfterHoursPaperTradingEngine.INITIAL_CASH - total_margin_used), 2)
         account.cash_balance = expected_cash
         db.session.commit()

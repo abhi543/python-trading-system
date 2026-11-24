@@ -1061,11 +1061,12 @@ def complete_system_reset():
     # 2. Reset NIGHTHAWK (After-Hours Desk)
     if desk in ('all', 'nighthawk'):
         AfterHoursPosition.query.delete()
+        AfterHoursTradeHistory.query.delete()
         ah_account = AfterHoursAccount.query.first()
         if ah_account:
-            ah_account.cash_balance = 10000000.0
+            ah_account.cash_balance = 1000000.0
         else:
-            db.session.add(AfterHoursAccount(cash_balance=10000000.0))
+            db.session.add(AfterHoursAccount(cash_balance=1000000.0))
 
         after_hours_bot_instance.logs = []
         after_hours_bot_instance.last_scan_summary = {
@@ -1106,8 +1107,8 @@ def complete_system_reset():
             "positions_count": 0
         },
         "nighthawk": {
-            "cash_balance": 10000000.0,
-            "total_equity": 10000000.0,
+            "cash_balance": 1000000.0,
+            "total_equity": 1000000.0,
             "unrealized_pnl": 0.0,
             "positions_count": 0
         },
@@ -1723,13 +1724,14 @@ def exit_all_after_hours_positions():
 
 @api_bp.route('/after-hours/reset-account', methods=['POST'])
 def reset_after_hours_account():
-    """Resets NIGHTHAWK account back to ₹1,00,00,000 (1 Crore) and clears after-hours holdings"""
+    """Resets NIGHTHAWK account back to ₹10,00,000 (10 Lakh) and clears after-hours holdings and trade ledger"""
     AfterHoursPosition.query.delete()
+    AfterHoursTradeHistory.query.delete()
     account = AfterHoursAccount.query.first()
     if account:
-        account.cash_balance = 10000000.0  # 1 Crore
+        account.cash_balance = 1000000.0  # 10 Lakh
     else:
-        account = AfterHoursAccount(cash_balance=10000000.0)
+        account = AfterHoursAccount(cash_balance=1000000.0)
         db.session.add(account)
     db.session.commit()
 
@@ -1747,20 +1749,21 @@ def reset_after_hours_account():
 
     return jsonify({
         "success": True,
-        "message": "NIGHTHAWK portfolio reset to ₹1,00,00,000 (1 Crore) fresh capital!",
+        "message": "NIGHTHAWK portfolio reset to ₹10,00,000 (10 Lakh) fresh capital!",
         "portfolio": AfterHoursPaperTradingEngine.get_portfolio_summary()
     })
 
 @api_bp.route('/after-hours/reset-and-restart', methods=['POST'])
 def reset_and_restart_after_hours_bot():
-    """Squares off NIGHTHAWK positions, restores ₹1 Crore capital, and restarts NIGHTHAWK"""
+    """Squares off NIGHTHAWK positions, clears trade history, restores ₹10 Lakh capital, and restarts NIGHTHAWK"""
     from app.services.bot import after_hours_bot_instance
     AfterHoursPosition.query.delete()
+    AfterHoursTradeHistory.query.delete()
     account = AfterHoursAccount.query.first()
     if account:
-        account.cash_balance = 10000000.0
+        account.cash_balance = 1000000.0
     else:
-        account = AfterHoursAccount(cash_balance=10000000.0)
+        account = AfterHoursAccount(cash_balance=1000000.0)
         db.session.add(account)
     db.session.commit()
 
@@ -1776,11 +1779,11 @@ def reset_and_restart_after_hours_bot():
     after_hours_bot_instance.session_status = "RUNNING"
     after_hours_bot_instance.session_start_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     after_hours_bot_instance.persist_state()
-    after_hours_bot_instance.add_log(f"🔄 [RESET & RESTART] NIGHTHAWK reset with ₹1 Crore capital. Starting Session #{after_hours_bot_instance.session_count}", "SUCCESS")
+    after_hours_bot_instance.add_log(f"🔄 [RESET & RESTART] NIGHTHAWK reset with ₹10 Lakh capital. Starting Session #{after_hours_bot_instance.session_count}", "SUCCESS")
 
     return jsonify({
         "success": True,
-        "message": f"NIGHTHAWK reset with ₹1 Crore capital and restarted (Session #{after_hours_bot_instance.session_count})",
+        "message": f"NIGHTHAWK reset with ₹10 Lakh capital and restarted (Session #{after_hours_bot_instance.session_count})",
         "bot_state": after_hours_bot_instance.get_status(),
         "portfolio": AfterHoursPaperTradingEngine.get_portfolio_summary()
     })
