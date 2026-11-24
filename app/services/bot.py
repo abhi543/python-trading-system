@@ -2109,7 +2109,6 @@ class AutoTradingBot:
                             else:
                                 eval_res["action_executed"] = f"SKIPPED (Margin ₹{margin_needed:,.0f} > Avail ₹{available_cash:,.0f})"
                                 self.add_log(f"⚡ [MARGIN LIMIT] SHORT on {display_name} skipped: Needed margin ₹{margin_needed:,.2f}, Available cash ₹{available_cash:,.2f}", "WARNING")
-                            self.add_log(f"⚡ [MARGIN LIMIT] SHORT on {display_name} skipped: Needed margin ₹{margin_needed:,.2f}, Available cash ₹{available_cash:,.2f}", "WARNING")
                     elif symbol not in held_map and not has_position_slot:
                         eval_res["action_executed"] = f"SKIPPED (Max Positions {max_limit} Reached)"
                         self.add_log(f"⚡ [MAX POSITIONS] SHORT on {display_name} skipped: Max slots ({max_limit}) reached", "WARNING")
