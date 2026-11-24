@@ -192,6 +192,24 @@
         border-color: #fbbf24;
     }
 
+    /* Alphabet Filter Buttons */
+    .alpha-btn {
+        padding: 3px 6px;
+        font-size: 0.68rem;
+        font-weight: 700;
+        border-radius: 4px;
+        background: rgba(255, 255, 255, 0.05);
+        color: #94a3b8;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        cursor: pointer;
+        transition: all 0.15s ease;
+    }
+    .alpha-btn:hover, .alpha-btn.active {
+        background: rgba(56, 189, 248, 0.25);
+        color: #38bdf8;
+        border-color: rgba(56, 189, 248, 0.5);
+    }
+
     /* Run Button */
     .btn-run-backtest {
         background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
@@ -371,32 +389,100 @@
                 </button>
             </div>
 
-            <!-- Single Stock Input with Full 2,398 Datalist -->
+            <!-- Single Stock Input with Top-Down Dropdown Menu -->
             <div class="form-group" id="group-single-stock">
-                <label class="form-label">
-                    <span>SELECT FROM ALL 2,398 NSE STOCKS</span>
-                    <span id="stock-name-preview" style="color: #00f090; font-weight: 600; text-transform: none;">Reliance Industries Limited</span>
+                <label class="form-label" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; margin-bottom: 0.4rem;">
+                    <span><i class="fa-solid fa-arrow-down-short-wide" style="color: #38bdf8;"></i> SELECT STOCK (TOP-DOWN DROPDOWN)</span>
+                    <span id="stock-name-preview" style="color: #00f090; font-weight: 700; text-transform: none;">Reliance Industries Limited</span>
                 </label>
-                <input type="text" id="lab-symbol" class="form-input" list="nse-2000-datalist" value="RELIANCE.NS" placeholder="Search any of 2,398 NSE stocks (e.g. TATA, ZOMATO, HDFC)..." oninput="onSymbolInput(this.value)">
-                <datalist id="nse-2000-datalist">
-                    <option value="RELIANCE.NS">RELIANCE.NS — Reliance Industries Limited</option>
-                    <option value="TCS.NS">TCS.NS — Tata Consultancy Services Limited</option>
-                    <option value="HDFCBANK.NS">HDFCBANK.NS — HDFC Bank Limited</option>
-                    <option value="INFY.NS">INFY.NS — Infosys Limited</option>
-                    <option value="ICICIBANK.NS">ICICIBANK.NS — ICICI Bank Limited</option>
-                    <option value="TATAMOTORS.NS">TATAMOTORS.NS — Tata Motors Limited</option>
-                    <option value="ZOMATO.NS">ZOMATO.NS — Zomato Limited</option>
-                    <option value="SUZLON.NS">SUZLON.NS — Suzlon Energy Limited</option>
-                    <option value="JIOFIN.NS">JIOFIN.NS — Jio Financial Services Limited</option>
-                    <option value="BEL.NS">BEL.NS — Bharat Electronics Limited</option>
-                    <option value="HAL.NS">HAL.NS — Hindustan Aeronautics Limited</option>
-                    <option value="IREDA.NS">IREDA.NS — Indian Renewable Energy Dev Agency</option>
-                    <option value="RVNL.NS">RVNL.NS — Rail Vikas Nigam Limited</option>
-                </datalist>
+
+                <!-- Category Filter + Alphabet Jump Bar -->
+                <div style="display: flex; gap: 0.5rem; align-items: center; justify-content: space-between; margin-bottom: 0.4rem; flex-wrap: wrap;">
+                    <div style="display: flex; gap: 0.4rem; align-items: center;">
+                        <span style="font-size: 0.68rem; font-weight: 700; color: #94a3b8;"><i class="fa-solid fa-filter"></i> BROWSE:</span>
+                        <select id="stock-category-filter" class="form-select" style="padding: 3px 8px; font-size: 0.74rem; width: auto; background: #1e293b; border-color: rgba(56, 189, 248, 0.4);" onchange="filterStockDropdown(this.value)">
+                            <option value="ALL">All 2,398 Stocks (A-Z)</option>
+                            <option value="POPULAR" selected>⭐ Top 30 Popular &amp; Heavyweights</option>
+                            <option value="NIFTY50">🏆 NIFTY 50 Bluechips</option>
+                            <option value="MOMENTUM">🚀 High-Beta &amp; Momentum</option>
+                        </select>
+                    </div>
+                    <div style="font-size: 0.72rem; color: #38bdf8; font-weight: 600;" id="filtered-stocks-count">2,398 Stocks Ready</div>
+                </div>
+
+                <!-- Alphabet Quick-Jump Bar -->
+                <div class="alphabet-bar" style="display: flex; gap: 2px; flex-wrap: wrap; margin-bottom: 0.5rem; background: rgba(15, 23, 42, 0.6); padding: 4px; border-radius: 6px; border: 1px solid rgba(255, 255, 255, 0.05);">
+                    <button type="button" class="alpha-btn active" onclick="jumpToAlphabet('ALL', this)" style="padding: 2px 6px; font-size: 0.68rem; border-radius: 3px; background: rgba(56, 189, 248, 0.25); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.4); cursor: pointer; font-weight: 700;">ALL</button>
+                    <button type="button" class="alpha-btn" onclick="jumpToAlphabet('A', this)">A</button>
+                    <button type="button" class="alpha-btn" onclick="jumpToAlphabet('B', this)">B</button>
+                    <button type="button" class="alpha-btn" onclick="jumpToAlphabet('C', this)">C</button>
+                    <button type="button" class="alpha-btn" onclick="jumpToAlphabet('D', this)">D</button>
+                    <button type="button" class="alpha-btn" onclick="jumpToAlphabet('E', this)">E</button>
+                    <button type="button" class="alpha-btn" onclick="jumpToAlphabet('F', this)">F</button>
+                    <button type="button" class="alpha-btn" onclick="jumpToAlphabet('G', this)">G</button>
+                    <button type="button" class="alpha-btn" onclick="jumpToAlphabet('H', this)">H</button>
+                    <button type="button" class="alpha-btn" onclick="jumpToAlphabet('I', this)">I</button>
+                    <button type="button" class="alpha-btn" onclick="jumpToAlphabet('J', this)">J</button>
+                    <button type="button" class="alpha-btn" onclick="jumpToAlphabet('K', this)">K</button>
+                    <button type="button" class="alpha-btn" onclick="jumpToAlphabet('L', this)">L</button>
+                    <button type="button" class="alpha-btn" onclick="jumpToAlphabet('M', this)">M</button>
+                    <button type="button" class="alpha-btn" onclick="jumpToAlphabet('N', this)">N</button>
+                    <button type="button" class="alpha-btn" onclick="jumpToAlphabet('O', this)">O</button>
+                    <button type="button" class="alpha-btn" onclick="jumpToAlphabet('P', this)">P</button>
+                    <button type="button" class="alpha-btn" onclick="jumpToAlphabet('Q', this)">Q</button>
+                    <button type="button" class="alpha-btn" onclick="jumpToAlphabet('R', this)">R</button>
+                    <button type="button" class="alpha-btn" onclick="jumpToAlphabet('S', this)">S</button>
+                    <button type="button" class="alpha-btn" onclick="jumpToAlphabet('T', this)">T</button>
+                    <button type="button" class="alpha-btn" onclick="jumpToAlphabet('U', this)">U</button>
+                    <button type="button" class="alpha-btn" onclick="jumpToAlphabet('V', this)">V</button>
+                    <button type="button" class="alpha-btn" onclick="jumpToAlphabet('W', this)">W</button>
+                    <button type="button" class="alpha-btn" onclick="jumpToAlphabet('X', this)">X</button>
+                    <button type="button" class="alpha-btn" onclick="jumpToAlphabet('Y', this)">Y</button>
+                    <button type="button" class="alpha-btn" onclick="jumpToAlphabet('Z', this)">Z</button>
+                </div>
+
+                <!-- Primary Top-Down Dropdown Menu -->
+                <div style="position: relative;">
+                    <select id="lab-symbol-select" class="form-select" onchange="onSelectStockChange(this.value)" style="font-size: 0.95rem; font-weight: 700; padding: 0.65rem 0.85rem; border-color: rgba(56, 189, 248, 0.5); background: #0b1120; color: #ffffff; cursor: pointer;">
+                        <!-- Initial pre-rendered options -->
+                        <optgroup label="⭐ High Turnover &amp; Benchmark Leaders">
+                            <option value="RELIANCE.NS" selected>RELIANCE.NS — Reliance Industries Limited</option>
+                            <option value="TCS.NS">TCS.NS — Tata Consultancy Services Limited</option>
+                            <option value="HDFCBANK.NS">HDFCBANK.NS — HDFC Bank Limited</option>
+                            <option value="INFY.NS">INFY.NS — Infosys Limited</option>
+                            <option value="ICICIBANK.NS">ICICIBANK.NS — ICICI Bank Limited</option>
+                            <option value="SBIN.NS">SBIN.NS — State Bank of India</option>
+                            <option value="BHARTIARTL.NS">BHARTIARTL.NS — Bharti Airtel Limited</option>
+                            <option value="ITC.NS">ITC.NS — ITC Limited</option>
+                            <option value="LT.NS">LT.NS — Larsen &amp; Toubro Limited</option>
+                            <option value="TATAMOTORS.NS">TATAMOTORS.NS — Tata Motors Limited</option>
+                        </optgroup>
+                        <optgroup label="🚀 High Momentum &amp; Popular">
+                            <option value="ZOMATO.NS">ZOMATO.NS — Zomato Limited</option>
+                            <option value="SUZLON.NS">SUZLON.NS — Suzlon Energy Limited</option>
+                            <option value="JIOFIN.NS">JIOFIN.NS — Jio Financial Services Limited</option>
+                            <option value="BEL.NS">BEL.NS — Bharat Electronics Limited</option>
+                            <option value="HAL.NS">HAL.NS — Hindustan Aeronautics Limited</option>
+                            <option value="IREDA.NS">IREDA.NS — Indian Renewable Energy Dev Agency</option>
+                            <option value="RVNL.NS">RVNL.NS — Rail Vikas Nigam Limited</option>
+                        </optgroup>
+                    </select>
+                    <!-- Hidden synced value -->
+                    <input type="hidden" id="lab-symbol" value="RELIANCE.NS">
+                </div>
+
+                <!-- Instant Filter Search (Optional) -->
+                <div style="display: flex; gap: 0.5rem; align-items: center; margin-top: 0.4rem;">
+                    <div style="position: relative; flex: 1;">
+                        <i class="fa-solid fa-magnifying-glass" style="position: absolute; left: 10px; top: 50%; transform: translateY(-50%); font-size: 0.72rem; color: #64748b;"></i>
+                        <input type="text" id="lab-symbol-filter-input" class="form-input" style="padding-left: 28px; font-size: 0.75rem; padding-top: 4px; padding-bottom: 4px;" placeholder="Filter dropdown by name or ticker (e.g. Adani, Tata, Bhel)..." oninput="onLiveFilterInput(this.value)">
+                    </div>
+                    <button type="button" class="tab-btn" onclick="resetStockFilter()" style="padding: 4px 8px; font-size: 0.72rem; white-space: nowrap;">Reset</button>
+                </div>
 
                 <!-- Quick Category Sector Chips -->
-                <div style="display: flex; flex-direction: column; gap: 0.4rem; margin-top: 0.5rem;">
-                    <div style="font-size: 0.68rem; font-weight: 700; color: #64748b; text-transform: uppercase;">Quick 1-Click Anchors:</div>
+                <div style="display: flex; flex-direction: column; gap: 0.35rem; margin-top: 0.5rem;">
+                    <div style="font-size: 0.68rem; font-weight: 700; color: #64748b; text-transform: uppercase;">1-Click Instant Anchors:</div>
                     <div class="chips-row">
                         <span class="stock-chip" onclick="setSymbol('RELIANCE.NS')">RELIANCE</span>
                         <span class="stock-chip" onclick="setSymbol('TCS.NS')">TCS</span>
@@ -766,37 +852,188 @@
         }
     }
 
+    let allNSEStocksList = [];
+    const POPULAR_SYMBOLS = [
+        'RELIANCE.NS', 'TCS.NS', 'HDFCBANK.NS', 'INFY.NS', 'ICICIBANK.NS',
+        'BHARTIARTL.NS', 'ITC.NS', 'SBIN.NS', 'LT.NS', 'TATAMOTORS.NS',
+        'HINDUNILVR.NS', 'AXISBANK.NS', 'BAJFINANCE.NS', 'MARUTI.NS', 'SUNPHARMA.NS',
+        'KOTAKBANK.NS', 'TITAN.NS', 'M&M.NS', 'ADANIENT.NS', 'TATASTEEL.NS',
+        'ZOMATO.NS', 'SUZLON.NS', 'JIOFIN.NS', 'BEL.NS', 'HAL.NS',
+        'IREDA.NS', 'RVNL.NS', 'COALINDIA.NS', 'NTPC.NS', 'POWERGRID.NS'
+    ];
+    let currentCategoryFilter = 'POPULAR';
+    let currentAlphabetFilter = 'ALL';
+
     async function loadNSEUniverseCatalog() {
         try {
             const res = await fetch('/api/nse/stocks?limit=2500');
             const data = await res.json();
             if (data && data.success && Array.isArray(data.stocks)) {
-                const datalist = document.getElementById('nse-2000-datalist');
-                if (datalist) {
-                    let optionsHtml = '';
-                    data.stocks.forEach(s => {
-                        const sym = s.symbol || s.ticker;
-                        const name = s.name || sym;
-                        window.nseStocksMap[sym] = name;
-                        if (s.ticker) window.nseStocksMap[s.ticker] = name;
-                        optionsHtml += `<option value="${sym}">${sym} — ${name}</option>`;
-                    });
-                    datalist.innerHTML = optionsHtml;
-                }
+                allNSEStocksList = data.stocks;
+                data.stocks.forEach(s => {
+                    const sym = s.symbol || s.ticker;
+                    const name = s.name || sym;
+                    window.nseStocksMap[sym] = name;
+                    if (s.ticker) window.nseStocksMap[s.ticker] = name;
+                });
+                renderStockSelectOptions();
             }
         } catch (e) {
-            console.warn('Could not preload full NSE universe datalist:', e);
+            console.warn('Could not preload full NSE universe catalog:', e);
         }
+    }
+
+    function renderStockSelectOptions(customFilteredList = null) {
+        const select = document.getElementById('lab-symbol-select');
+        if (!select) return;
+
+        let listToRender = customFilteredList;
+        if (!listToRender) {
+            if (currentCategoryFilter === 'POPULAR') {
+                listToRender = allNSEStocksList.filter(s => {
+                    const sym = s.symbol || (s.ticker + '.NS');
+                    return POPULAR_SYMBOLS.includes(sym) || POPULAR_SYMBOLS.includes(s.ticker);
+                });
+                if (listToRender.length === 0) listToRender = allNSEStocksList.slice(0, 30);
+            } else if (currentCategoryFilter === 'NIFTY50') {
+                listToRender = allNSEStocksList.slice(0, 50);
+            } else if (currentCategoryFilter === 'MOMENTUM') {
+                const momSet = ['ZOMATO.NS', 'SUZLON.NS', 'JIOFIN.NS', 'BEL.NS', 'HAL.NS', 'IREDA.NS', 'RVNL.NS', 'TATAMOTORS.NS', 'BHEL.NS', 'COCHINSHIP.NS', 'MAZDOCK.NS'];
+                listToRender = allNSEStocksList.filter(s => momSet.includes(s.symbol) || momSet.includes(s.ticker + '.NS'));
+            } else {
+                listToRender = allNSEStocksList;
+            }
+
+            if (currentAlphabetFilter !== 'ALL') {
+                listToRender = listToRender.filter(s => {
+                    const t = (s.ticker || s.symbol || '').toUpperCase();
+                    return t.startsWith(currentAlphabetFilter);
+                });
+            }
+        }
+
+        const countBadge = document.getElementById('filtered-stocks-count');
+        if (countBadge) {
+            countBadge.innerText = `${listToRender.length} Stocks in Dropdown`;
+        }
+
+        const currentVal = document.getElementById('lab-symbol').value || 'RELIANCE.NS';
+        let optionsHtml = '';
+
+        if (listToRender.length === 0) {
+            optionsHtml = `<option value="">No matching stocks found in category</option>`;
+        } else {
+            listToRender.forEach(s => {
+                const sym = s.symbol || (s.ticker + '.NS');
+                const name = s.name || sym;
+                const isSelected = (sym === currentVal || s.ticker === currentVal) ? 'selected' : '';
+                optionsHtml += `<option value="${sym}" ${isSelected}>${sym} — ${name}</option>`;
+            });
+        }
+
+        select.innerHTML = optionsHtml;
+        if (select.value) {
+            document.getElementById('lab-symbol').value = select.value;
+            onSymbolInput(select.value);
+        }
+    }
+
+    function filterStockDropdown(cat) {
+        currentCategoryFilter = cat;
+        currentAlphabetFilter = 'ALL';
+        updateAlphaButtons('ALL');
+        const searchInput = document.getElementById('lab-symbol-filter-input');
+        if (searchInput) searchInput.value = '';
+        renderStockSelectOptions();
+    }
+
+    function jumpToAlphabet(letter, btnEl) {
+        currentAlphabetFilter = letter;
+        if (letter !== 'ALL') {
+            currentCategoryFilter = 'ALL';
+            const catSel = document.getElementById('stock-category-filter');
+            if (catSel) catSel.value = 'ALL';
+        }
+        updateAlphaButtons(letter);
+        const searchInput = document.getElementById('lab-symbol-filter-input');
+        if (searchInput) searchInput.value = '';
+        renderStockSelectOptions();
+    }
+
+    function updateAlphaButtons(activeLetter) {
+        const btns = document.querySelectorAll('.alpha-btn');
+        btns.forEach(b => {
+            const isMatch = b.innerText.trim() === activeLetter;
+            b.classList.toggle('active', isMatch);
+            if (isMatch) {
+                b.style.background = 'rgba(56, 189, 248, 0.25)';
+                b.style.color = '#38bdf8';
+                b.style.borderColor = 'rgba(56, 189, 248, 0.5)';
+            } else {
+                b.style.background = 'rgba(255, 255, 255, 0.05)';
+                b.style.color = '#94a3b8';
+                b.style.borderColor = 'rgba(255, 255, 255, 0.1)';
+            }
+        });
+    }
+
+    function onLiveFilterInput(query) {
+        const q = (query || '').trim().toUpperCase();
+        if (!q) {
+            renderStockSelectOptions();
+            return;
+        }
+        const filtered = allNSEStocksList.filter(s => {
+            const sym = (s.symbol || '').toUpperCase();
+            const ticker = (s.ticker || '').toUpperCase();
+            const name = (s.name || '').toUpperCase();
+            return sym.includes(q) || ticker.includes(q) || name.includes(q);
+        });
+        renderStockSelectOptions(filtered);
+    }
+
+    function resetStockFilter() {
+        currentCategoryFilter = 'POPULAR';
+        currentAlphabetFilter = 'ALL';
+        updateAlphaButtons('ALL');
+        const catSel = document.getElementById('stock-category-filter');
+        if (catSel) catSel.value = 'POPULAR';
+        const searchInput = document.getElementById('lab-symbol-filter-input');
+        if (searchInput) searchInput.value = '';
+        renderStockSelectOptions();
+    }
+
+    function onSelectStockChange(val) {
+        if (!val) return;
+        document.getElementById('lab-symbol').value = val;
+        onSymbolInput(val);
+    }
+
+    function setSymbol(sym) {
+        document.getElementById('lab-symbol').value = sym;
+        const sel = document.getElementById('lab-symbol-select');
+        if (sel) {
+            let found = false;
+            for (let i = 0; i < sel.options.length; i++) {
+                if (sel.options[i].value === sym) {
+                    sel.selectedIndex = i;
+                    found = true;
+                    break;
+                }
+            }
+            if (!found) {
+                const name = window.nseStocksMap[sym] || sym;
+                const opt = new Option(`${sym} — ${name}`, sym, true, true);
+                sel.add(opt, 0);
+                sel.selectedIndex = 0;
+            }
+        }
+        onSymbolInput(sym);
     }
 
     document.addEventListener('DOMContentLoaded', () => {
         loadNSEUniverseCatalog();
     });
-
-    function setSymbol(sym) {
-        document.getElementById('lab-symbol').value = sym;
-        onSymbolInput(sym);
-    }
 
     function handleFileSelected(input) {
         if (input.files && input.files[0]) {
