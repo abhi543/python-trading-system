@@ -352,21 +352,79 @@
 
     <!-- Configuration Grid -->
     <div class="lab-grid">
-        <!-- Panel 1: Data Ingestion Source -->
+        <!-- Panel 1: Data Ingestion Source (All 2,000+ NSE Stocks) -->
         <div class="lab-panel" id="panel-autofetch">
-            <div class="panel-title">
-                <i class="fa-solid fa-satellite-dish" style="color: #38bdf8;"></i> 1-CLICK MARKET DATA INGESTION
+            <div class="panel-title" style="justify-content: space-between;">
+                <span style="display: flex; align-items: center; gap: 8px;">
+                    <i class="fa-solid fa-satellite-dish" style="color: #38bdf8;"></i> 1-CLICK MARKET DATA INGESTION
+                </span>
+                <span class="lab-badge badge-blue"><i class="fa-solid fa-layer-group"></i> 2,398 NSE STOCKS</span>
             </div>
-            <div class="form-group">
-                <label class="form-label">STOCK SYMBOL / INSTRUMENT</label>
-                <input type="text" id="lab-symbol" class="form-input" value="RELIANCE.NS" placeholder="e.g. RELIANCE.NS, TCS.NS">
-                <div class="chips-row" style="margin-top: 0.4rem;">
-                    <span class="stock-chip" onclick="setSymbol('RELIANCE.NS')">RELIANCE</span>
-                    <span class="stock-chip" onclick="setSymbol('TCS.NS')">TCS</span>
-                    <span class="stock-chip" onclick="setSymbol('HDFCBANK.NS')">HDFCBANK</span>
-                    <span class="stock-chip" onclick="setSymbol('INFY.NS')">INFY</span>
-                    <span class="stock-chip" onclick="setSymbol('ICICIBANK.NS')">ICICIBANK</span>
-                    <span class="stock-chip" onclick="setSymbol('TATAMOTORS.NS')">TATAMOTORS</span>
+
+            <!-- Ingestion Target Mode: Single Stock vs Universe Basket -->
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.6rem;">
+                <button type="button" class="tab-btn active" id="btn-mode-single" onclick="setFetchMode('SINGLE')" style="justify-content: center; padding: 0.5rem;">
+                    <i class="fa-solid fa-crosshairs"></i> Single Stock (2,398 Stocks)
+                </button>
+                <button type="button" class="tab-btn" id="btn-mode-batch" onclick="setFetchMode('BATCH')" style="justify-content: center; padding: 0.5rem;">
+                    <i class="fa-solid fa-cubes-stacked"></i> Basket / Universe Portfolio
+                </button>
+            </div>
+
+            <!-- Single Stock Input with Full 2,398 Datalist -->
+            <div class="form-group" id="group-single-stock">
+                <label class="form-label">
+                    <span>SELECT FROM ALL 2,398 NSE STOCKS</span>
+                    <span id="stock-name-preview" style="color: #00f090; font-weight: 600; text-transform: none;">Reliance Industries Limited</span>
+                </label>
+                <input type="text" id="lab-symbol" class="form-input" list="nse-2000-datalist" value="RELIANCE.NS" placeholder="Search any of 2,398 NSE stocks (e.g. TATA, ZOMATO, HDFC)..." oninput="onSymbolInput(this.value)">
+                <datalist id="nse-2000-datalist">
+                    <option value="RELIANCE.NS">RELIANCE.NS — Reliance Industries Limited</option>
+                    <option value="TCS.NS">TCS.NS — Tata Consultancy Services Limited</option>
+                    <option value="HDFCBANK.NS">HDFCBANK.NS — HDFC Bank Limited</option>
+                    <option value="INFY.NS">INFY.NS — Infosys Limited</option>
+                    <option value="ICICIBANK.NS">ICICIBANK.NS — ICICI Bank Limited</option>
+                    <option value="TATAMOTORS.NS">TATAMOTORS.NS — Tata Motors Limited</option>
+                    <option value="ZOMATO.NS">ZOMATO.NS — Zomato Limited</option>
+                    <option value="SUZLON.NS">SUZLON.NS — Suzlon Energy Limited</option>
+                    <option value="JIOFIN.NS">JIOFIN.NS — Jio Financial Services Limited</option>
+                    <option value="BEL.NS">BEL.NS — Bharat Electronics Limited</option>
+                    <option value="HAL.NS">HAL.NS — Hindustan Aeronautics Limited</option>
+                    <option value="IREDA.NS">IREDA.NS — Indian Renewable Energy Dev Agency</option>
+                    <option value="RVNL.NS">RVNL.NS — Rail Vikas Nigam Limited</option>
+                </datalist>
+
+                <!-- Quick Category Sector Chips -->
+                <div style="display: flex; flex-direction: column; gap: 0.4rem; margin-top: 0.5rem;">
+                    <div style="font-size: 0.68rem; font-weight: 700; color: #64748b; text-transform: uppercase;">Quick 1-Click Anchors:</div>
+                    <div class="chips-row">
+                        <span class="stock-chip" onclick="setSymbol('RELIANCE.NS')">RELIANCE</span>
+                        <span class="stock-chip" onclick="setSymbol('TCS.NS')">TCS</span>
+                        <span class="stock-chip" onclick="setSymbol('HDFCBANK.NS')">HDFCBANK</span>
+                        <span class="stock-chip" onclick="setSymbol('INFY.NS')">INFY</span>
+                        <span class="stock-chip" onclick="setSymbol('ICICIBANK.NS')">ICICIBANK</span>
+                        <span class="stock-chip" onclick="setSymbol('TATAMOTORS.NS')">TATAMOTORS</span>
+                        <span class="stock-chip" onclick="setSymbol('ZOMATO.NS')" style="color: #f43f5e; border-color: rgba(244, 63, 94, 0.4);">ZOMATO</span>
+                        <span class="stock-chip" onclick="setSymbol('SUZLON.NS')" style="color: #00f090; border-color: rgba(0, 240, 144, 0.4);">SUZLON</span>
+                        <span class="stock-chip" onclick="setSymbol('JIOFIN.NS')">JIOFIN</span>
+                        <span class="stock-chip" onclick="setSymbol('BEL.NS')">BEL</span>
+                        <span class="stock-chip" onclick="setSymbol('HAL.NS')">HAL</span>
+                        <span class="stock-chip" onclick="setSymbol('IREDA.NS')">IREDA</span>
+                        <span class="stock-chip" onclick="setSymbol('RVNL.NS')">RVNL</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Universe Batch Select (Shown when BATCH mode active) -->
+            <div class="form-group" id="group-batch-universe" style="display: none;">
+                <label class="form-label">SELECT UNIVERSE BASKET TO BACKTEST</label>
+                <select id="lab-universe" class="form-select">
+                    <option value="TOP_15" selected>⚡ Top 15 High-Beta &amp; Turnover Leaders (Fast Basket)</option>
+                    <option value="NIFTY_50">🏆 Full NIFTY 50 Bluechips Basket (50 Stocks)</option>
+                    <option value="TOP_200">🚀 Top 30 High Liquidity Momentum Stocks</option>
+                </select>
+                <div style="font-size: 0.74rem; color: #94a3b8; margin-top: 0.3rem;">
+                    Backtests across the multi-stock basket simultaneously and compiles an aggregated portfolio equity curve!
                 </div>
             </div>
 
@@ -557,6 +615,42 @@
             </div>
         </div>
 
+        <!-- Batch Universe Stocks Leaderboard (Shown for Multi-Stock Basket Backtests) -->
+        <div class="trades-table-wrap" id="batch-leaderboard-wrap" style="display: none; border: 1px solid rgba(56, 189, 248, 0.3);">
+            <div class="trades-table-header" style="background: rgba(56, 189, 248, 0.08);">
+                <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+                    <span style="font-weight: 800; font-size: 0.95rem; color: #38bdf8;">
+                        <i class="fa-solid fa-ranking-star"></i> MULTI-STOCK BASKET LEADERBOARD
+                    </span>
+                    <span class="lab-badge badge-blue" id="batch-count-badge">0 Stocks</span>
+                    <span id="active-stock-pill" style="display: none;" class="lab-badge badge-amber"></span>
+                </div>
+                <div style="display: flex; gap: 8px; align-items: center;">
+                    <button class="tab-btn" onclick="clearStockFilter()" id="btn-show-all-stocks" style="padding: 4px 10px; font-size: 0.74rem;">Show All Basket Stocks</button>
+                </div>
+            </div>
+            <div style="overflow-x: auto; max-height: 380px;">
+                <table class="trades-table">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>Stock / Symbol</th>
+                            <th>Total Trades</th>
+                            <th>Win Rate %</th>
+                            <th>Profit Factor</th>
+                            <th>Net P&amp;L (₹)</th>
+                            <th>Basket ROI %</th>
+                            <th>Max Drawdown %</th>
+                            <th style="text-align: right;">Filter Action</th>
+                        </tr>
+                    </thead>
+                    <tbody id="batch-tbody">
+                        <tr><td colspan="9" style="text-align: center; padding: 1.5rem; color: #94a3b8;">Run a Basket / Universe Portfolio backtest to view stock-by-stock performance.</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
         <!-- Trades History Table -->
         <div class="trades-table-wrap">
             <div class="trades-table-header">
@@ -585,6 +679,7 @@
                     <thead>
                         <tr>
                             <th>#</th>
+                            <th id="th-stock-symbol" style="display: none;">Stock</th>
                             <th>Side</th>
                             <th>Entry Time</th>
                             <th>Exit Time</th>
@@ -600,7 +695,7 @@
                         </tr>
                     </thead>
                     <tbody id="trades-tbody">
-                        <tr><td colspan="13" style="text-align: center; padding: 2rem; color: #94a3b8;">Click "RUN 1-YEAR FLASH BACKTEST" to simulate results.</td></tr>
+                        <tr><td colspan="14" style="text-align: center; padding: 2rem; color: #94a3b8;">Click "RUN 1-YEAR FLASH BACKTEST" to simulate results.</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -610,11 +705,15 @@
 
 <script>
     let activeIngestion = 'AUTOFETCH';
+    let currentFetchMode = 'SINGLE';
     let uploadedFileObj = null;
     let currentTradesList = [];
     let currentMonthlyList = [];
+    let currentBatchSummaries = [];
     let currentFilter = 'ALL';
     let activeMonthFilter = 'ALL';
+    let activeStockFilter = 'ALL';
+    window.nseStocksMap = {};
 
     function switchIngestionTab(mode) {
         activeIngestion = mode;
@@ -632,12 +731,71 @@
             btnUpload.classList.add('active');
             btnAuto.classList.remove('active');
             panelUpload.style.display = 'flex';
-            panelAuto.style.display = 'none';
+            panelUpload.style.display = 'none';
         }
     }
 
+    function setFetchMode(mode) {
+        currentFetchMode = mode;
+        const btnSingle = document.getElementById('btn-mode-single');
+        const btnBatch = document.getElementById('btn-mode-batch');
+        const groupSingle = document.getElementById('group-single-stock');
+        const groupBatch = document.getElementById('group-batch-universe');
+
+        if (mode === 'SINGLE') {
+            btnSingle.classList.add('active');
+            btnBatch.classList.remove('active');
+            groupSingle.style.display = 'block';
+            groupBatch.style.display = 'none';
+        } else {
+            btnBatch.classList.add('active');
+            btnSingle.classList.remove('active');
+            groupSingle.style.display = 'none';
+            groupBatch.style.display = 'block';
+        }
+    }
+
+    function onSymbolInput(val) {
+        if (!val) return;
+        const clean = val.trim().toUpperCase().replace('.NS', '');
+        const withNS = clean + '.NS';
+        const name = window.nseStocksMap[withNS] || window.nseStocksMap[clean] || '';
+        const previewEl = document.getElementById('stock-name-preview');
+        if (previewEl) {
+            previewEl.innerText = name ? name : clean;
+        }
+    }
+
+    async function loadNSEUniverseCatalog() {
+        try {
+            const res = await fetch('/api/nse/stocks?limit=2500');
+            const data = await res.json();
+            if (data && data.success && Array.isArray(data.stocks)) {
+                const datalist = document.getElementById('nse-2000-datalist');
+                if (datalist) {
+                    let optionsHtml = '';
+                    data.stocks.forEach(s => {
+                        const sym = s.symbol || s.ticker;
+                        const name = s.name || sym;
+                        window.nseStocksMap[sym] = name;
+                        if (s.ticker) window.nseStocksMap[s.ticker] = name;
+                        optionsHtml += `<option value="${sym}">${sym} — ${name}</option>`;
+                    });
+                    datalist.innerHTML = optionsHtml;
+                }
+            }
+        } catch (e) {
+            console.warn('Could not preload full NSE universe datalist:', e);
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        loadNSEUniverseCatalog();
+    });
+
     function setSymbol(sym) {
         document.getElementById('lab-symbol').value = sym;
+        onSymbolInput(sym);
     }
 
     function handleFileSelected(input) {
@@ -696,7 +854,12 @@
         try {
             let res, data;
             if (activeIngestion === 'AUTOFETCH') {
-                payload.symbol = document.getElementById('lab-symbol').value;
+                payload.mode = currentFetchMode;
+                if (currentFetchMode === 'BATCH') {
+                    payload.universe = document.getElementById('lab-universe').value;
+                } else {
+                    payload.symbol = document.getElementById('lab-symbol').value;
+                }
                 payload.period = document.getElementById('lab-period').value;
                 payload.interval = document.getElementById('lab-interval').value;
 
@@ -766,6 +929,20 @@
         document.getElementById('res-speed').innerText = `${m.execution_seconds}s`;
         document.getElementById('res-candles').innerText = `${res.data_summary.total_candles.toLocaleString('en-IN')} Candles Processed`;
 
+        // Render Multi-Stock Batch Universe Leaderboard (if batch run)
+        const batchWrap = document.getElementById('batch-leaderboard-wrap');
+        const thStock = document.getElementById('th-stock-symbol');
+        if (res.stock_summaries && res.stock_summaries.length > 0) {
+            currentBatchSummaries = res.stock_summaries;
+            renderBatchTable(res.stock_summaries);
+            batchWrap.style.display = 'block';
+            if (thStock) thStock.style.display = 'table-cell';
+        } else {
+            currentBatchSummaries = [];
+            batchWrap.style.display = 'none';
+            if (thStock) thStock.style.display = 'none';
+        }
+
         // Render Month-by-Month Breakdown
         currentMonthlyList = res.monthly_breakdown || [];
         renderMonthlyTable(currentMonthlyList);
@@ -776,6 +953,9 @@
         // Render Trades Table
         currentTradesList = res.trades || [];
         activeMonthFilter = 'ALL';
+        activeStockFilter = 'ALL';
+        const stockPill = document.getElementById('active-stock-pill');
+        if (stockPill) stockPill.style.display = 'none';
         renderTradesTable();
 
         // Render Equity Curve
@@ -871,6 +1051,58 @@
         renderTradesTable();
     }
 
+    function renderBatchTable(summaries) {
+        const tbody = document.getElementById('batch-tbody');
+        tbody.innerHTML = '';
+        document.getElementById('batch-count-badge').innerText = `${summaries.length} Stocks`;
+
+        summaries.forEach((s, idx) => {
+            const tr = document.createElement('tr');
+            const pnlColor = s.net_pnl >= 0 ? '#00f090' : '#ef4444';
+            const roiBadgeClass = s.roi_pct >= 0 ? 'badge-win' : 'badge-loss';
+            const companyName = window.nseStocksMap[s.symbol] || window.nseStocksMap[s.ticker] || s.ticker;
+
+            tr.innerHTML = `
+                <td style="color: #64748b; font-weight: 700;">#${idx + 1}</td>
+                <td>
+                    <div style="font-weight: 800; color: #ffffff;">${s.symbol}</div>
+                    <div style="font-size: 0.72rem; color: #94a3b8; max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${companyName}</div>
+                </td>
+                <td style="font-weight: 700;">${s.total_trades} trades</td>
+                <td><span class="${s.win_rate >= 50 ? 'badge-win' : 'badge-loss'}">${s.win_rate.toFixed(1)}%</span></td>
+                <td style="font-family: monospace;">${s.profit_factor.toFixed(2)}x</td>
+                <td style="font-weight: 800; font-family: monospace; color: ${pnlColor}; font-size: 0.88rem;">${s.net_pnl >= 0 ? '+' : ''}₹${s.net_pnl.toLocaleString('en-IN', {minimumFractionDigits: 2})}</td>
+                <td><span class="${roiBadgeClass}">${s.roi_pct >= 0 ? '+' : ''}${s.roi_pct.toFixed(2)}%</span></td>
+                <td style="color: #f43f5e; font-weight: 700;">-${s.max_drawdown_pct.toFixed(2)}%</td>
+                <td style="text-align: right;">
+                    <button class="tab-btn" onclick="filterToSpecificStock('${s.ticker || s.symbol}')" style="padding: 4px 10px; font-size: 0.74rem; border-color: rgba(56, 189, 248, 0.4); color: #38bdf8;">
+                        <i class="fa-solid fa-filter"></i> Isolate Trades
+                    </button>
+                </td>
+            `;
+            tbody.appendChild(tr);
+        });
+    }
+
+    function filterToSpecificStock(sym) {
+        activeStockFilter = sym.replace('.NS', '');
+        const pill = document.getElementById('active-stock-pill');
+        if (pill) {
+            pill.style.display = 'inline-flex';
+            pill.innerHTML = `<i class="fa-solid fa-filter"></i> Stock: <strong>${activeStockFilter}</strong> <span style="cursor: pointer; margin-left: 6px;" onclick="clearStockFilter()">✕ Clear</span>`;
+        }
+        renderTradesTable();
+        const tableCard = document.querySelector('.trades-table-wrap:last-child');
+        if (tableCard) tableCard.scrollIntoView({ behavior: 'smooth' });
+    }
+
+    function clearStockFilter() {
+        activeStockFilter = 'ALL';
+        const pill = document.getElementById('active-stock-pill');
+        if (pill) pill.style.display = 'none';
+        renderTradesTable();
+    }
+
     function renderTradesTable() {
         const tbody = document.getElementById('trades-tbody');
         tbody.innerHTML = '';
@@ -880,22 +1112,32 @@
         if (activeMonthFilter !== 'ALL') {
             filtered = filtered.filter(t => (t.month_key === activeMonthFilter) || (t.exit_time && t.exit_time.startsWith(activeMonthFilter)));
         }
+        // Filter by specific stock (if batch mode)
+        if (activeStockFilter !== 'ALL') {
+            filtered = filtered.filter(t => t.symbol === activeStockFilter || t.symbol === (activeStockFilter + '.NS') || (t.symbol && t.symbol.replace('.NS', '') === activeStockFilter));
+        }
         // Filter by win/loss
         if (currentFilter === 'WIN') filtered = filtered.filter(t => t.is_win);
         else if (currentFilter === 'LOSS') filtered = filtered.filter(t => !t.is_win);
 
+        const hasSymbols = filtered.some(t => !!t.symbol);
+        const thStock = document.getElementById('th-stock-symbol');
+        if (thStock) thStock.style.display = hasSymbols ? 'table-cell' : 'none';
+
         document.getElementById('total-trades-badge').innerText = `${filtered.length} Trades shown`;
 
         if (filtered.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="13" style="text-align: center; padding: 2rem; color: #94a3b8;">No trades match selected filters (Month: "${activeMonthFilter}", Type: "${currentFilter}").</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="14" style="text-align: center; padding: 2rem; color: #94a3b8;">No trades match selected filters (Month: "${activeMonthFilter}", Stock: "${activeStockFilter}", Type: "${currentFilter}").</td></tr>`;
             return;
         }
 
         filtered.forEach(tr => {
             const trEl = document.createElement('tr');
             const pnlColor = tr.net_pnl >= 0 ? '#00f090' : '#ef4444';
+            const symCol = hasSymbols ? `<td><span class="lab-badge badge-blue" style="font-size: 0.68rem; padding: 2px 6px;">${tr.symbol || ''}</span></td>` : '';
             trEl.innerHTML = `
                 <td style="color: #64748b; font-weight: 700;">#${tr.id}</td>
+                ${symCol}
                 <td><span class="${tr.side === 'BUY' ? 'badge-buy' : 'badge-sell'}">${tr.side}</span></td>
                 <td style="font-family: monospace; font-size: 0.76rem;">${tr.entry_time}</td>
                 <td style="font-family: monospace; font-size: 0.76rem;">${tr.exit_time}</td>

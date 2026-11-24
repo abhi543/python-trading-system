@@ -2239,10 +2239,24 @@ def manage_scanner_custom_rules():
 
 @api_bp.route('/backtest/run', methods=['POST'])
 def run_backtest_api():
-    """Executes high-speed backtest via 1-click Auto-Fetch for any NSE symbol"""
+    """Executes high-speed backtest via 1-click Auto-Fetch for any NSE symbol or universe batch"""
     try:
         from app.services.backtester import BacktestEngine
+        from app.models.nse_universe import NSE_2000_SYMBOLS, TOP_200_TURNOVER_SYMBOLS, NIFTY_50_DEFAULT
         data = request.get_json(silent=True) or {}
+        mode = data.get("mode", "SINGLE")
+
+        if mode == "BATCH" or "universe" in data:
+            u_type = data.get("universe", "TOP_20")
+            if u_type == "NIFTY_50":
+                syms = NIFTY_50_DEFAULT
+            elif u_type == "TOP_200":
+                syms = TOP_200_TURNOVER_SYMBOLS[:30]
+            else:
+                syms = TOP_200_TURNOVER_SYMBOLS[:15]
+            results = BacktestEngine.run_batch_backtest(syms, data)
+            return jsonify(results)
+
         symbol = str(data.get("symbol", "RELIANCE.NS")).strip().upper()
         if not symbol.endswith('.NS') and not symbol.startswith('^') and symbol != "NIFTY 50":
             symbol = f"{symbol}.NS"
