@@ -2226,9 +2226,21 @@
         } catch(e) {}
     }
 
+    function isAlphaSquareoffWindow() {
+        const now = new Date();
+        const ist = new Date(now.getTime() + (now.getTimezoneOffset() * 60000) + (3600000 * 5.5));
+        const day = ist.getDay();
+        const mins = ist.getHours() * 60 + ist.getMinutes();
+        return (day === 0 || day === 6) || mins >= 900 || mins < 555 || (window.isAlphaOpen === false);
+    }
+
     async function fetchBotOverview(silent = false) {
         try {
-            const storedPos = (typeof getStoredActivePositions === 'function') ? getStoredActivePositions() : [];
+            let storedPos = (typeof getStoredActivePositions === 'function') ? getStoredActivePositions() : [];
+            if (isAlphaSquareoffWindow()) {
+                storedPos = [];
+                if (typeof saveStoredActivePositions === 'function') saveStoredActivePositions([]);
+            }
             const storedClosed = (typeof getStoredClosedTrades === 'function') ? getStoredClosedTrades() : [];
             const res = await fetch('/api/bot/overview', {
                 method: 'POST',
@@ -2269,7 +2281,11 @@
         }
 
         window.isMarketOpen = (data.is_market_open !== undefined) ? !!data.is_market_open : !data.is_after_hours;
+        window.isAlphaOpen = (data.is_alpha_open !== undefined) ? !!data.is_alpha_open : !isAlphaSquareoffWindow();
         window.isMarketAfterHours = !window.isMarketOpen;
+        if (!window.isAlphaOpen && isBotActive) {
+            setBotActiveState(false, false);
+        }
 
         const closedBanner = document.getElementById('alpha-market-closed-banner');
         if (closedBanner) {
@@ -3236,7 +3252,10 @@
         // If server returns [] but client has stored active positions (and user did NOT square off),
         // keep stored positions and sync them to server!
         let positions = serverPositions;
-        if (serverPositions.length === 0 && storedPositions.length > 0 && !window.explicitSquareOffDone) {
+        if (isAlphaSquareoffWindow()) {
+            positions = serverPositions;
+            saveStoredActivePositions(positions);
+        } else if (serverPositions.length === 0 && storedPositions.length > 0 && !window.explicitSquareOffDone) {
             positions = storedPositions;
         } else {
             saveStoredActivePositions(positions);
