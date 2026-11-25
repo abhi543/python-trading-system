@@ -775,8 +775,14 @@ function renderHoldingsTable(positions) {
         return;
     }
 
+    const todayIstStr = new Date(Date.now() + (5.5 * 3600 * 1000)).toISOString().slice(0, 10);
+
     tbody.innerHTML = positions.map(pos => {
         const cleanSym = (pos.symbol || '').replace('.NS', '').replace('.BO', '');
+        const isAddedToday = !!(pos.added_today || pos.entry_date_ist === todayIstStr);
+        const addedTodayBadge = isAddedToday
+            ? `<span style="display:inline-block; background:rgba(0,240,144,0.18); color:#00f090; border:1px solid rgba(0,240,144,0.45); font-size:0.62rem; font-weight:800; padding:1px 6px; border-radius:4px; margin-left:6px; vertical-align:middle;">ADDED TODAY</span>`
+            : '';
         const pnl = pos.unrealized_pnl || 0.0;
         const pnlPct = pos.unrealized_pnl_pct || 0.0;
         const pnlClass = pnl >= 0 ? 'text-green' : 'text-red';
@@ -796,7 +802,7 @@ function renderHoldingsTable(positions) {
         return `
             <tr>
                 <td>
-                    <strong style="color: #fff; font-size: 0.95rem; font-family: var(--font-code);">${cleanSym}</strong>
+                    <strong style="color: #fff; font-size: 0.95rem; font-family: var(--font-code);">${cleanSym}</strong>${addedTodayBadge}
                     <div style="font-size: 0.7rem; color: var(--text-muted);">${pos.symbol}</div>
                 </td>
                 <td>

@@ -58,6 +58,7 @@ class SwingPaperTradingEngine:
         pos_list = []
 
         now = datetime.now(timezone.utc)
+        today_ist_str = (now + timedelta(hours=5, minutes=30)).strftime("%Y-%m-%d")
 
         for p in positions:
             quote = MarketDataService.get_quote(p.symbol)
@@ -67,11 +68,13 @@ class SwingPaperTradingEngine:
             pnl = round(market_val - cost_basis, 2)
             pnl_pct = round((pnl / cost_basis * 100), 2) if cost_basis > 0 else 0.0
 
-            # Calculate days held
+            # Calculate days held & IST entry date
             entry_dt = p.entry_date
             if entry_dt and entry_dt.tzinfo is None:
                 entry_dt = entry_dt.replace(tzinfo=timezone.utc)
             days_held = max(1, (now - (entry_dt or now)).days)
+            entry_ist_str = (entry_dt + timedelta(hours=5, minutes=30)).strftime("%Y-%m-%d") if entry_dt else ""
+            added_today = bool(entry_ist_str and entry_ist_str == today_ist_str)
 
             total_market_val += market_val
             total_unrealized_pnl += pnl
@@ -93,6 +96,8 @@ class SwingPaperTradingEngine:
                 "strategy": p.strategy,
                 "confluence_score": p.confluence_score,
                 "days_held": days_held,
+                "added_today": added_today,
+                "entry_date_ist": entry_ist_str,
                 "entry_date": p.entry_date.strftime("%Y-%m-%d %H:%M") if p.entry_date else ""
             })
 
@@ -420,14 +425,21 @@ class SwingTradingBot:
                 db.session.commit()
                 self.add_log(f"🛡️ [SWING BREAKEVEN SHIELD] {pos.symbol.replace('.NS','')}: +{pnl_pct:.1f}% reached. Stop-Loss raised to Breakeven+Fees (₹{be_price:.2f}). 100% Risk-Free!", "SUCCESS")
 
-            # Partial Profit Banking (Bank 50% profit at +5.0%)
-            if getattr(self, "enable_partial_profits", True) and pnl_pct >= 5.0 and pos.quantity >= 2 and not getattr(pos, 'partial_taken', False):
+            # Full Profit Book on ANY day when profit >= 5.0%
+            if pnl_pct >= 5.0:
+                self.add_log(f"💰 [SWING 5%+ PROFIT BOOKED] {pos.symbol.replace('.NS','')}: +{pnl_pct:.2f}% reached! Booking full profit @ ₹{curr_p:.2f}.", "SUCCESS")
+                SwingPaperTradingEngine.execute_order(pos.symbol, "SELL", pos.quantity, curr_p, strategy=pos.strategy)
+                held_symbols.discard(pos.symbol)
+                continue
+
+            # Partial Profit Banking (Bank 50% profit at +3.5% & lock +1.5% SL)
+            if getattr(self, "enable_partial_profits", True) and pnl_pct >= 3.5 and pos.quantity >= 2 and not getattr(pos, 'partial_taken', False):
                 half_qty = int(pos.quantity // 2)
                 if half_qty > 0:
-                    self.add_log(f"💰 [SWING PARTIAL PROFIT] {pos.symbol.replace('.NS','')}: +{pnl_pct:.1f}% surge reached! Selling 50% ({half_qty} shares) to lock in profit.", "SUCCESS")
+                    self.add_log(f"💰 [SWING PARTIAL PROFIT] {pos.symbol.replace('.NS','')}: +{pnl_pct:.1f}% reached! Selling 50% ({half_qty} shares) & locking +1.5% SL.", "SUCCESS")
                     SwingPaperTradingEngine.execute_order(pos.symbol, "SELL", half_qty, curr_p, strategy=pos.strategy)
                     pos.partial_taken = True
-                    pos.stop_loss = max(pos.stop_loss, round(pos.average_price * 1.002, 2))
+                    pos.stop_loss = max(pos.stop_loss, round(pos.average_price * 1.015, 2))
                     db.session.commit()
 
             # Check Take-Profit
@@ -526,43 +538,68 @@ class SwingTradingBot:
         else:
             self.circuit_tripped = False
 
-        # 4. Auto-Execute Top-Scoring Setups if Bot is Running (Takes ALL Setups with No Position Limiter)
-        if self.is_running and not getattr(self, "circuit_tripped", False):
-            for scan_res in scanner_results:
-                if scan_res.get("signal") != "BUY":
-                    continue
-                # Position limiter check: hard cap at maximum 10 concurrent positions
-                effective_max = 10 if (not self.max_positions or self.max_positions <= 0 or self.max_positions > 10) else self.max_positions
-                if len(held_symbols) >= effective_max:
-                    self.add_log(f"⏸️ Max position limit ({effective_max}) reached. Skipping remaining setups.", "INFO")
+        # 4. Auto-Execute Top-Scoring Setup (Max 10 positions total & strictly 1 new stock added per IST day)
+        now_ist = now + timedelta(hours=5, minutes=30)
+        today_ist_str = now_ist.strftime("%Y-%m-%d")
+        start_of_ist_day_utc = datetime(now_ist.year, now_ist.month, now_ist.day, 0, 0, 0) - timedelta(hours=5, minutes=30)
+        already_added_today = (getattr(self, "_last_entry_ist_date", None) == today_ist_str)
+        if not already_added_today:
+            for hp in held_positions:
+                hp_dt = hp.entry_date
+                if hp_dt and hp_dt.tzinfo is None:
+                    hp_dt = hp_dt.replace(tzinfo=timezone.utc)
+                if hp_dt and (hp_dt + timedelta(hours=5, minutes=30)).strftime("%Y-%m-%d") == today_ist_str:
+                    already_added_today = True
                     break
+        if not already_added_today:
+            today_buy_trade = SwingTradeHistory.query.filter(
+                SwingTradeHistory.side == "BUY",
+                SwingTradeHistory.timestamp >= start_of_ist_day_utc
+            ).first()
+            if today_buy_trade:
+                already_added_today = True
 
-                sym = scan_res.get("symbol")
-                if sym in held_symbols:
-                    continue
+        if self.is_running and not getattr(self, "circuit_tripped", False):
+            if already_added_today:
+                self.add_log(f"⏸️ [1-STOCK/DAY LIMIT] 1 stock already added today ({today_ist_str}). Holding current positions.", "INFO")
+            else:
+                for scan_res in scanner_results:
+                    if scan_res.get("signal") != "BUY":
+                        continue
+                    # Position limiter check: hard cap at maximum 10 concurrent positions
+                    effective_max = 10 if (not self.max_positions or self.max_positions <= 0 or self.max_positions > 10) else self.max_positions
+                    if len(held_symbols) >= effective_max:
+                        self.add_log(f"⏸️ Max position limit ({effective_max}) reached. Skipping remaining setups.", "INFO")
+                        break
 
-                p = scan_res.get("price", 0.0)
-                if p <= 0:
-                    continue
+                    sym = scan_res.get("symbol")
+                    if sym in held_symbols:
+                        continue
 
-                # Trade sizing: enforce at least ₹15,000 per trade
-                trade_alloc = max(15000.0, float(self.allocation_per_trade or 15000.0))
-                qty = max(1, int(trade_alloc / p))
-                needed = round(qty * p, 2)
+                    p = scan_res.get("price", 0.0)
+                    if p <= 0:
+                        continue
 
-                exec_res = SwingPaperTradingEngine.execute_order(
-                    sym, "BUY", qty, p,
-                    strategy=scan_res.get("strategy_key", "VORTEX"),
-                    sl=scan_res.get("stop_loss", 0.0),
-                    tp=scan_res.get("target_price", 0.0),
-                    confluence=scan_res.get("confluence_score", 85)
-                )
-                if exec_res.get("success"):
-                    held_symbols.add(sym)
-                    scan_res["action_executed"] = f"BOUGHT {qty} SHARES (CNC)"
-                    self.add_log(f"⚡ [TITAN AUTO-BUY] {sym.replace('.NS','')}: {scan_res.get('strategy')} | Bought {qty} shares @ ₹{p:.2f} (Value: ₹{needed:,.2f}) | Score: {scan_res.get('confluence_score')} | Target: ₹{scan_res.get('target_price'):.2f} (+{scan_res.get('target_pct')}%) | SL: ₹{scan_res.get('stop_loss'):.2f}", "SUCCESS")
-                else:
-                    self.add_log(f"⚠️ [TITAN SKIPPED] {sym.replace('.NS','')}: {exec_res.get('message', 'Execution failed')}", "WARNING")
+                    # Trade sizing: enforce at least ₹15,000 per trade
+                    trade_alloc = max(15000.0, float(self.allocation_per_trade or 15000.0))
+                    qty = max(1, int(trade_alloc / p))
+                    needed = round(qty * p, 2)
+
+                    exec_res = SwingPaperTradingEngine.execute_order(
+                        sym, "BUY", qty, p,
+                        strategy=scan_res.get("strategy_key", "VORTEX"),
+                        sl=scan_res.get("stop_loss", 0.0),
+                        tp=scan_res.get("target_price", 0.0),
+                        confluence=scan_res.get("confluence_score", 85)
+                    )
+                    if exec_res.get("success"):
+                        held_symbols.add(sym)
+                        self._last_entry_ist_date = today_ist_str
+                        scan_res["action_executed"] = f"BOUGHT {qty} SHARES (CNC)"
+                        self.add_log(f"⚡ [TITAN AUTO-BUY] {sym.replace('.NS','')}: {scan_res.get('strategy')} | Bought {qty} shares @ ₹{p:.2f} (Value: ₹{needed:,.2f}) | Score: {scan_res.get('confluence_score')} | Target: ₹{scan_res.get('target_price'):.2f} (+{scan_res.get('target_pct')}%) | SL: ₹{scan_res.get('stop_loss'):.2f}", "SUCCESS")
+                        break  # Strictly 1 new stock added per day
+                    else:
+                        self.add_log(f"⚠️ [TITAN SKIPPED] {sym.replace('.NS','')}: {exec_res.get('message', 'Execution failed')}", "WARNING")
 
         self.last_scan_summary = {
             "total_scanned": len(scanner_results),
