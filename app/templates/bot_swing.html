@@ -571,7 +571,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
 async function fetchSwingOverview() {
     try {
-        const localHoldings = loadLocalSwingHoldings();
+        let localHoldings = loadLocalSwingHoldings();
+        if (Array.isArray(localHoldings) && localHoldings.length > 10) {
+            localHoldings = [...localHoldings].sort((a, b) => (parseFloat(b.unrealized_pnl || 0) - parseFloat(a.unrealized_pnl || 0))).slice(0, 10);
+            saveLocalSwingHoldings(localHoldings);
+        }
         const payload = {
             is_running: isSwingBotActive,
             client_positions: localHoldings && localHoldings.length > 0 ? localHoldings : []
@@ -599,6 +603,10 @@ async function fetchSwingOverview() {
             let storedPositions = loadLocalSwingHoldings();
             let positions = serverPositions;
             if (serverPositions.length === 0 && storedPositions.length > 0 && !window.explicitSwingExitDone) {
+                if (storedPositions.length > 10) {
+                    storedPositions = [...storedPositions].sort((a, b) => (parseFloat(b.unrealized_pnl || 0) - parseFloat(a.unrealized_pnl || 0))).slice(0, 10);
+                    saveLocalSwingHoldings(storedPositions);
+                }
                 positions = storedPositions;
                 data.portfolio.positions = storedPositions;
             } else {
@@ -1013,7 +1021,11 @@ async function triggerSwingScan() {
     }
 
     try {
-        const localHoldings = loadLocalSwingHoldings();
+        let localHoldings = loadLocalSwingHoldings();
+        if (Array.isArray(localHoldings) && localHoldings.length > 10) {
+            localHoldings = [...localHoldings].sort((a, b) => (parseFloat(b.unrealized_pnl || 0) - parseFloat(a.unrealized_pnl || 0))).slice(0, 10);
+            saveLocalSwingHoldings(localHoldings);
+        }
         const payload = {
             is_running: isSwingBotActive,
             client_positions: localHoldings && localHoldings.length > 0 ? localHoldings : []

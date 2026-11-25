@@ -1922,7 +1922,13 @@ def sync_swing_positions_from_client(client_positions, explicit_clear=False):
 
         db_positions = SwingPosition.query.all()
         if len(db_positions) == 0 and len(client_positions) > 0:
-            for cp in client_positions:
+            # Enforce Titan's maximum 10 concurrent positions when restoring from client cache
+            sorted_cp = sorted(
+                [cp for cp in client_positions if cp.get("symbol") and float(cp.get("quantity", 0)) > 0],
+                key=lambda x: float(x.get("unrealized_pnl", 0) or 0),
+                reverse=True
+            )[:10]
+            for cp in sorted_cp:
                 sym = cp.get("symbol")
                 qty = float(cp.get("quantity", 0))
                 if sym and qty > 0:
