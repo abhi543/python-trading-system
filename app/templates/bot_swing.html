@@ -562,11 +562,18 @@ document.addEventListener('DOMContentLoaded', () => {
     fetchSwingOverview();
     
     pollTimer = setInterval(() => {
+        if (document.hidden) return;
         fetchSwingOverview();
         if (isSwingBotActive) {
             triggerSwingScan();
         }
-    }, 30000); // 30-second auto-sweep cadence
+    }, 900000); // 15-minute auto-sweep cadence
+
+    document.addEventListener('visibilitychange', () => {
+        if (!document.hidden) {
+            fetchSwingOverview();
+        }
+    });
 });
 
 async function fetchSwingOverview() {
