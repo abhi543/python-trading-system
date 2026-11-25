@@ -213,8 +213,8 @@ class SwingTradingBot:
         self.name = "TITAN_SWING"
         self.is_running = False
         self.selected_strategy = "ALL" # ALL, VORTEX, ANCHOR, TITAN, SURGE
-        self.allocation_per_trade = 15000.0 # Min ₹15,000 per swing position (Unlimited positions default)
-        self.max_positions = 0 # 0 = Unlimited positions (no limiter)
+        self.allocation_per_trade = 15000.0 # Min ₹15,000 per swing position
+        self.max_positions = 10 # Maximum 10 concurrent swing positions
         self.scan_mode = "ALL_NIFTY_200"
         self.survival_mode = True
         self.survival_breakeven_pct = 2.0  # +2.0% locks stop-loss to entry + fees
@@ -243,7 +243,8 @@ class SwingTradingBot:
                     self.is_running = data.get("is_running", False)
                     self.selected_strategy = data.get("selected_strategy", "ALL")
                     self.allocation_per_trade = max(15000.0, float(data.get("allocation_per_trade", 15000.0)))
-                    self.max_positions = int(data.get("max_positions", 0))
+                    raw_max = int(data.get("max_positions", 10))
+                    self.max_positions = 10 if (raw_max <= 0 or raw_max > 10) else raw_max
                     self.ai_signals = data.get("ai_signals", {})
                     self.ai_signals_metadata = data.get("ai_signals_metadata", {})
                     self.use_ai_filter = data.get("use_ai_filter", True)
@@ -317,7 +318,8 @@ class SwingTradingBot:
             if "allocation_per_trade" in config:
                 self.allocation_per_trade = max(15000.0, float(config["allocation_per_trade"]))
             if "max_positions" in config:
-                self.max_positions = max(0, int(config["max_positions"]))
+                raw_max = int(config["max_positions"])
+                self.max_positions = 10 if (raw_max <= 0 or raw_max > 10) else raw_max
             if "scan_mode" in config:
                 self.scan_mode = str(config["scan_mode"])
             if "strict_ai_mode" in config:
@@ -529,9 +531,10 @@ class SwingTradingBot:
             for scan_res in scanner_results:
                 if scan_res.get("signal") != "BUY":
                     continue
-                # Position limiter check: only enforce if max_positions > 0 (0 means unlimited / take all)
-                if self.max_positions and self.max_positions > 0 and len(held_symbols) >= self.max_positions:
-                    self.add_log(f"⏸️ Max position limit ({self.max_positions}) reached. Skipping remaining setups.", "INFO")
+                # Position limiter check: hard cap at maximum 10 concurrent positions
+                effective_max = 10 if (not self.max_positions or self.max_positions <= 0 or self.max_positions > 10) else self.max_positions
+                if len(held_symbols) >= effective_max:
+                    self.add_log(f"⏸️ Max position limit ({effective_max}) reached. Skipping remaining setups.", "INFO")
                     break
 
                 sym = scan_res.get("symbol")

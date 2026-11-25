@@ -2018,7 +2018,8 @@ def update_swing_config():
     if "allocation_per_trade" in data:
         swing_bot_instance.allocation_per_trade = max(15000.0, float(data["allocation_per_trade"]))
     if "max_positions" in data:
-        swing_bot_instance.max_positions = max(0, int(data["max_positions"]))
+        raw_max = int(data["max_positions"])
+        swing_bot_instance.max_positions = 10 if (raw_max <= 0 or raw_max > 10) else raw_max
     if "scan_mode" in data:
         swing_bot_instance.scan_mode = str(data["scan_mode"])
     if "strict_ai_mode" in data:
