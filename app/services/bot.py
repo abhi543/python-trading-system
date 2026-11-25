@@ -1882,12 +1882,21 @@ class AutoTradingBot:
                             trade_qty = max(1, int(buying_power / price))
                             margin_needed = round((trade_qty * price) / self.leverage, 2)
 
+                            alpha_margin_used = sum((p.quantity * p.average_price) / self.leverage for p in held_map.values()) if (self.name == "ALPHA" and not self.is_after_hours_forced) else 0.0
+                            margin_cap_ok = True
+                            if self.name == "ALPHA" and not self.is_after_hours_forced and (alpha_margin_used + margin_needed) > 25000.0:
+                                margin_cap_ok = False
+                                eval_res["action_executed"] = f"SKIPPED (50% Cap ₹25,000 Reached)"
+                                self.add_log(f"🛡️ [50% CAPITAL CAP] Order on {display_name} skipped: Used ₹{alpha_margin_used:,.0f} + ₹{margin_needed:,.0f} > ₹25,000 (50% of ₹50k)", "INFO")
+
                             # Unlimited positions: never block new orders because of previous orders or margin pool depletion
-                            if self.is_after_hours_forced or max_limit <= 0:
+                            if margin_cap_ok and (self.is_after_hours_forced or max_limit <= 0):
                                 if available_cash < margin_needed:
                                     available_cash = margin_needed + 100000.0
 
-                            if available_cash >= margin_needed:
+                            if not margin_cap_ok:
+                                pass
+                            elif available_cash >= margin_needed:
                                 exec_res = self.engine.execute_order(symbol, "BUY", trade_qty, execution_price=price, force_bypass_day_limit=True)
                                 if exec_res.get("success"):
                                     if not self.is_after_hours_forced:
@@ -2029,12 +2038,21 @@ class AutoTradingBot:
                             trade_qty = max(1, int(buying_power / price))
                             margin_needed = round((trade_qty * price) / self.leverage, 2)
 
+                            alpha_margin_used = sum((p.quantity * p.average_price) / self.leverage for p in held_map.values()) if (self.name == "ALPHA" and not self.is_after_hours_forced) else 0.0
+                            margin_cap_ok = True
+                            if self.name == "ALPHA" and not self.is_after_hours_forced and (alpha_margin_used + margin_needed) > 25000.0:
+                                margin_cap_ok = False
+                                eval_res["action_executed"] = f"SKIPPED (50% Cap ₹25,000 Reached)"
+                                self.add_log(f"🛡️ [50% CAPITAL CAP] Order on {display_name} skipped: Used ₹{alpha_margin_used:,.0f} + ₹{margin_needed:,.0f} > ₹25,000 (50% of ₹50k)", "INFO")
+
                             # Unlimited positions: never block new orders because of previous orders or margin pool depletion
-                            if self.is_after_hours_forced or max_limit <= 0:
+                            if margin_cap_ok and (self.is_after_hours_forced or max_limit <= 0):
                                 if available_cash < margin_needed:
                                     available_cash = margin_needed + 100000.0
 
-                            if available_cash >= margin_needed:
+                            if not margin_cap_ok:
+                                pass
+                            elif available_cash >= margin_needed:
                                 exec_res = self.engine.execute_order(symbol, "SHORT", trade_qty, execution_price=price, force_bypass_day_limit=True)
                                 if exec_res.get("success"):
                                     if not self.is_after_hours_forced:

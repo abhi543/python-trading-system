@@ -2034,7 +2034,7 @@
         });
 
         const marginUsed = totalCostBasis;
-        const totalMarginCap = buyingPower / leverage;
+        const totalMarginCap = 1000000.0;
         const marginPct = totalMarginCap > 0 ? Math.min(100, (marginUsed / totalMarginCap) * 100) : 0;
         const riskPctOfCash = totalMarginCap > 0 ? (totalMaxRisk / totalMarginCap) * 100 : 0;
 
