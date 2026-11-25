@@ -716,8 +716,63 @@
                                         <option value="all">All Desks (Unified)</option>
                                         <option value="alpha">Bot ALPHA (Day)</option>
                                     </select>
+                                    <button class="btn-sm btn-outline" onclick="toggleCalImportDrawer()" style="border-color: rgba(56, 189, 248, 0.5); color: #38bdf8;" title="Import historical or broker Day P&amp;L">
+                                        <i class="fa-solid fa-file-import"></i> Import Day P&amp;L
+                                    </button>
                                     <button class="btn-sm btn-outline" onclick="loadDailyCalendar(true)" title="Refresh calendar trades">
                                         <i class="fa-solid fa-rotate"></i> Refresh
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- DAY P&L IMPORT DRAWER -->
+                            <div class="cal-import-drawer" id="cal-import-drawer">
+                                <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem;">
+                                    <span style="font-size: 0.85rem; font-weight: 800; color: #38bdf8;"><i class="fa-solid fa-file-import"></i> Import Day P&amp;L into Calendar</span>
+                                    <div style="display: flex; gap: 0.5rem;">
+                                        <label class="btn-sm btn-outline" style="cursor: pointer; margin: 0;">
+                                            <i class="fa-solid fa-upload"></i> Upload CSV
+                                            <input type="file" accept=".csv,.txt" style="display: none;" onchange="handleCalCsvFile(this)">
+                                        </label>
+                                        <button class="btn-sm btn-outline" style="border-color: rgba(255,51,102,0.45); color: #ff7575;" onclick="clearImportedDayPnl()">
+                                            <i class="fa-solid fa-trash-can"></i> Clear Imported
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="cal-import-grid">
+                                    <div class="cal-import-field">
+                                        <label>Date (IST)</label>
+                                        <input type="date" id="cal-imp-date">
+                                    </div>
+                                    <div class="cal-import-field">
+                                        <label>Desk</label>
+                                        <select id="cal-imp-desk">
+                                            <option value="NIGHTHAWK" selected>Bot NIGHTHAWK</option>
+                                            <option value="ALPHA">Bot ALPHA</option>
+                                        </select>
+                                    </div>
+                                    <div class="cal-import-field">
+                                        <label>Net Day P&amp;L (₹)</label>
+                                        <input type="number" step="0.01" id="cal-imp-pnl" placeholder="e.g. 1450.50 or -620">
+                                    </div>
+                                    <div class="cal-import-field">
+                                        <label>Trades</label>
+                                        <input type="number" min="1" id="cal-imp-trades" value="1">
+                                    </div>
+                                    <div class="cal-import-field">
+                                        <label>Charges (₹)</label>
+                                        <input type="number" step="0.01" min="0" id="cal-imp-charges" value="0">
+                                    </div>
+                                    <div class="cal-import-field">
+                                        <button class="btn-sm btn-primary" style="width: 100%; padding: 7px 12px;" onclick="saveSingleImportedDayPnl()">
+                                            <i class="fa-solid fa-plus"></i> Add Day
+                                        </button>
+                                    </div>
+                                </div>
+                                <div style="display: flex; gap: 0.65rem; align-items: stretch; flex-wrap: wrap;">
+                                    <textarea id="cal-imp-bulk" class="cal-import-textarea" style="flex: 1; min-width: 240px;" placeholder="Bulk Paste (one per line): YYYY-MM-DD, Net_PnL, Trades(optional), Charges(optional)&#10;Example:&#10;2026-11-20, 1250.50, 4, 38.20&#10;2026-11-21, -480.00, 2, 19.10"></textarea>
+                                    <button class="btn-sm btn-outline" style="border-color: rgba(0,240,144,0.5); color: var(--green); padding: 0 14px; font-weight: 700;" onclick="importBulkDayPnl()">
+                                        <i class="fa-solid fa-bolt"></i> Import Bulk
                                     </button>
                                 </div>
                             </div>
@@ -4451,7 +4506,8 @@
         const nowIst = new Date(new Date().getTime() + (5.5 * 3600 * 1000));
         const todayStr = nowIst.toISOString().slice(0, 10);
 
-        const daysMap = (calTradesData && calTradesData.days) ? calTradesData.days : {};
+        const baseDaysMap = (calTradesData && calTradesData.days) ? calTradesData.days : {};
+        const daysMap = (typeof getMergedCalendarDaysMap === 'function') ? getMergedCalendarDaysMap(baseDaysMap, calDeskFilter) : baseDaysMap;
         let monthNetPnl = 0.0;
         let monthCharges = 0.0;
         let monthTradedDays = 0;
@@ -4644,7 +4700,8 @@
             titleEl.innerHTML = `<span style="color: #38bdf8;">${formattedDate}</span> &mdash; Trade Execution Breakdown`;
         }
 
-        const daysMap = (calTradesData && calTradesData.days) ? calTradesData.days : {};
+        const baseDaysMap = (calTradesData && calTradesData.days) ? calTradesData.days : {};
+        const daysMap = (typeof getMergedCalendarDaysMap === 'function') ? getMergedCalendarDaysMap(baseDaysMap, calDeskFilter) : baseDaysMap;
         const dayData = daysMap[dateStr];
 
         if (!dayData || !dayData.trades || dayData.trades.length === 0) {

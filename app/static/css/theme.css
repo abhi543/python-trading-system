@@ -3048,3 +3048,308 @@ body.theme-scanner {
         font-size: 0.72rem;
     }
 }
+
+/* ==========================================
+   DAY P&L CALENDAR & IMPORT SECTION
+   ========================================== */
+.pnl-calendar-container {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.cal-nav-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    padding: 0.75rem 1rem;
+    background: rgba(10, 15, 28, 0.7);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+}
+
+.cal-month-nav {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+
+.cal-month-title {
+    font-size: 1.05rem;
+    font-weight: 800;
+    color: #fff;
+    min-width: 145px;
+    text-align: center;
+    letter-spacing: 0.3px;
+}
+
+.cal-nav-btn {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--border);
+    color: var(--text-main);
+    padding: 5px 11px;
+    border-radius: 7px;
+    font-size: 0.78rem;
+    font-weight: 700;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    transition: all 0.15s ease;
+}
+
+.cal-nav-btn:hover {
+    background: rgba(56, 189, 248, 0.14);
+    border-color: rgba(56, 189, 248, 0.5);
+    color: #fff;
+}
+
+.cal-import-drawer {
+    background: rgba(15, 23, 42, 0.85);
+    border: 1px solid rgba(56, 189, 248, 0.35);
+    border-radius: 10px;
+    padding: 1rem 1.15rem;
+    display: none;
+    flex-direction: column;
+    gap: 0.85rem;
+}
+
+.cal-import-drawer.open {
+    display: flex;
+}
+
+.cal-import-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 0.65rem;
+    align-items: end;
+}
+
+.cal-import-field {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.cal-import-field label {
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    color: var(--text-muted);
+}
+
+.cal-import-field input,
+.cal-import-field select,
+.cal-import-textarea {
+    background: rgba(0, 0, 0, 0.45);
+    border: 1px solid var(--border);
+    color: #fff;
+    padding: 6px 10px;
+    border-radius: 7px;
+    font-size: 0.8rem;
+    font-family: var(--font-code);
+}
+
+.cal-import-textarea {
+    width: 100%;
+    min-height: 68px;
+    resize: vertical;
+}
+
+.cal-summary-strip {
+    display: grid;
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    gap: 0.65rem;
+}
+
+.cal-summary-strip .score-card-item {
+    background: rgba(13, 19, 34, 0.78);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 0.7rem 0.85rem;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+
+.cal-summary-strip .score-label {
+    font-size: 0.64rem;
+    font-weight: 700;
+    letter-spacing: 0.6px;
+    color: var(--text-muted);
+    text-transform: uppercase;
+}
+
+.cal-summary-strip .score-val {
+    font-size: 1.02rem;
+    font-weight: 800;
+    font-family: var(--font-code);
+    color: #fff;
+}
+
+.cal-summary-strip .score-sub {
+    font-size: 0.68rem;
+    color: var(--text-muted);
+}
+
+.calendar-grid-wrapper {
+    background: rgba(8, 12, 24, 0.75);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 0.85rem;
+}
+
+.calendar-weekdays-row {
+    display: grid;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    gap: 6px;
+    margin-bottom: 6px;
+}
+
+.cal-weekday-header {
+    text-align: center;
+    font-size: 0.7rem;
+    font-weight: 800;
+    letter-spacing: 0.8px;
+    color: var(--text-muted);
+    padding: 0.35rem 0;
+    background: rgba(255, 255, 255, 0.03);
+    border-radius: 6px;
+}
+
+.calendar-days-grid {
+    display: grid;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    gap: 6px;
+}
+
+.cal-day-cell {
+    min-height: 82px;
+    background: rgba(18, 25, 43, 0.65);
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    border-radius: 8px;
+    padding: 0.45rem 0.5rem;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    cursor: pointer;
+    transition: transform 0.12s ease, border-color 0.15s ease, background 0.15s ease;
+}
+
+.cal-day-cell:hover {
+    transform: translateY(-1px);
+    border-color: rgba(56, 189, 248, 0.55);
+}
+
+.cal-day-cell.other-month {
+    opacity: 0.3;
+    background: rgba(10, 14, 24, 0.35);
+    cursor: default;
+}
+
+.cal-day-cell.other-month:hover {
+    transform: none;
+    border-color: rgba(255, 255, 255, 0.07);
+}
+
+.cal-day-cell.win-day {
+    background: linear-gradient(160deg, rgba(0, 240, 144, 0.16), rgba(0, 240, 144, 0.05));
+    border-color: rgba(0, 240, 144, 0.38);
+}
+
+.cal-day-cell.loss-day {
+    background: linear-gradient(160deg, rgba(255, 51, 102, 0.17), rgba(255, 51, 102, 0.05));
+    border-color: rgba(255, 51, 102, 0.38);
+}
+
+.cal-day-cell.breakeven-day {
+    background: rgba(255, 209, 102, 0.1);
+    border-color: rgba(255, 209, 102, 0.35);
+}
+
+.cal-day-cell.today {
+    border-color: rgba(56, 189, 248, 0.75);
+    box-shadow: inset 0 0 0 1px rgba(56, 189, 248, 0.35);
+}
+
+.cal-day-cell.selected {
+    border-color: #38bdf8;
+    box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.35);
+}
+
+.cal-day-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 4px;
+}
+
+.cal-day-num {
+    font-size: 0.76rem;
+    font-weight: 800;
+    font-family: var(--font-code);
+    color: rgba(255, 255, 255, 0.85);
+}
+
+.cal-today-tag {
+    font-size: 0.56rem;
+    font-weight: 800;
+    padding: 1px 5px;
+    border-radius: 4px;
+    background: rgba(56, 189, 248, 0.22);
+    color: #38bdf8;
+    letter-spacing: 0.4px;
+}
+
+.cal-pnl-block {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    margin-top: 4px;
+}
+
+.cal-pnl-val {
+    font-size: 0.78rem;
+    font-weight: 800;
+    font-family: var(--font-code);
+    line-height: 1.15;
+    word-break: break-word;
+}
+
+.cal-trade-count {
+    font-size: 0.65rem;
+    color: var(--text-muted);
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.cal-day-inspector {
+    background: rgba(10, 15, 28, 0.78);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 0.9rem 1rem;
+}
+
+@media (max-width: 1100px) {
+    .cal-summary-strip {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 680px) {
+    .cal-summary-strip {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+    .cal-day-cell {
+        min-height: 66px;
+        padding: 0.3rem;
+    }
+    .cal-pnl-val {
+        font-size: 0.68rem;
+    }
+}

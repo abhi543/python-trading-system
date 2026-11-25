@@ -479,3 +479,190 @@ function showToast(message, type = 'success') {
     }, 4000);
 }
 
+/* --- DAY P&L CALENDAR IMPORT HELPERS --- */
+const IMPORTED_DAY_PNL_KEY = 'trading_imported_day_pnl_v1';
+
+function getImportedDayPnlList() {
+    try {
+        const raw = localStorage.getItem(IMPORTED_DAY_PNL_KEY);
+        const parsed = raw ? JSON.parse(raw) : [];
+        return Array.isArray(parsed) ? parsed : [];
+    } catch (e) {
+        return [];
+    }
+}
+
+function saveImportedDayPnlList(list) {
+    try {
+        localStorage.setItem(IMPORTED_DAY_PNL_KEY, JSON.stringify(list || []));
+    } catch (e) {}
+}
+
+function toggleCalImportDrawer() {
+    const drawer = document.getElementById('cal-import-drawer');
+    if (!drawer) return;
+    drawer.classList.toggle('open');
+    const dateInput = document.getElementById('cal-imp-date');
+    if (drawer.classList.contains('open') && dateInput && !dateInput.value) {
+        const nowIst = new Date(new Date().getTime() + (5.5 * 3600 * 1000));
+        dateInput.value = nowIst.toISOString().slice(0, 10);
+    }
+}
+
+function saveSingleImportedDayPnl() {
+    const dateEl = document.getElementById('cal-imp-date');
+    const deskEl = document.getElementById('cal-imp-desk');
+    const pnlEl = document.getElementById('cal-imp-pnl');
+    const tradesEl = document.getElementById('cal-imp-trades');
+    const chargesEl = document.getElementById('cal-imp-charges');
+
+    const dateStr = (dateEl?.value || '').trim();
+    const pnlVal = parseFloat(pnlEl?.value);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr) || isNaN(pnlVal)) {
+        if (typeof showToast === 'function') showToast('Please enter a valid Date (YYYY-MM-DD) and Net P&L.', 'error');
+        return;
+    }
+
+    const desk = (deskEl?.value || 'ALPHA').toUpperCase();
+    const tradesCount = Math.max(1, parseInt(tradesEl?.value || '1', 10) || 1);
+    const charges = Math.max(0, parseFloat(chargesEl?.value || '0') || 0);
+
+    const list = getImportedDayPnlList();
+    list.push({
+        id: 'imp_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6),
+        date: dateStr,
+        desk: desk,
+        net_pnl: Math.round(pnlVal * 100) / 100,
+        trades_count: tradesCount,
+        charges: Math.round(charges * 100) / 100,
+        timestamp: dateStr + ' 15:30:00'
+    });
+    saveImportedDayPnlList(list);
+
+    if (pnlEl) pnlEl.value = '';
+    if (typeof calSelectedDate !== 'undefined') calSelectedDate = dateStr;
+    if (typeof renderCalendarMonth === 'function') renderCalendarMonth();
+    if (typeof showToast === 'function') showToast(`Imported ${dateStr} (${desk}): ${pnlVal >= 0 ? '+' : ''}₹${pnlVal.toFixed(2)}`, 'success');
+}
+
+function parseAndImportDayPnlLines(rawText) {
+    const deskEl = document.getElementById('cal-imp-desk');
+    const desk = (deskEl?.value || 'ALPHA').toUpperCase();
+    const lines = String(rawText || '').split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+    const list = getImportedDayPnlList();
+    let added = 0;
+
+    lines.forEach(line => {
+        if (/^date/i.test(line)) return; // Skip CSV header
+        const parts = line.split(/[,\t;]+/).map(s => s.trim());
+        if (parts.length < 2) return;
+        const dateStr = parts[0];
+        const pnlVal = parseFloat(parts[1].replace(/[₹,\s]/g, ''));
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr) || isNaN(pnlVal)) return;
+        const tradesCount = parts[2] ? Math.max(1, parseInt(parts[2], 10) || 1) : 1;
+        const charges = parts[3] ? Math.max(0, parseFloat(parts[3]) || 0) : 0;
+
+        list.push({
+            id: 'imp_' + Date.now() + '_' + added + '_' + Math.random().toString(36).slice(2, 6),
+            date: dateStr,
+            desk: desk,
+            net_pnl: Math.round(pnlVal * 100) / 100,
+            trades_count: tradesCount,
+            charges: Math.round(charges * 100) / 100,
+            timestamp: dateStr + ' 15:30:00'
+        });
+        added++;
+    });
+
+    if (added > 0) {
+        saveImportedDayPnlList(list);
+        if (typeof renderCalendarMonth === 'function') renderCalendarMonth();
+        if (typeof showToast === 'function') showToast(`Imported ${added} Day P&L record${added > 1 ? 's' : ''} into calendar.`, 'success');
+    } else {
+        if (typeof showToast === 'function') showToast('No valid rows found. Use format: YYYY-MM-DD, Net_PnL', 'error');
+    }
+    return added;
+}
+
+function importBulkDayPnl() {
+    const bulkEl = document.getElementById('cal-imp-bulk');
+    if (!bulkEl || !bulkEl.value.trim()) {
+        if (typeof showToast === 'function') showToast('Paste Day P&L rows first (YYYY-MM-DD, PnL).', 'warning');
+        return;
+    }
+    const added = parseAndImportDayPnlLines(bulkEl.value);
+    if (added > 0) bulkEl.value = '';
+}
+
+function handleCalCsvFile(input) {
+    const file = input?.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+        parseAndImportDayPnlLines(e.target.result || '');
+        input.value = '';
+    };
+    reader.readAsText(file);
+}
+
+function clearImportedDayPnl() {
+    saveImportedDayPnlList([]);
+    if (typeof renderCalendarMonth === 'function') renderCalendarMonth();
+    if (typeof showToast === 'function') showToast('Cleared all imported Day P&L entries.', 'info');
+}
+
+function getMergedCalendarDaysMap(baseDaysMap, deskFilter) {
+    const merged = {};
+    const src = baseDaysMap || {};
+    Object.keys(src).forEach(dStr => {
+        const d = src[dStr];
+        merged[dStr] = {
+            ...d,
+            trades: Array.isArray(d.trades) ? [...d.trades] : []
+        };
+    });
+
+    const filterNorm = String(deskFilter || 'all').toLowerCase();
+    const imported = getImportedDayPnlList();
+    imported.forEach(item => {
+        if (!item || !item.date) return;
+        const itemDesk = String(item.desk || 'ALPHA').toLowerCase();
+        if (filterNorm !== 'all' && itemDesk !== filterNorm) return;
+
+        if (!merged[item.date]) {
+            merged[item.date] = {
+                net_pnl: 0.0,
+                charges: 0.0,
+                trades_count: 0,
+                wins: 0,
+                win_rate: 0,
+                trades: []
+            };
+        }
+        const dayObj = merged[item.date];
+        dayObj.net_pnl = Math.round(((dayObj.net_pnl || 0) + item.net_pnl) * 100) / 100;
+        dayObj.charges = Math.round(((dayObj.charges || 0) + (item.charges || 0)) * 100) / 100;
+        dayObj.trades_count = (dayObj.trades_count || 0) + (item.trades_count || 1);
+        if (item.net_pnl >= 0) dayObj.wins = (dayObj.wins || 0) + 1;
+        dayObj.win_rate = dayObj.trades_count > 0 ? Math.round((dayObj.wins / dayObj.trades_count) * 100) : 0;
+        dayObj.trades.push({
+            id: item.id,
+            time_str: 'IMPORTED',
+            timestamp: item.timestamp,
+            desk: item.desk || 'ALPHA',
+            displayName: 'DAY P&L IMPORT',
+            symbol: 'DAY_PNL',
+            side: item.net_pnl >= 0 ? 'BUY' : 'SELL',
+            quantity: item.trades_count || 1,
+            entry_price: 0,
+            exit_price: 0,
+            charges: item.charges || 0,
+            realized_pnl: item.net_pnl,
+            roi_pct: 0,
+            is_imported: true
+        });
+    });
+
+    return merged;
+}
+
