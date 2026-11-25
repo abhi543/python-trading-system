@@ -153,12 +153,12 @@
                 <div class="config-item">
                     <label><i class="fa-solid fa-chart-line"></i> STRATEGY MODEL</label>
                     <select id="bot-strategy" class="config-select" onchange="onStrategyChange()">
-                        <option value="AUTO_ENSEMBLE" selected>🤖 Auto-Pilot Ensemble (Self-Adaptive Regime Engine)</option>
+                        <option value="AUTO_ENSEMBLE">🤖 Auto-Pilot Ensemble (Self-Adaptive Regime Engine)</option>
                         <option value="SMC_LIQUIDITY_SWEEP">⚡ SMC Liquidity Sweep (PDL / PDH Bear &amp; Bull Trap Hunt)</option>
                         <option value="RSI_20_80">⚡ RSI Extreme (Buy &le; 20 / Sell &ge; 80 Mean Reversion)</option>
                         <option value="VWAP_EMA_RSI">⚡ VWAP + EMA + RSI Confluence (Volume Anchor &amp; Momentum)</option>
                         <option value="DMA_200">📈 200 DMA Regime Trend (Buy Above / Short Below 200 DMA)</option>
-                        <option value="VOLUME_SHOCKER">⚡ Volume Shocker Breakout (Institutional RVOL &ge; 1.75x)</option>
+                        <option value="VOLUME_SHOCKER" selected>⚡ Volume Shocker Breakout (Institutional RVOL &ge; 1.75x)</option>
                         <option value="123_REVERSAL">1-2-3 Reversal Map [AGPro Series v2.1] (Neckline Break &amp; Target)</option>
                         <option value="SMA_CROSSOVER">Dual SMA Golden/Death Cross (9 / 21)</option>
                         <option value="RSI_MOMENTUM">RSI Mean Reversion (14-Period, 35/65)</option>
@@ -2029,7 +2029,7 @@
     window.cachedActivePositions = [];
 
     document.addEventListener('DOMContentLoaded', () => {
-        const savedStrat = localStorage.getItem('nifty_bot_strategy') || 'AUTO_ENSEMBLE';
+        const savedStrat = localStorage.getItem('nifty_bot_strategy') || 'VOLUME_SHOCKER';
         const stratEl = document.getElementById('bot-strategy');
         if (stratEl && savedStrat) stratEl.value = savedStrat;
 

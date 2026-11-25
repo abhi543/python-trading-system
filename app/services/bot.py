@@ -123,7 +123,7 @@ class AutoTradingBot:
         persisted = _load_persistent_bot_state(self.state_filename)
         self.is_running = persisted.get("is_running", False)
         default_scan = "TOP_200_TURNOVER"
-        default_strat = "AUTO_ENSEMBLE"
+        default_strat = "VOLUME_SHOCKER" if self.name == "ALPHA" else "AUTO_ENSEMBLE"
         self.scan_mode = persisted.get("scan_mode", default_scan)
         if self.scan_mode == "KRONOS_UNIVERSE":
             self.scan_mode = "TOP_200_TURNOVER"
