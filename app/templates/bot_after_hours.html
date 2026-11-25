@@ -2041,7 +2041,7 @@
 
     document.addEventListener('DOMContentLoaded', () => {
         let savedStrat = localStorage.getItem('ah_bot_strategy');
-        if (!savedStrat || savedStrat === '123_REVERSAL' || savedStrat === 'KRONOS_AI') {
+        if (!savedStrat) {
             savedStrat = 'AUTO_ENSEMBLE';
             localStorage.setItem('ah_bot_strategy', 'AUTO_ENSEMBLE');
         }
@@ -2325,7 +2325,7 @@
             document.getElementById('bot-symbol').value = data.single_symbol;
         }
         let savedStrat = localStorage.getItem('ah_bot_strategy');
-        if (!savedStrat || savedStrat === '123_REVERSAL' || savedStrat === 'KRONOS_AI') {
+        if (!savedStrat) {
             savedStrat = 'AUTO_ENSEMBLE';
             localStorage.setItem('ah_bot_strategy', 'AUTO_ENSEMBLE');
         }

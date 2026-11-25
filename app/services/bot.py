@@ -129,8 +129,6 @@ class AutoTradingBot:
             self.scan_mode = "TOP_200_TURNOVER"
         self.single_symbol = persisted.get("single_symbol", "RELIANCE.NS")
         self.strategy = persisted.get("strategy", default_strat)
-        if self.strategy in ["KRONOS_AI", "123_REVERSAL", "VWAP_EMA_RSI"]:
-            self.strategy = "AUTO_ENSEMBLE"
         if self.name == "ALPHA":
             # Start stock traded from just 500 margin
             persisted_alloc = persisted.get("allocation_per_trade")
@@ -1921,7 +1919,7 @@ class AutoTradingBot:
                                         try:
                                             db.session.commit()
                                         except Exception:
-                                            pass
+                                            db.session.rollback()
 
                                     chg_amt = exec_res.get("charges", {}).get("total_charges", 0.0) if isinstance(exec_res.get("charges"), dict) else 0.0
                                     strat_tag = eval_res.get("strat_tag") or ("SMC Liquidity Sweep" if self.strategy in ["SMC_LIQUIDITY_SWEEP", "PDL_SWEEP"] else ("1-2-3 Neckline Break" if self.strategy == "123_REVERSAL" else ("Dual SMA Cross" if self.strategy == "SMA_CROSSOVER" else ("RSI Extreme (20/80)" if self.strategy in ["RSI_20_80", "RSI_MOMENTUM", "RSI"] else self.strategy))))
@@ -2068,7 +2066,7 @@ class AutoTradingBot:
                                         try:
                                             db.session.commit()
                                         except Exception:
-                                            pass
+                                            db.session.rollback()
 
                                     chg_amt = exec_res.get("charges", {}).get("total_charges", 0.0) if isinstance(exec_res.get("charges"), dict) else 0.0
                                     strat_tag = eval_res.get("strat_tag") or ("SMC Liquidity Sweep" if self.strategy in ["SMC_LIQUIDITY_SWEEP", "PDL_SWEEP"] else ("1-2-3 Neckline Breakdown" if self.strategy == "123_REVERSAL" else ("Dual SMA Death Cross" if self.strategy == "SMA_CROSSOVER" else "RSI Overbought")))

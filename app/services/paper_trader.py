@@ -312,7 +312,11 @@ class PaperTradingEngine:
                 net_total=cash_returned
             )
             db.session.add(trade)
-            db.session.commit()
+            try:
+                db.session.commit()
+            except Exception as e:
+                db.session.rollback()
+                return {"success": False, "message": f"Concurrent order conflict for {symbol}: {e}"}
             prune_old_trades(TradeHistory, 100)
             return {
                 "success": True,
@@ -365,7 +369,11 @@ class PaperTradingEngine:
                 net_total=cash_returned
             )
             db.session.add(trade)
-            db.session.commit()
+            try:
+                db.session.commit()
+            except Exception as e:
+                db.session.rollback()
+                return {"success": False, "message": f"Concurrent order conflict for {symbol}: {e}"}
             prune_old_trades(TradeHistory, 100)
             return {
                 "success": True,
@@ -445,7 +453,11 @@ class PaperTradingEngine:
                 net_total=margin_required
             )
             db.session.add(trade)
-            db.session.commit()
+            try:
+                db.session.commit()
+            except Exception as e:
+                db.session.rollback()
+                return {"success": False, "message": f"Concurrent order conflict for {symbol}: {e}"}
             prune_old_trades(TradeHistory, 100)
             return {
                 "success": True,
@@ -525,7 +537,11 @@ class PaperTradingEngine:
                 net_total=margin_required
             )
             db.session.add(trade)
-            db.session.commit()
+            try:
+                db.session.commit()
+            except Exception as e:
+                db.session.rollback()
+                return {"success": False, "message": f"Concurrent order conflict for {symbol}: {e}"}
             prune_old_trades(TradeHistory, 100)
             return {
                 "success": True,
@@ -762,7 +778,11 @@ class AfterHoursPaperTradingEngine:
                 stamp_duty=charges_data["stamp_duty"], net_total=cash_returned
             )
             db.session.add(trade)
-            db.session.commit()
+            try:
+                db.session.commit()
+            except Exception as e:
+                db.session.rollback()
+                return {"success": False, "message": f"Concurrent order conflict for {symbol}: {e}"}
             prune_old_trades(AfterHoursTradeHistory, 100)
             return {
                 "success": True, "action": "COVER", "price": price, "entry_price": position.average_price if position else price,
@@ -794,7 +814,11 @@ class AfterHoursPaperTradingEngine:
                 stamp_duty=charges_data["stamp_duty"], net_total=cash_returned
             )
             db.session.add(trade)
-            db.session.commit()
+            try:
+                db.session.commit()
+            except Exception as e:
+                db.session.rollback()
+                return {"success": False, "message": f"Concurrent order conflict for {symbol}: {e}"}
             prune_old_trades(AfterHoursTradeHistory, 100)
             return {
                 "success": True, "action": "SELL", "price": price, "entry_price": position.average_price if position else price,
@@ -832,7 +856,11 @@ class AfterHoursPaperTradingEngine:
                 stamp_duty=charges_data["stamp_duty"], net_total=margin_required
             )
             db.session.add(trade)
-            db.session.commit()
+            try:
+                db.session.commit()
+            except Exception as e:
+                db.session.rollback()
+                return {"success": False, "message": f"Concurrent order conflict for {symbol}: {e}"}
             prune_old_trades(AfterHoursTradeHistory, 100)
             return {
                 "success": True, "action": "BUY", "price": price, "entry_price": price, "realized_pnl": 0.0,
@@ -869,7 +897,11 @@ class AfterHoursPaperTradingEngine:
                 stamp_duty=charges_data["stamp_duty"], net_total=margin_required
             )
             db.session.add(trade)
-            db.session.commit()
+            try:
+                db.session.commit()
+            except Exception as e:
+                db.session.rollback()
+                return {"success": False, "message": f"Concurrent order conflict for {symbol}: {e}"}
             prune_old_trades(AfterHoursTradeHistory, 100)
             return {
                 "success": True, "action": "SHORT", "price": price, "entry_price": price, "realized_pnl": 0.0,

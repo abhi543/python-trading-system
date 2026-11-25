@@ -1976,7 +1976,7 @@
     document.addEventListener('DOMContentLoaded', () => {
         const savedStrat = localStorage.getItem('nifty_bot_strategy') || 'AUTO_ENSEMBLE';
         const stratEl = document.getElementById('bot-strategy');
-        if (stratEl) stratEl.value = (savedStrat === '123_REVERSAL') ? 'AUTO_ENSEMBLE' : savedStrat;
+        if (stratEl && savedStrat) stratEl.value = savedStrat;
 
         const savedScan = localStorage.getItem('nifty_bot_scan_mode');
         if (savedScan) {
@@ -2745,6 +2745,7 @@
                     showToast(data.error || 'ALPHA operates exclusively during Live Market hours before 3:00 PM (09:15 AM – 03:00 PM IST).', 'warning');
                     return;
                 }
+                setBotActiveState(true);
                 if (data.status) updateBotUI(data.status);
             } catch (err) {
                 setBotActiveState(false);
@@ -2752,7 +2753,6 @@
                 return;
             }
 
-            setBotActiveState(true);
             showToast(`BOT ALPHA Activated! Started Session #${botSession.session_count || 1} fresh report`, 'success');
             tickBotNow();
         }
@@ -2765,7 +2765,7 @@
             use_ai_filter: (typeof currentStrictAiMode !== 'undefined' ? currentStrictAiMode : false),
             scan_mode: document.getElementById('bot-scan-mode')?.value || 'TOP_200_TURNOVER',
             single_symbol: document.getElementById('bot-symbol')?.value?.trim()?.toUpperCase() || 'RELIANCE.NS',
-            strategy: document.getElementById('bot-strategy')?.value || '123_REVERSAL',
+            strategy: document.getElementById('bot-strategy')?.value || 'AUTO_ENSEMBLE',
             allocation_per_trade: parseFloat(document.getElementById('bot-allocation')?.value) || 500,
             max_positions: (document.getElementById('bot-max-positions') && !isNaN(parseInt(document.getElementById('bot-max-positions').value))) ? parseInt(document.getElementById('bot-max-positions').value) : 0,
             interval_seconds: 60,
