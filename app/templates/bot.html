@@ -1612,8 +1612,8 @@
         const cleanSym = (symbol || '').replace('.NS', '').replace('.BO', '').trim().toUpperCase();
         const isShort = (side === 'SHORT' || side === 'SELL');
         const numQty = Math.max(1, parseInt(qty) || 1);
-        const numPrice = parseFloat(price || 0);
-        const numTrig = parseFloat(triggerPrice || 0);
+        const numPrice = Math.round(parseFloat(price || 0));
+        const numTrig = Math.round(parseFloat(triggerPrice || 0));
 
         return {
             id: Date.now() + Math.floor(Math.random() * 100000),
@@ -1703,8 +1703,8 @@
             const exitSide = isShort ? 'BUY' : 'SELL';
             const avg = parseFloat(p.average_price || 0);
             const qty = Math.max(1, parseInt(p.quantity || 1, 10));
-            const sl = parseFloat(p.stop_loss || (isShort ? avg * 1.01 : avg * 0.99));
-            const tp = parseFloat(p.take_profit || (isShort ? avg * 0.99 : avg * 1.01));
+            const sl = Math.round(parseFloat(p.stop_loss || (isShort ? avg * 1.01 : avg * 0.99)));
+            const tp = Math.round(parseFloat(p.take_profit || (isShort ? avg * 0.99 : avg * 1.01)));
 
             // Leg 1: Entry order
             basketItems.push(generateZerodhaBasketItem(p.symbol, entrySide, qty, avg, 'MARKET'));
