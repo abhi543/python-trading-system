@@ -1,271 +1,184 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% block title %}ALGO-TRADE Pro | Financial Terminal{% endblock %}</title>
-    <!-- Modern Typography & Icons -->
+    <title>{% block title %}ALGO-TRADE Pro | NSE Trading Terminal{% endblock %}</title>
+
+    <!-- Apply saved theme before paint to prevent flash -->
+    <script>
+        (function() {
+            const savedTheme = localStorage.getItem('theme_mode') || 'dark';
+            document.documentElement.setAttribute('data-theme', savedTheme);
+        })();
+    </script>
+
+    <!-- Inter (UI) & JetBrains Mono (Tabular Numbers) -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+    <!-- Lucide Icons CDN -->
+    <script src="https://unpkg.com/lucide@0.460.0/dist/umd/lucide.min.js"></script>
+    <!-- Font Awesome (retained temporarily for legacy subpage components) -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     <!-- TradingView Lightweight Charts CDN -->
     <script src="https://unpkg.com/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js"></script>
 
-    <!-- Master Theme Stylesheet (Unified Design Tokens, Desks & Components) -->
+    <!-- Stylesheets: legacy theme + new design tokens -->
     <link rel="stylesheet" href="/static/css/theme.css">
+    <link rel="stylesheet" href="/static/css/tokens.css">
 </head>
 <body class="{% if request.path == '/bot' %}theme-alpha{% elif request.path == '/bot-after-hours' or request.path == '/after-hours' %}theme-nighthawk{% elif request.path == '/bot-swing' or request.path == '/swing' %}theme-titan{% elif request.path == '/scanner' or request.path == '/stock-scanner' or request.path == '/screener' %}theme-scanner{% elif request.path == '/lab' or request.path == '/backtest' or request.path == '/strategy-lab' %}theme-lab{% else %}theme-terminal{% endif %}">
+    <!-- Top Mode Accent Line (Amber = PAPER, Red = LIVE) -->
+    <div class="mode-accent-line" id="mode-accent-line"></div>
+
     <div class="app-layout">
-        <!-- Modern Financial Terminal Sidebar -->
+        <!-- Collapsible Left Sidebar -->
         <aside class="app-sidebar" id="app-sidebar">
             <div class="sidebar-top">
                 <a href="/" class="sidebar-brand">
-                    <div class="logo-badge"><i class="fa-solid fa-chart-line"></i></div>
-                    <div class="logo-title">ALGO<span>TRADE</span> PRO</div>
+                    <div class="logo-badge">
+                        <i data-lucide="candlestick-chart" style="width: 18px; height: 18px;"></i>
+                    </div>
+                    <div class="sidebar-brand-text">
+                        <div class="logo-title">ALGO<span>TRADE</span></div>
+                        <div class="logo-sub">NSE Terminal</div>
+                    </div>
                 </a>
-                <button class="sidebar-close-btn" id="sidebar-close-btn" onclick="toggleSidebar()" aria-label="Close Sidebar">
-                    <i class="fa-solid fa-xmark"></i>
+                <button class="sidebar-collapse-btn" id="sidebar-collapse-btn" onclick="toggleSidebarCollapse()" title="Collapse / Expand Sidebar" aria-label="Collapse Sidebar">
+                    <i data-lucide="panel-left-close" style="width: 15px; height: 15px;"></i>
                 </button>
             </div>
 
-            <div class="sidebar-status-wrap">
-                <div class="status-pill"><div class="pulse-dot"></div> PAPER LIVE</div>
-                <span class="sidebar-env-tag">NSE REAL-TIME</span>
-            </div>
-
             <div class="sidebar-scrollable">
-                <div class="sidebar-section-title">TRADING DESKS</div>
+                <div class="sidebar-section-title">TRADE</div>
                 <nav class="sidebar-nav">
-                    <a href="/" class="sidebar-item item-terminal {% if request.path == '/' or request.path == '/api/index' %}active{% endif %}">
-                        <span class="item-icon"><i class="fa-solid fa-desktop"></i></span>
+                    <a href="/" class="sidebar-item {% if request.path == '/' or request.path == '/api/index' %}active{% endif %}" title="Terminal">
+                        <span class="item-icon"><i data-lucide="monitor" style="width: 17px; height: 17px;"></i></span>
                         <div class="item-text">
                             <span class="item-title">Terminal</span>
-                            <span class="item-sub">Charts &amp; Quick Orders</span>
+                            <span class="item-sub">Charts, orders &amp; positions</span>
                         </div>
-                        <span class="desk-dot"></span>
-                    </a>
-
-                    <a href="/bot" class="sidebar-item item-alpha {% if request.path == '/bot' %}active{% endif %}">
-                        <span class="item-icon"><i class="fa-solid fa-bolt"></i></span>
-                        <div class="item-text">
-                            <span class="item-title">ALPHA</span>
-                            <span class="item-sub">Intraday (Cutoff 3 PM)</span>
-                        </div>
-                        <span class="desk-dot"></span>
-                    </a>
-
-                    <a href="/bot-after-hours" class="sidebar-item item-nighthawk {% if request.path == '/bot-after-hours' or request.path == '/after-hours' %}active{% endif %}">
-                        <span class="item-icon"><i class="fa-solid fa-moon"></i></span>
-                        <div class="item-text">
-                            <span class="item-title">NIGHTHAWK</span>
-                            <span class="item-sub">Overnight Drift (24/7)</span>
-                        </div>
-                        <span class="desk-dot"></span>
-                    </a>
-
-                    <a href="/bot-swing" class="sidebar-item item-titan {% if request.path == '/bot-swing' or request.path == '/swing' %}active{% endif %}">
-                        <span class="item-icon"><i class="fa-solid fa-shield-halved"></i></span>
-                        <div class="item-text">
-                            <span class="item-title">TITAN</span>
-                            <span class="item-sub">Multi-Day Positional</span>
-                        </div>
-                        <span class="desk-dot"></span>
-                    </a>
-
-                    <a href="/scanner" class="sidebar-item item-scanner {% if request.path == '/scanner' or request.path == '/stock-scanner' or request.path == '/screener' %}active{% endif %}">
-                        <span class="item-icon"><i class="fa-solid fa-crosshairs"></i></span>
-                        <div class="item-text">
-                            <span class="item-title">SCANNER</span>
-                            <span class="item-sub">Live Market Radar</span>
-                        </div>
-                        <span class="desk-dot"></span>
-                    </a>
-
-                    <a href="/lab" class="sidebar-item item-lab {% if request.path == '/lab' or request.path == '/backtest' or request.path == '/strategy-lab' %}active{% endif %}">
-                        <span class="item-icon"><i class="fa-solid fa-flask"></i></span>
-                        <div class="item-text">
-                            <span class="item-title">STRATEGY LAB</span>
-                            <span class="item-sub">1-Yr Fast Backtester</span>
-                        </div>
-                        <span class="desk-dot"></span>
                     </a>
                 </nav>
 
-                <div class="sidebar-section-title" style="margin-top: 1.5rem;">SAFETY &amp; CONTROLS</div>
-                <div class="sidebar-actions-wrap">
-                    <button id="global-stop-both-bots-btn" class="sidebar-killswitch-btn" onclick="globalStopBothBots()" title="Master Kill Switch: Immediately halt all autonomous bots">
-                        <span class="killswitch-dot" id="global-killswitch-dot"></span>
-                        <i class="fa-solid fa-power-off"></i>
-                        <div class="btn-text-wrap">
-                            <span class="btn-main-label">STOP ALL BOTS</span>
-                            <span class="btn-sub-label">Instant Emergency Halt</span>
+                <div class="sidebar-section-title">BOTS</div>
+                <nav class="sidebar-nav">
+                    <a href="/bot" class="sidebar-item {% if request.path == '/bot' %}active{% endif %}" title="Alpha Intraday">
+                        <span class="item-icon"><i data-lucide="zap" style="width: 17px; height: 17px;"></i></span>
+                        <div class="item-text">
+                            <span class="item-title">Alpha</span>
+                            <span class="item-sub">Intraday auto-cutoff 3 PM</span>
                         </div>
-                    </button>
+                    </a>
+                    <a href="/bot-after-hours" class="sidebar-item {% if request.path == '/bot-after-hours' or request.path == '/after-hours' %}active{% endif %}" title="Nighthawk 24/7">
+                        <span class="item-icon"><i data-lucide="moon" style="width: 17px; height: 17px;"></i></span>
+                        <div class="item-text">
+                            <span class="item-title">Nighthawk</span>
+                            <span class="item-sub">Overnight drift (24/7)</span>
+                        </div>
+                    </a>
+                    <a href="/bot-swing" class="sidebar-item {% if request.path == '/bot-swing' or request.path == '/swing' %}active{% endif %}" title="Titan Swing">
+                        <span class="item-icon"><i data-lucide="shield" style="width: 17px; height: 17px;"></i></span>
+                        <div class="item-text">
+                            <span class="item-title">Titan</span>
+                            <span class="item-sub">Multi-day positional</span>
+                        </div>
+                    </a>
+                </nav>
 
-                    <button id="reset-account-btn" class="sidebar-reset-btn" onclick="window.triggerCompleteReset()" title="Complete Reset: Liquidates all open positions, wipes unrealized P&L to ₹0.00, and restores clean capital">
-                        <i class="fa-solid fa-rotate-left"></i>
-                        <div class="btn-text-wrap">
-                            <span class="btn-main-label">COMPLETE RESET</span>
-                            <span class="btn-sub-label">Wipe &amp; Restore Capital</span>
+                <div class="sidebar-section-title">ANALYSE</div>
+                <nav class="sidebar-nav">
+                    <a href="/scanner" class="sidebar-item {% if request.path == '/scanner' or request.path == '/stock-scanner' or request.path == '/screener' %}active{% endif %}" title="Scanner">
+                        <span class="item-icon"><i data-lucide="radar" style="width: 17px; height: 17px;"></i></span>
+                        <div class="item-text">
+                            <span class="item-title">Scanner</span>
+                            <span class="item-sub">50-stock signal radar</span>
+                        </div>
+                    </a>
+                    <a href="/lab" class="sidebar-item {% if request.path == '/lab' or request.path == '/backtest' or request.path == '/strategy-lab' %}active{% endif %}" title="Strategy Lab">
+                        <span class="item-icon"><i data-lucide="flask-conical" style="width: 17px; height: 17px;"></i></span>
+                        <div class="item-text">
+                            <span class="item-title">Strategy Lab</span>
+                            <span class="item-sub">1-Yr fast backtester</span>
+                        </div>
+                    </a>
+                </nav>
+
+                <div class="sidebar-section-title">SYSTEM</div>
+                <nav class="sidebar-nav">
+                    <button type="button" class="sidebar-item" onclick="openSettingsModal()" title="Settings">
+                        <span class="item-icon"><i data-lucide="settings" style="width: 17px; height: 17px;"></i></span>
+                        <div class="item-text">
+                            <span class="item-title">Settings</span>
+                            <span class="item-sub">Theme, mode &amp; danger zone</span>
                         </div>
                     </button>
-                </div>
+                </nav>
             </div>
 
             <div class="sidebar-footer">
-                <div class="sidebar-footer-stat">
-                    <div class="status-indicator-dot"></div>
-                    <div class="footer-stat-text">
-                        <span class="feed-title">NSE Market Feed</span>
-                        <span class="feed-status text-green">Online • 12ms</span>
-                    </div>
+                <span class="latency-dot" id="sidebar-feed-dot"></span>
+                <div class="sidebar-footer-text">
+                    <div style="font-size: 12px; font-weight: 600; color: var(--text);">NSE Data Feed</div>
+                    <div style="font-size: 11px; color: var(--text-muted);" id="sidebar-feed-label">Connected</div>
                 </div>
             </div>
         </aside>
 
-        <!-- Backdrop for mobile drawer overlay -->
-        <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="toggleSidebar()"></div>
+        <!-- Mobile Drawer Backdrop -->
+        <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="toggleMobileSidebar()"></div>
 
-        <!-- Main Workspace Area -->
+        <!-- Main Workspace -->
         <div class="app-main-wrapper">
-            <!-- Sleek Top Stat Strip with Mobile Sidebar Toggle -->
+            <!-- Sticky Top Bar -->
             <header class="app-topbar">
-                <div class="topbar-left-controls">
-                    <button class="sidebar-toggle-btn" id="sidebar-toggle-btn" onclick="toggleSidebar()" aria-label="Toggle Navigation Menu">
-                        <i class="fa-solid fa-bars"></i>
+                <div class="topbar-left">
+                    <button class="topbar-mobile-menu-btn" onclick="toggleMobileSidebar()" aria-label="Open Menu">
+                        <i data-lucide="menu" style="width: 18px; height: 18px;"></i>
                     </button>
-                    <div class="topbar-title-compact">
-                        {% if request.path == '/bot' %}
-                            <span class="desk-badge badge-alpha"><i class="fa-solid fa-bolt"></i> ALPHA INTRADAY</span>
-                        {% elif request.path == '/bot-after-hours' or request.path == '/after-hours' %}
-                            <span class="desk-badge badge-nighthawk"><i class="fa-solid fa-moon"></i> NIGHTHAWK 24/7</span>
-                        {% elif request.path == '/bot-swing' or request.path == '/swing' %}
-                            <span class="desk-badge badge-titan"><i class="fa-solid fa-shield-halved"></i> TITAN SWING</span>
-                        {% elif request.path == '/scanner' or request.path == '/stock-scanner' or request.path == '/screener' %}
-                            <span class="desk-badge badge-scanner"><i class="fa-solid fa-crosshairs"></i> SCANNER RADAR</span>
-                        {% else %}
-                            <span class="desk-badge badge-terminal"><i class="fa-solid fa-desktop"></i> TRADING TERMINAL</span>
-                        {% endif %}
+
+                    <!-- Segmented PAPER | LIVE Mode Toggle -->
+                    <div class="segmented-mode" role="group" aria-label="Trading Mode">
+                        <button type="button" class="segmented-mode-btn active-paper" id="mode-btn-paper" onclick="setTradingMode('paper')">PAPER</button>
+                        <button type="button" class="segmented-mode-btn" id="mode-btn-live" onclick="setTradingMode('live')">LIVE</button>
+                    </div>
+
+                    <!-- NSE Market Status Chip -->
+                    <div class="market-status-chip" id="nse-market-chip" title="Indian Standard Time (IST)">
+                        <span class="market-status-dot"></span>
+                        <span id="nse-market-text">NSE Checking...</span>
+                    </div>
+
+                    <!-- Feed Latency Dot + Tooltip -->
+                    <div class="latency-chip" id="feed-latency-chip" title="Market feed round-trip latency">
+                        <span class="latency-dot" id="feed-latency-dot"></span>
+                        <span id="feed-latency-ms">-- ms</span>
                     </div>
                 </div>
 
-                <!-- Live Header Stat Strip -->
-                <div class="header-stat-strip">
-                    <div class="stat-strip-items">
-                        {% if request.path == '/bot-swing' or request.path == '/swing' %}
-                        <div class="stat-chip stat-chip-equity">
-                            <svg class="mini-sparkline" width="46" height="20" viewBox="0 0 46 20">
-                                <path d="M 2 15 Q 12 16, 20 10 T 36 6 T 44 4" stroke="#c084fc"/>
-                            </svg>
-                            <div class="stat-chip-info">
-                                <span class="stat-chip-label"><i class="fa-solid fa-bolt" style="color: #c084fc;"></i> TITAN EQUITY</span>
-                                <span class="stat-chip-val text-green" id="nav-total-equity">₹1,00,000.00</span>
-                            </div>
-                            <span class="stat-subdelta text-green" id="nav-equity-delta">+0.00%</span>
-                        </div>
-                        <div class="stat-chip">
-                            <div class="stat-chip-info">
-                                <span class="stat-chip-label">AVAILABLE CASH</span>
-                                <span class="stat-chip-val" id="nav-cash-balance">₹1,00,000.00</span>
-                            </div>
-                        </div>
-                        <div class="stat-chip">
-                            <div class="stat-chip-info">
-                                <span class="stat-chip-label">CNC HOLDINGS VALUE</span>
-                                <span class="stat-chip-val" id="nav-buying-power" style="color: #c084fc;">₹0.00</span>
-                            </div>
-                        </div>
-                        <div class="stat-chip stat-chip-pnl" id="nav-pnl-chip">
-                            <div class="stat-chip-info">
-                                <span class="stat-chip-label">UNREALIZED P&amp;L</span>
-                                <span class="stat-chip-val" id="nav-pnl">₹0.00</span>
-                            </div>
-                        </div>
-                        {% elif request.path == '/bot-after-hours' or request.path == '/after-hours' %}
-                        <div class="stat-chip stat-chip-equity">
-                            <svg class="mini-sparkline" width="46" height="20" viewBox="0 0 46 20">
-                                <path d="M 2 14 Q 14 18, 22 11 T 36 7 T 44 3" stroke="#ffd166"/>
-                            </svg>
-                            <div class="stat-chip-info">
-                                <span class="stat-chip-label"><i class="fa-solid fa-moon" style="color: #ffd166;"></i> NIGHTHAWK EQUITY</span>
-                                <span class="stat-chip-val text-green" id="nav-total-equity">₹10,00,000.00</span>
-                            </div>
-                            <span class="stat-subdelta text-green" id="nav-equity-delta">+0.00%</span>
-                        </div>
-                        <div class="stat-chip">
-                            <div class="stat-chip-info">
-                                <span class="stat-chip-label"><i class="fa-solid fa-wallet" style="color: #ffd166;"></i> WALLET</span>
-                                <span class="stat-chip-val" id="nav-cash-balance">₹10,00,000.00</span>
-                            </div>
-                        </div>
-                        <div class="stat-chip stat-chip-pnl" id="nav-realized-chip" style="cursor: pointer;" onclick="if(typeof switchLedgerTab === 'function') switchLedgerTab('closed');" title="Click to view Realized P&amp;L Vault">
-                            <div class="stat-chip-info">
-                                <span class="stat-chip-label"><i class="fa-solid fa-vault" style="color: #00f090;"></i> REALIZED P&amp;L</span>
-                                <span class="stat-chip-val text-green" id="nav-realized-pnl">₹0.00</span>
-                            </div>
-                        </div>
-                        <div class="stat-chip stat-chip-pnl" id="nav-day-pnl-chip" style="cursor: pointer;" onclick="if(typeof switchLedgerTab === 'function') switchLedgerTab('calendar');" title="Click to open Daily P&amp;L Calendar">
-                            <div class="stat-chip-info">
-                                <span class="stat-chip-label"><i class="fa-solid fa-calendar-days" style="color: #38bdf8;"></i> DAY P&amp;L</span>
-                                <span class="stat-chip-val" id="nav-day-pnl">₹0.00</span>
-                            </div>
-                        </div>
-                        <div class="stat-chip stat-chip-pnl" id="nav-pnl-chip">
-                            <div class="stat-chip-info">
-                                <span class="stat-chip-label">UNREALIZED P&amp;L</span>
-                                <span class="stat-chip-val" id="nav-pnl">₹0.00</span>
-                            </div>
-                        </div>
-                        <div class="stat-chip">
-                            <div class="stat-chip-info">
-                                <span class="stat-chip-label">5X BUYING POWER</span>
-                                <span class="stat-chip-val text-green" id="nav-buying-power">₹5,00,00,000.00</span>
-                            </div>
-                        </div>
-                        {% else %}
-                        <div class="stat-chip stat-chip-equity">
-                            <svg class="mini-sparkline" width="46" height="20" viewBox="0 0 46 20">
-                                <path d="M 2 16 Q 12 14, 22 10 T 34 8 T 44 4" stroke="#00f090"/>
-                            </svg>
-                            <div class="stat-chip-info">
-                                <span class="stat-chip-label">TOTAL EQUITY</span>
-                                <span class="stat-chip-val text-green" id="nav-total-equity">₹50,000.00</span>
-                            </div>
-                            <span class="stat-subdelta text-green" id="nav-equity-delta">+0.00%</span>
-                        </div>
-                        <div class="stat-chip">
-                            <div class="stat-chip-info">
-                                <span class="stat-chip-label"><i class="fa-solid fa-wallet" style="color: #38bdf8;"></i> WALLET</span>
-                                <span class="stat-chip-val" id="nav-cash-balance">₹50,000.00</span>
-                            </div>
-                        </div>
-                        <div class="stat-chip stat-chip-pnl" id="nav-realized-chip" style="cursor: pointer;" onclick="if(typeof switchLedgerTab === 'function') switchLedgerTab('closed');" title="Click to view Realized P&amp;L Vault">
-                            <div class="stat-chip-info">
-                                <span class="stat-chip-label"><i class="fa-solid fa-vault" style="color: #00f090;"></i> REALIZED P&amp;L</span>
-                                <span class="stat-chip-val text-green" id="nav-realized-pnl">₹0.00</span>
-                            </div>
-                        </div>
-                        <div class="stat-chip stat-chip-pnl" id="nav-day-pnl-chip" style="cursor: pointer;" onclick="if(typeof switchLedgerTab === 'function') switchLedgerTab('calendar');" title="Click to open Daily P&amp;L Calendar">
-                            <div class="stat-chip-info">
-                                <span class="stat-chip-label"><i class="fa-solid fa-calendar-days" style="color: #38bdf8;"></i> DAY P&amp;L</span>
-                                <span class="stat-chip-val" id="nav-day-pnl">₹0.00</span>
-                            </div>
-                        </div>
-                        <div class="stat-chip stat-chip-pnl" id="nav-pnl-chip">
-                            <div class="stat-chip-info">
-                                <span class="stat-chip-label">UNREALIZED P&amp;L</span>
-                                <span class="stat-chip-val" id="nav-pnl">₹0.00</span>
-                            </div>
-                        </div>
-                        <div class="stat-chip">
-                            <div class="stat-chip-info">
-                                <span class="stat-chip-label">5X BUYING POWER</span>
-                                <span class="stat-chip-val text-green" id="nav-buying-power">₹2,50,000.00</span>
-                            </div>
-                        </div>
-                        {% endif %}
-                    </div>
+                <div class="topbar-right">
+                    <!-- Ctrl+K Symbol Search -->
+                    <button type="button" class="ctrlk-trigger" onclick="openCtrlKModal()" title="Search NSE Symbols (Ctrl+K)">
+                        <span style="display: inline-flex; align-items: center; gap: 6px;">
+                            <i data-lucide="search" style="width: 14px; height: 14px;"></i>
+                            <span class="ctrlk-label">Search symbol...</span>
+                        </span>
+                        <kbd class="ctrlk-kbd">Ctrl+K</kbd>
+                    </button>
+
+                    <!-- Theme Toggle -->
+                    <button type="button" class="topbar-icon-btn" id="theme-toggle-btn" onclick="toggleTheme()" title="Toggle Light / Dark Theme" aria-label="Toggle Theme">
+                        <i data-lucide="sun" id="theme-icon-sun" style="width: 16px; height: 16px; display: none;"></i>
+                        <i data-lucide="moon" id="theme-icon-moon" style="width: 16px; height: 16px;"></i>
+                    </button>
+
+                    <!-- Persistent Red HALT ALL Button -->
+                    <button type="button" id="global-stop-both-bots-btn" class="halt-all-btn" onclick="openHaltConfirmModal()" title="Emergency Halt All Bots">
+                        <i data-lucide="octagon-alert" style="width: 14px; height: 14px;"></i>
+                        <span>HALT ALL</span>
+                    </button>
                 </div>
             </header>
 
@@ -275,167 +188,381 @@
         </div>
     </div>
 
+    <!-- Global Toast Container -->
     <div id="toast-container" class="toast-container"></div>
 
-    <!-- Mobile Bottom Navigation Bar -->
-    <nav class="mobile-bottom-nav">
+    <!-- Mobile Bottom Navigation (<768px) -->
+    <nav class="mobile-bottom-nav" aria-label="Mobile Navigation">
         <a href="/" class="mobile-nav-item {% if request.path == '/' or request.path == '/api/index' %}active{% endif %}">
-            <i class="fa-solid fa-desktop"></i>
+            <i data-lucide="monitor" style="width: 18px; height: 18px;"></i>
             <span>Terminal</span>
         </a>
         <a href="/bot" class="mobile-nav-item {% if request.path == '/bot' %}active{% endif %}">
-            <i class="fa-solid fa-sun" style="color: #00f090;"></i>
-            <span>ALPHA</span>
-        </a>
-        <a href="/bot-after-hours" class="mobile-nav-item {% if request.path == '/bot-after-hours' or request.path == '/after-hours' %}active{% endif %}">
-            <i class="fa-solid fa-moon" style="color: #ffd166;"></i>
-            <span>NIGHT</span>
-        </a>
-        <a href="/bot-swing" class="mobile-nav-item {% if request.path == '/bot-swing' or request.path == '/swing' %}active{% endif %}">
-            <i class="fa-solid fa-bolt" style="color: #c084fc;"></i>
-            <span>TITAN</span>
+            <i data-lucide="zap" style="width: 18px; height: 18px;"></i>
+            <span>Bots</span>
         </a>
         <a href="/scanner" class="mobile-nav-item {% if request.path == '/scanner' or request.path == '/stock-scanner' or request.path == '/screener' %}active{% endif %}">
-            <i class="fa-solid fa-crosshairs" style="color: #00d2ff;"></i>
-            <span>SCAN</span>
+            <i data-lucide="radar" style="width: 18px; height: 18px;"></i>
+            <span>Scanner</span>
         </a>
-        <button type="button" onclick="globalStopBothBots()" class="mobile-nav-item" style="background: none; border: none; cursor: pointer; color: #ef4444;">
-            <i class="fa-solid fa-power-off"></i>
-            <span>HALT</span>
+        <a href="/lab" class="mobile-nav-item {% if request.path == '/lab' or request.path == '/backtest' or request.path == '/strategy-lab' %}active{% endif %}">
+            <i data-lucide="flask-conical" style="width: 18px; height: 18px;"></i>
+            <span>Lab</span>
+        </a>
+        <button type="button" class="mobile-nav-item" onclick="toggleMobileSidebar()">
+            <i data-lucide="ellipsis" style="width: 18px; height: 18px;"></i>
+            <span>More</span>
         </button>
     </nav>
 
+    <!-- Ctrl+K Symbol Search Modal -->
+    <div class="pro-modal-backdrop" id="ctrlk-modal" onclick="if(event.target===this) closeCtrlKModal()">
+        <div class="pro-modal" role="dialog" aria-modal="true" aria-label="Symbol Search">
+            <div class="pro-modal-header">
+                <div class="pro-modal-title">
+                    <i data-lucide="search" style="width: 16px; height: 16px; color: var(--accent);"></i>
+                    <span>Quick Symbol Search</span>
+                </div>
+                <button type="button" class="topbar-icon-btn" onclick="closeCtrlKModal()" aria-label="Close">
+                    <i data-lucide="x" style="width: 15px; height: 15px;"></i>
+                </button>
+            </div>
+            <div class="pro-modal-body">
+                <input type="text" id="ctrlk-search-input" class="pro-input" placeholder="Type NSE ticker (e.g. RELIANCE, TCS, HDFCBANK)..." oninput="filterCtrlKSymbols(this.value)" autocomplete="off">
+                <div id="ctrlk-results" style="margin-top: 12px; max-height: 280px; overflow-y: auto; display: flex; flex-direction: column; gap: 4px;"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- HALT ALL One-Click Confirm Modal -->
+    <div class="pro-modal-backdrop" id="halt-confirm-modal" onclick="if(event.target===this) closeHaltConfirmModal()">
+        <div class="pro-modal" role="dialog" aria-modal="true" aria-label="Confirm Halt All Bots">
+            <div class="pro-modal-header">
+                <div class="pro-modal-title" style="color: var(--danger);">
+                    <i data-lucide="octagon-alert" style="width: 18px; height: 18px;"></i>
+                    <span>Emergency Halt All Bots</span>
+                </div>
+                <button type="button" class="topbar-icon-btn" onclick="closeHaltConfirmModal()" aria-label="Close">
+                    <i data-lucide="x" style="width: 15px; height: 15px;"></i>
+                </button>
+            </div>
+            <div class="pro-modal-body">
+                <p style="color: var(--text); margin-bottom: 10px;">Immediately halt autonomous trading across <strong>Alpha</strong>, <strong>Nighthawk</strong>, and <strong>Titan</strong>?</p>
+                <p style="color: var(--text-muted); font-size: 12px;">Pending sweeps and new automated entries will stop immediately.</p>
+            </div>
+            <div class="pro-modal-footer">
+                <button type="button" class="pro-btn" onclick="closeHaltConfirmModal()">Cancel</button>
+                <button type="button" class="pro-btn pro-btn-danger" id="confirm-halt-exec-btn" onclick="executeHaltAll()">Confirm Halt All</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Settings & Danger Zone Modal -->
+    <div class="pro-modal-backdrop" id="settings-modal" onclick="if(event.target===this) closeSettingsModal()">
+        <div class="pro-modal" role="dialog" aria-modal="true" aria-label="Terminal Settings">
+            <div class="pro-modal-header">
+                <div class="pro-modal-title">
+                    <i data-lucide="settings" style="width: 17px; height: 17px; color: var(--accent);"></i>
+                    <span>Terminal Settings</span>
+                </div>
+                <button type="button" class="topbar-icon-btn" onclick="closeSettingsModal()" aria-label="Close">
+                    <i data-lucide="x" style="width: 15px; height: 15px;"></i>
+                </button>
+            </div>
+            <div class="pro-modal-body" style="display: flex; flex-direction: column; gap: 16px;">
+                <div style="display: flex; align-items: center; justify-content: space-between;">
+                    <div>
+                        <div style="font-weight: 600;">Appearance</div>
+                        <div style="font-size: 12px; color: var(--text-muted);">Dark terminal default or light daylight theme</div>
+                    </div>
+                    <button type="button" class="pro-btn" onclick="toggleTheme()">Toggle Theme</button>
+                </div>
+
+                <div class="danger-zone-card">
+                    <div style="display: flex; align-items: center; gap: 8px; color: var(--danger); font-weight: 700; margin-bottom: 6px;">
+                        <i data-lucide="triangle-alert" style="width: 16px; height: 16px;"></i>
+                        <span>Danger Zone — Complete Reset</span>
+                    </div>
+                    <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 12px;">
+                        Liquidates all open positions, wipes unrealized P&amp;L to ₹0.00, and restores initial capital for the active desk. Type <strong style="color: var(--text);">RESET</strong> below to confirm.
+                    </p>
+                    <div style="display: flex; gap: 8px;">
+                        <input type="text" id="reset-confirm-input" class="pro-input" placeholder="Type RESET to enable" oninput="onResetConfirmInput(this.value)" autocomplete="off">
+                        <button type="button" id="danger-reset-exec-btn" class="pro-btn pro-btn-danger" disabled onclick="executeDangerReset()">Reset</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script>
-        // Sidebar Toggle Helper (Drawer on Tablet/Mobile)
-        function toggleSidebar() {
+        /* ======================================================================
+           GLOBAL FORMATTING & UTILITY HELPERS
+           ====================================================================== */
+        window.formatINR = function(num) {
+            const n = Number(num || 0);
+            return '₹' + Math.abs(n).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        };
+
+        window.formatSignedINR = function(num) {
+            const n = Number(num || 0);
+            const sign = n > 0.0001 ? '+' : (n < -0.0001 ? '-' : '');
+            const arrow = n > 0.0001 ? '▲ ' : (n < -0.0001 ? '▼ ' : '');
+            return `${arrow}${sign}₹${Math.abs(n).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+        };
+
+        window.formatSignedPct = function(num) {
+            const n = Number(num || 0);
+            const sign = n > 0.0001 ? '+' : (n < -0.0001 ? '-' : '');
+            const arrow = n > 0.0001 ? '▲ ' : (n < -0.0001 ? '▼ ' : '');
+            return `${arrow}${sign}${Math.abs(n).toFixed(2)}%`;
+        };
+
+        window.showGlobalToast = function(msg, type = 'info') {
+            const container = document.getElementById('toast-container');
+            if (!container) return;
+            const toast = document.createElement('div');
+            toast.className = `toast toast-${type}`;
+            toast.textContent = msg;
+            container.appendChild(toast);
+            setTimeout(() => toast.remove(), 4500);
+        };
+
+        /* ======================================================================
+           THEME, SIDEBAR & TRADING MODE
+           ====================================================================== */
+        function syncThemeUI() {
+            const theme = document.documentElement.getAttribute('data-theme') || 'dark';
+            const sun = document.getElementById('theme-icon-sun');
+            const moon = document.getElementById('theme-icon-moon');
+            if (sun && moon) {
+                sun.style.display = theme === 'dark' ? 'inline-block' : 'none';
+                moon.style.display = theme === 'light' ? 'inline-block' : 'none';
+            }
+        }
+
+        function toggleTheme() {
+            const cur = document.documentElement.getAttribute('data-theme') || 'dark';
+            const next = cur === 'dark' ? 'light' : 'dark';
+            document.documentElement.setAttribute('data-theme', next);
+            localStorage.setItem('theme_mode', next);
+            syncThemeUI();
+            window.dispatchEvent(new CustomEvent('theme-changed', { detail: { theme: next } }));
+        }
+
+        function toggleSidebarCollapse() {
+            const sidebar = document.getElementById('app-sidebar');
+            if (!sidebar) return;
+            const collapsed = sidebar.classList.toggle('collapsed');
+            localStorage.setItem('sidebar_collapsed', collapsed ? '1' : '0');
+        }
+
+        function toggleMobileSidebar() {
             const sidebar = document.getElementById('app-sidebar');
             const backdrop = document.getElementById('sidebar-backdrop');
             if (sidebar) sidebar.classList.toggle('open');
             if (backdrop) backdrop.classList.toggle('active');
         }
 
-        // Sync P&L chip background tint
-        function syncHeaderPnlTint(pnlVal) {
-            const chip = document.getElementById('nav-pnl-chip');
-            if (!chip) return;
-            chip.classList.remove('positive', 'negative');
-            if (pnlVal > 0.001) {
-                chip.classList.add('positive');
-            } else if (pnlVal < -0.001) {
-                chip.classList.add('negative');
+        function setTradingMode(mode) {
+            const m = mode === 'live' ? 'live' : 'paper';
+            localStorage.setItem('trading_mode', m);
+            document.body.classList.toggle('trading-mode-live', m === 'live');
+            const pBtn = document.getElementById('mode-btn-paper');
+            const lBtn = document.getElementById('mode-btn-live');
+            if (pBtn && lBtn) {
+                pBtn.classList.toggle('active-paper', m === 'paper');
+                lBtn.classList.toggle('active-live', m === 'live');
             }
         }
-        function showGlobalToast(msg, type = 'info') {
-            const container = document.getElementById('toast-container');
-            if (!container) return;
-            const toast = document.createElement('div');
-            toast.className = `toast toast-${type}`;
-            toast.innerHTML = msg;
-            container.appendChild(toast);
-            setTimeout(() => toast.remove(), 4500);
-        }
 
-        function updateKillswitchUI() {
-            const alphaActive = localStorage.getItem('nifty_bot_active') === 'true';
-            const ahActive = localStorage.getItem('ah_bot_active_v1') === 'true';
-            const swingActive = localStorage.getItem('titan_swing_is_active') === 'true';
-            const dot = document.getElementById('global-killswitch-dot');
-            const btn = document.getElementById('global-stop-both-bots-btn');
-            if (!btn) return;
-            if (alphaActive || ahActive || swingActive) {
-                if (dot) dot.classList.add('pulsing');
-                btn.style.borderColor = '#ef4444';
-                btn.style.boxShadow = '0 0 16px rgba(239, 68, 68, 0.45)';
-                btn.title = `Master Kill Switch: Stop Active Bots (${alphaActive ? 'ALPHA ' : ''}${ahActive ? 'NIGHTHAWK ' : ''}${swingActive ? 'TITAN' : ''})`;
+        /* ======================================================================
+           NSE MARKET STATUS (IST) & FEED LATENCY
+           ====================================================================== */
+        function updateMarketStatusChip() {
+            const chip = document.getElementById('nse-market-chip');
+            const txt = document.getElementById('nse-market-text');
+            if (!chip || !txt) return;
+
+            const now = new Date();
+            const ist = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }));
+            const day = ist.getDay(); // 0 Sun .. 6 Sat
+            const mins = ist.getHours() * 60 + ist.getMinutes();
+            const openMins = 9 * 60 + 15;
+            const closeMins = 15 * 60 + 30;
+            const isWeekday = day >= 1 && day <= 5;
+            const isOpen = isWeekday && mins >= openMins && mins < closeMins;
+
+            if (isOpen) {
+                const rem = closeMins - mins;
+                const h = Math.floor(rem / 60);
+                const m = rem % 60;
+                chip.classList.remove('closed');
+                txt.textContent = `NSE Open · closes in ${h}h ${m}m`;
             } else {
-                if (dot) dot.classList.remove('pulsing');
-                btn.style.borderColor = 'rgba(239, 68, 68, 0.4)';
-                btn.style.boxShadow = 'none';
-                btn.title = 'Master Kill Switch: All bots currently stopped. Click to ensure full shutdown.';
+                chip.classList.add('closed');
+                let nextLabel = 'Today 9:15';
+                if (!isWeekday || mins >= closeMins) {
+                    if (day === 5 && mins >= closeMins) nextLabel = 'Mon 9:15';
+                    else if (day === 6 || day === 0) nextLabel = 'Mon 9:15';
+                    else nextLabel = 'Tomorrow 9:15';
+                }
+                txt.textContent = `NSE Closed · opens ${nextLabel}`;
             }
         }
 
-        async function globalStopBothBots() {
-            const alphaActive = localStorage.getItem('nifty_bot_active') === 'true';
-            const ahActive = localStorage.getItem('ah_bot_active_v1') === 'true';
-            const swingActive = localStorage.getItem('titan_swing_is_active') === 'true';
+        async function measureFeedLatency() {
+            const label = document.getElementById('feed-latency-ms');
+            const sideLabel = document.getElementById('sidebar-feed-label');
+            const start = performance.now();
+            try {
+                const res = await fetch('/api/quote/RELIANCE.NS');
+                const ms = Math.round(performance.now() - start);
+                if (res.ok) {
+                    if (label) label.textContent = `${ms} ms`;
+                    if (sideLabel) sideLabel.textContent = `Online · ${ms}ms`;
+                }
+            } catch (e) {
+                if (label) label.textContent = 'Offline';
+            }
+        }
 
-            const confirmMsg = '🛑 EMERGENCY MASTER KILL SWITCH\n\n' +
-                'Stop all trading bots (ALPHA, NIGHTHAWK, and TITAN) immediately?\n\n' +
-                '• Bot ALPHA: HALTED\n' +
-                '• Bot NIGHTHAWK: HALTED\n' +
-                '• Bot TITAN (Swing): HALTED\n\n' +
-                'Autonomous sweeps and order execution will be paused immediately across all desks.';
+        /* ======================================================================
+           CTRL+K SYMBOL SEARCH MODAL
+           ====================================================================== */
+        let cachedSearchStocks = [];
+        async function openCtrlKModal() {
+            const modal = document.getElementById('ctrlk-modal');
+            const input = document.getElementById('ctrlk-search-input');
+            if (!modal) return;
+            modal.classList.add('open');
+            if (input) {
+                input.value = '';
+                setTimeout(() => input.focus(), 30);
+            }
+            if (!cachedSearchStocks.length) {
+                try {
+                    const res = await fetch('/api/nse/stocks');
+                    const data = await res.json();
+                    cachedSearchStocks = Array.isArray(data) ? data : (data.stocks || []);
+                } catch (e) {
+                    cachedSearchStocks = [
+                        { symbol: 'RELIANCE.NS', name: 'Reliance Industries' },
+                        { symbol: 'TCS.NS', name: 'Tata Consultancy Services' },
+                        { symbol: 'HDFCBANK.NS', name: 'HDFC Bank' },
+                        { symbol: 'INFY.NS', name: 'Infosys' },
+                        { symbol: 'ICICIBANK.NS', name: 'ICICI Bank' },
+                        { symbol: 'SBIN.NS', name: 'State Bank of India' }
+                    ];
+                }
+            }
+            filterCtrlKSymbols('');
+        }
 
-            if (!confirm(confirmMsg)) return;
+        function closeCtrlKModal() {
+            const modal = document.getElementById('ctrlk-modal');
+            if (modal) modal.classList.remove('open');
+        }
 
-            // 1. Force client storage flags to false
+        function filterCtrlKSymbols(query) {
+            const container = document.getElementById('ctrlk-results');
+            if (!container) return;
+            const q = (query || '').trim().toUpperCase();
+            const list = cachedSearchStocks.filter(item => {
+                const sym = (item.symbol || item).toString().toUpperCase();
+                const name = (item.name || '').toString().toUpperCase();
+                return !q || sym.includes(q) || name.includes(q);
+            }).slice(0, 12);
+
+            if (!list.length) {
+                container.innerHTML = `<div style="padding: 16px; text-align: center; color: var(--text-muted); font-size: 12px;">No matching NSE symbols</div>`;
+                return;
+            }
+            container.innerHTML = list.map(item => {
+                const sym = typeof item === 'string' ? item : item.symbol;
+                const name = typeof item === 'string' ? 'NSE Equity' : (item.name || 'NSE Equity');
+                return `
+                    <button type="button" class="sidebar-item" onclick="pickCtrlKSymbol('${sym}')" style="justify-content: space-between;">
+                        <span style="font-family: var(--font-mono); font-weight: 700; color: var(--text);">${sym.replace('.NS', '')}</span>
+                        <span style="font-size: 12px; color: var(--text-muted);">${name}</span>
+                    </button>
+                `;
+            }).join('');
+        }
+
+        function pickCtrlKSymbol(sym) {
+            closeCtrlKModal();
+            if (typeof window.selectSymbol === 'function' && (window.location.pathname === '/' || window.location.pathname === '/api/index')) {
+                window.selectSymbol(sym);
+            } else {
+                window.location.href = `/?symbol=${encodeURIComponent(sym)}`;
+            }
+        }
+
+        /* ======================================================================
+           HALT ALL & SETTINGS DANGER ZONE MODALS
+           ====================================================================== */
+        function openHaltConfirmModal() {
+            const modal = document.getElementById('halt-confirm-modal');
+            if (modal) modal.classList.add('open');
+        }
+        function closeHaltConfirmModal() {
+            const modal = document.getElementById('halt-confirm-modal');
+            if (modal) modal.classList.remove('open');
+        }
+
+        async function executeHaltAll() {
+            const btn = document.getElementById('confirm-halt-exec-btn');
+            if (btn) btn.disabled = true;
             localStorage.setItem('nifty_bot_active', 'false');
             localStorage.setItem('ah_bot_active_v1', 'false');
             localStorage.setItem('titan_swing_is_active', 'false');
-
-            // 2. Dispatch event for local page scripts
             window.dispatchEvent(new CustomEvent('both-bots-stopped'));
-
-            // 3. Directly stop page bot if present
             if (typeof setBotActiveState === 'function') {
                 try { setBotActiveState(false, false); } catch (e) {}
             }
-            if (typeof isSwingBotActive !== 'undefined') {
-                isSwingBotActive = false;
-                if (typeof renderUI === 'function') renderUI();
-            }
-
-            updateKillswitchUI();
-
-            // 4. Request backend halt for all bot instances
-            const btn = document.getElementById('global-stop-both-bots-btn');
-            if (btn) btn.classList.add('stopping');
-
             try {
                 await Promise.allSettled([
                     fetch('/api/bot/stop-all', { method: 'POST', headers: { 'Content-Type': 'application/json' } }),
                     fetch('/api/swing/stop', { method: 'POST' })
                 ]);
-                showGlobalToast('🛑 All trading desks (ALPHA, NIGHTHAWK & TITAN) STOPPED successfully!', 'warning');
-            } catch (err) {
-                console.error('Stop all bots error:', err);
-                showGlobalToast('🛑 All bots stopped locally. Server sync notice: ' + err.message, 'warning');
+                showGlobalToast('All trading bots halted.', 'warning');
+            } catch (e) {
+                showGlobalToast('Bots halted locally.', 'warning');
             } finally {
-                if (btn) btn.classList.remove('stopping');
-                updateKillswitchUI();
+                if (btn) btn.disabled = false;
+                closeHaltConfirmModal();
             }
         }
 
-        window.addEventListener('storage', (e) => {
-            if (e.key === 'nifty_bot_active' || e.key === 'ah_bot_active_v1') {
-                updateKillswitchUI();
-                if (e.newValue === 'false' && typeof setBotActiveState === 'function') {
-                    setBotActiveState(false, false);
-                }
-            }
-        });
+        function openSettingsModal() {
+            const modal = document.getElementById('settings-modal');
+            const input = document.getElementById('reset-confirm-input');
+            const execBtn = document.getElementById('danger-reset-exec-btn');
+            if (input) input.value = '';
+            if (execBtn) execBtn.disabled = true;
+            if (modal) modal.classList.add('open');
+        }
+        function closeSettingsModal() {
+            const modal = document.getElementById('settings-modal');
+            if (modal) modal.classList.remove('open');
+        }
+        function onResetConfirmInput(val) {
+            const execBtn = document.getElementById('danger-reset-exec-btn');
+            if (execBtn) execBtn.disabled = (val || '').trim() !== 'RESET';
+        }
+        async function executeDangerReset() {
+            closeSettingsModal();
+            await window.triggerCompleteReset();
+        }
 
         window.triggerCompleteReset = async function(deskOverride) {
             const path = window.location.pathname;
             const isSwing = path.includes('swing');
             const isAH = path.includes('after-hours');
-            const desk = deskOverride || (isSwing ? 'titan' : (isAH ? 'nighthawk' : 'alpha'));
-            const deskName = isSwing ? 'TITAN Swing Desk' : (isAH ? 'NIGHTHAWK 24/7 Desk' : 'ALPHA Intraday Desk');
+            const desk = deskOverride || (isSwing ? 'titan' : (isAH ? 'nighthawk' : (path === '/' ? 'terminal' : 'alpha')));
 
-            const confirmed = confirm(
-                `🚨 COMPLETE RESET — ${deskName.toUpperCase()}\n\n` +
-                `• ALL open positions will be CLOSED immediately.\n` +
-                `• ALL unrealized profits and losses will be WIPED to ₹0.00.\n` +
-                `• Cash balance and total equity will be restored to clean initial capital.\n` +
-                `• All local storage position caches and entry locks will be completely erased.\n\n` +
-                `Do you want to proceed with COMPLETE RESET?`
-            );
-            if (!confirmed) return;
-
-            // 1. Immediately wipe ALL position caches & locks from LocalStorage
             try {
-                localStorage.setItem('ah_bot_active_v1', 'false');
                 localStorage.removeItem('ah_bot_active_v1');
                 localStorage.removeItem('nifty_active_holdings_v3');
                 localStorage.removeItem('nifty_positions_entry_lock_v1');
@@ -444,97 +571,55 @@
                 localStorage.removeItem('titan_swing_positions_cache');
                 localStorage.removeItem('active_bot_holdings_cache');
                 localStorage.removeItem('after_hours_bot_holdings_cache');
-                localStorage.removeItem('bot_session_trades_v1');
-                localStorage.removeItem('ah_session_trades_v1');
-                localStorage.removeItem('alpha_closed_trades_v1');
-                localStorage.removeItem('ah_closed_trades_v1');
-                localStorage.removeItem('nighthawk_closed_trades_ledger_v1');
-                localStorage.removeItem('nighthawk_closed_trades_ledger_v2');
-                try { fetch('/api/after-hours/stop', { method: 'POST' }); } catch(err){}
+                localStorage.removeItem('terminal_active_holdings_v1');
+                fetch('/api/after-hours/stop', { method: 'POST' }).catch(() => {});
             } catch (e) {}
 
-            // 2. Set permanent anti-resurrection flags on window & clear arrays
-            window.explicitSquareOffDone = true;
-            window.explicitSwingExitDone = true;
-            window.cachedActivePositions = [];
-            if (window.recentlyExitedSymbols) window.recentlyExitedSymbols.clear();
-            if (typeof allPositions !== 'undefined') allPositions = [];
-
-            // 3. Immediately zero out all navbar metrics visually (Zero Delay!)
-            const defaultCash = isSwing ? '₹1,00,000.00' : (isAH ? '₹10,00,000.00' : '₹50,000.00');
-            const defaultBp = isSwing ? '₹0.00' : (isAH ? '₹50,00,000.00' : '₹2,50,000.00');
-
-            const elEq = document.getElementById('nav-total-equity');
-            if (elEq) elEq.innerText = defaultCash;
-            const elCash = document.getElementById('nav-cash-balance');
-            if (elCash) elCash.innerText = defaultCash;
-            const elBp = document.getElementById('nav-buying-power');
-            if (elBp) elBp.innerText = defaultBp;
-
-            const elPnl = document.getElementById('nav-pnl');
-            if (elPnl) {
-                elPnl.innerText = '₹0.00';
-                elPnl.className = 'stat-chip-val text-green';
-            }
-            const elDelta = document.getElementById('nav-equity-delta');
-            if (elDelta) {
-                elDelta.innerText = '+0.00% Today';
-                elDelta.className = 'stat-subdelta text-green';
-            }
-            const elPnlChip = document.getElementById('nav-pnl-chip');
-            if (elPnlChip) {
-                elPnlChip.style.background = '';
-                elPnlChip.style.borderColor = '';
-            }
-
-            // 4. Empty table and counters immediately
-            ['hero-holdings-count', 'tab-holdings-count', 'holdings-badge-count', 'holdings-badge', 'kpi-shielded-count'].forEach(id => {
-                const el = document.getElementById(id);
-                if (el) el.innerText = '0';
-            });
-
-            const botTbody = document.getElementById('bot-holdings-tbody');
-            if (botTbody) {
-                botTbody.innerHTML = `<tr><td colspan="13" class="text-center" style="padding: 2.5rem; color: var(--text-muted);"><i class="fa-solid fa-inbox" style="font-size: 2rem; margin-bottom: 0.5rem; display: block; opacity: 0.4;"></i> All positions closed. Unrealized profit cleared to ₹0.00.</td></tr>`;
-            }
-            const swingTbody = document.getElementById('holdings-tbody');
-            if (swingTbody) {
-                swingTbody.innerHTML = `<tr><td colspan="11" style="text-align: center; padding: 2.5rem; color: var(--text-muted);"><i class="fa-solid fa-inbox" style="font-size: 2rem; margin-bottom: 0.5rem; display: block; opacity: 0.4;"></i> All positions closed. Unrealized profit cleared to ₹0.00.</td></tr>`;
-            }
-            const swingPnl = document.getElementById('kpi-unrealized-pnl');
-            if (swingPnl) swingPnl.innerText = '₹0.00';
-            const swingPct = document.getElementById('kpi-unrealized-pct');
-            if (swingPct) swingPct.innerText = '+0.00%';
-
-            // 5. Call Backend Complete Reset API
             try {
-                const res = await fetch('/api/complete-reset', {
+                const endpoint = desk === 'terminal' ? '/api/terminal/reset' : '/api/complete-reset';
+                const res = await fetch(endpoint, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ desk: desk })
+                    body: JSON.stringify({ desk })
                 });
                 const data = await res.json();
-                if (data.success) {
-                    if (typeof showToast === 'function') {
-                        showToast('✅ Complete Reset Done! All positions closed & unrealized profit wiped to ₹0.00', 'success');
-                    }
+                if (data.success || res.ok) {
+                    showGlobalToast('Complete reset completed. Capital restored.', 'success');
                 }
             } catch (e) {
-                console.error('Complete reset error:', e);
+                showGlobalToast('Reset error: ' + e.message, 'error');
             }
 
-            // 6. Refresh views
             if (typeof loadAccountMetrics === 'function') loadAccountMetrics();
             if (typeof fetchSwingOverview === 'function') fetchSwingOverview();
             if (typeof loadPortfolio === 'function') loadPortfolio();
-            if (typeof resetBotSessionReport === 'function') resetBotSessionReport(false);
+            if (typeof loadTrades === 'function') loadTrades();
         };
 
+        document.addEventListener('keydown', (e) => {
+            if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+                e.preventDefault();
+                openCtrlKModal();
+            } else if (e.key === 'Escape') {
+                closeCtrlKModal();
+                closeHaltConfirmModal();
+                closeSettingsModal();
+            }
+        });
+
         document.addEventListener('DOMContentLoaded', () => {
-            updateKillswitchUI();
-            const resetBtn = document.getElementById('reset-account-btn');
-            if (resetBtn) {
-                resetBtn.addEventListener('click', () => window.triggerCompleteReset());
+            if (localStorage.getItem('sidebar_collapsed') === '1') {
+                const sb = document.getElementById('app-sidebar');
+                if (sb) sb.classList.add('collapsed');
+            }
+            setTradingMode(localStorage.getItem('trading_mode') || 'paper');
+            syncThemeUI();
+            updateMarketStatusChip();
+            setInterval(updateMarketStatusChip, 30000);
+            measureFeedLatency();
+            setInterval(measureFeedLatency, 45000);
+            if (window.lucide) {
+                lucide.createIcons();
             }
         });
     </script>
