@@ -1,0 +1,1482 @@
+{% extends "base.html" %}
+
+{% block title %}STRATEGY LAB — 1-Year Flash Backtester & Rule Lab | ALGO-TRADE Pro{% endblock %}
+
+{% block content %}
+<style>
+    .lab-container {
+        padding: 1.5rem;
+        max-width: 1700px;
+        margin: 0 auto;
+        display: flex;
+        flex-direction: column;
+        gap: 1.5rem;
+    }
+
+    /* Hero Banner */
+    .lab-hero-card {
+        background: linear-gradient(135deg, rgba(20, 16, 4, 0.95) 0%, rgba(14, 18, 28, 0.95) 100%);
+        border: 1px solid rgba(251, 191, 36, 0.35);
+        border-radius: 14px;
+        padding: 1.5rem;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4), 0 0 24px rgba(251, 191, 36, 0.12);
+        position: relative;
+        overflow: hidden;
+    }
+    .lab-hero-card::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 2px;
+        background: linear-gradient(90deg, #fbbf24, #00f090, #38bdf8, #fbbf24);
+        background-size: 200% auto;
+        animation: labGradientShift 6s linear infinite;
+    }
+    @keyframes labGradientShift {
+        0% { background-position: 0% 50%; }
+        100% { background-position: 200% 50%; }
+    }
+
+    .lab-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 0.72rem;
+        font-weight: 800;
+        padding: 4px 10px;
+        border-radius: 6px;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+    }
+    .badge-amber { background: rgba(251, 191, 36, 0.15); color: #fbbf24; border: 1px solid rgba(251, 191, 36, 0.3); }
+    .badge-green { background: rgba(0, 240, 144, 0.15); color: #00f090; border: 1px solid rgba(0, 240, 144, 0.3); }
+    .badge-blue { background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3); }
+
+    /* Ingestion Mode Switcher */
+    .ingestion-tabs {
+        display: flex;
+        gap: 0.75rem;
+        margin-top: 1rem;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        padding-bottom: 0.75rem;
+    }
+    .tab-btn {
+        background: rgba(255, 255, 255, 0.04);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        color: var(--text-muted, #94a3b8);
+        padding: 0.65rem 1.25rem;
+        border-radius: 8px;
+        font-size: 0.85rem;
+        font-weight: 700;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        transition: all 0.2s ease;
+    }
+    .tab-btn:hover {
+        background: rgba(255, 255, 255, 0.08);
+        color: #ffffff;
+    }
+    .tab-btn.active {
+        background: rgba(251, 191, 36, 0.15);
+        border-color: #fbbf24;
+        color: #fbbf24;
+        box-shadow: 0 0 12px rgba(251, 191, 36, 0.2);
+    }
+
+    /* Grid Layout for Configuration */
+    .lab-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 1.5rem;
+    }
+    @media (max-width: 1100px) {
+        .lab-grid { grid-template-columns: 1fr; }
+    }
+
+    .lab-panel {
+        background: rgba(15, 23, 42, 0.7);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 12px;
+        padding: 1.25rem;
+        display: flex;
+        flex-direction: column;
+        gap: 1.1rem;
+    }
+
+    .panel-title {
+        font-size: 0.95rem;
+        font-weight: 800;
+        letter-spacing: 0.03em;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        color: #f1f5f9;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+        padding-bottom: 0.6rem;
+    }
+
+    .form-group {
+        display: flex;
+        flex-direction: column;
+        gap: 0.35rem;
+    }
+    .form-label {
+        font-size: 0.75rem;
+        font-weight: 700;
+        color: #94a3b8;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        display: flex;
+        justify-content: space-between;
+    }
+    .form-input, .form-select {
+        background: rgba(8, 14, 26, 0.8);
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        color: #f8fafc;
+        padding: 0.65rem 0.85rem;
+        border-radius: 8px;
+        font-family: inherit;
+        font-size: 0.88rem;
+        outline: none;
+        transition: border-color 0.2s ease;
+    }
+    .form-input:focus, .form-select:focus {
+        border-color: #fbbf24;
+        box-shadow: 0 0 10px rgba(251, 191, 36, 0.25);
+    }
+
+    /* Dropzone Upload */
+    .dropzone-box {
+        border: 2px dashed rgba(251, 191, 36, 0.4);
+        border-radius: 10px;
+        padding: 2rem 1rem;
+        text-align: center;
+        background: rgba(251, 191, 36, 0.03);
+        cursor: pointer;
+        transition: all 0.2s ease;
+    }
+    .dropzone-box:hover, .dropzone-box.dragover {
+        background: rgba(251, 191, 36, 0.08);
+        border-color: #fbbf24;
+    }
+    .dropzone-icon {
+        font-size: 2.2rem;
+        color: #fbbf24;
+        margin-bottom: 0.5rem;
+    }
+
+    /* Stock Chips */
+    .chips-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+    }
+    .stock-chip {
+        background: rgba(255, 255, 255, 0.05);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        color: #cbd5e1;
+        padding: 3px 8px;
+        border-radius: 6px;
+        font-size: 0.74rem;
+        font-weight: 700;
+        cursor: pointer;
+        transition: all 0.15s ease;
+    }
+    .stock-chip:hover {
+        background: rgba(251, 191, 36, 0.2);
+        color: #ffffff;
+        border-color: #fbbf24;
+    }
+
+    /* Alphabet Filter Buttons */
+    .alpha-btn {
+        padding: 3px 6px;
+        font-size: 0.68rem;
+        font-weight: 700;
+        border-radius: 4px;
+        background: rgba(255, 255, 255, 0.05);
+        color: #94a3b8;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        cursor: pointer;
+        transition: all 0.15s ease;
+    }
+    .alpha-btn:hover, .alpha-btn.active {
+        background: rgba(56, 189, 248, 0.25);
+        color: #38bdf8;
+        border-color: rgba(56, 189, 248, 0.5);
+    }
+
+    /* Run Button */
+    .btn-run-backtest {
+        background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+        color: #000000;
+        border: none;
+        padding: 0.9rem 1.5rem;
+        border-radius: 10px;
+        font-size: 1rem;
+        font-weight: 800;
+        letter-spacing: 0.04em;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
+        box-shadow: 0 4px 20px rgba(245, 158, 11, 0.35);
+        transition: all 0.2s ease;
+    }
+    .btn-run-backtest:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 26px rgba(245, 158, 11, 0.5);
+        filter: brightness(1.1);
+    }
+    .btn-run-backtest:active {
+        transform: translateY(0);
+    }
+
+    /* KPI Summary Cards */
+    .kpi-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 1rem;
+    }
+    .kpi-card {
+        background: rgba(15, 23, 42, 0.85);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 12px;
+        padding: 1.1rem;
+        display: flex;
+        flex-direction: column;
+        gap: 0.35rem;
+        position: relative;
+    }
+    .kpi-title {
+        font-size: 0.72rem;
+        font-weight: 700;
+        color: #94a3b8;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+    }
+    .kpi-val {
+        font-size: 1.6rem;
+        font-weight: 800;
+        font-family: 'JetBrains Mono', monospace;
+    }
+    .kpi-sub {
+        font-size: 0.74rem;
+        color: #64748b;
+    }
+
+    /* Chart Container */
+    .chart-panel {
+        background: rgba(15, 23, 42, 0.85);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 12px;
+        padding: 1.25rem;
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+    }
+    .chart-canvas-wrap {
+        position: relative;
+        width: 100%;
+        height: 320px;
+        background: rgba(8, 14, 26, 0.6);
+        border-radius: 8px;
+        border: 1px solid rgba(255, 255, 255, 0.04);
+    }
+
+    /* Table */
+    .trades-table-wrap {
+        background: rgba(15, 23, 42, 0.85);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 12px;
+        overflow: hidden;
+    }
+    .trades-table-header {
+        padding: 1rem 1.25rem;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    }
+    .trades-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.82rem;
+    }
+    .trades-table th {
+        background: rgba(8, 14, 26, 0.9);
+        color: #94a3b8;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        padding: 0.75rem 1rem;
+        text-align: left;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    }
+    .trades-table td {
+        padding: 0.7rem 1rem;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+        color: #e2e8f0;
+    }
+    .trades-table tr:hover {
+        background: rgba(255, 255, 255, 0.02);
+    }
+
+    .badge-win { background: rgba(0, 240, 144, 0.15); color: #00f090; padding: 2px 6px; border-radius: 4px; font-weight: 800; font-size: 0.72rem; }
+    .badge-loss { background: rgba(239, 68, 68, 0.15); color: #ef4444; padding: 2px 6px; border-radius: 4px; font-weight: 800; font-size: 0.72rem; }
+    .badge-buy { background: rgba(56, 189, 248, 0.15); color: #38bdf8; padding: 2px 6px; border-radius: 4px; font-weight: 800; font-size: 0.72rem; }
+    .badge-sell { background: rgba(244, 63, 94, 0.15); color: #f43f5e; padding: 2px 6px; border-radius: 4px; font-weight: 800; font-size: 0.72rem; }
+</style>
+
+<div class="lab-container">
+    <!-- Top Hero Banner -->
+    <div class="lab-hero-card">
+        <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 1rem;">
+            <div>
+                <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 0.5rem;">
+                    <span class="lab-badge badge-amber"><i class="fa-solid fa-flask"></i> QUANTITATIVE RESEARCH LAB</span>
+                    <span class="lab-badge badge-green"><i class="fa-solid fa-bolt"></i> VECTORIZED SPEED (&lt; 2 SECONDS)</span>
+                    <span class="lab-badge badge-blue"><i class="fa-solid fa-shield-halved"></i> REAL NSE FRICTION &amp; CHARGES</span>
+                </div>
+                <h1 style="font-size: 1.7rem; font-weight: 800; color: #ffffff; margin: 0; letter-spacing: -0.02em;">
+                    1-Year Strategy Flash Backtester
+                </h1>
+                <p style="color: #94a3b8; font-size: 0.88rem; margin-top: 0.4rem; max-width: 900px;">
+                    Test any institutional rule or strategy across 1 full year of historical data in <strong>under 2 seconds</strong>. No more slow real-time waiting or unverified forward simulation.
+                </p>
+            </div>
+            <div style="display: flex; gap: 10px;">
+                <a href="/api/backtest/sample-csv?symbol=RELIANCE.NS" class="tab-btn" title="Download genuine 1-year sample CSV to test file upload">
+                    <i class="fa-solid fa-download" style="color: #fbbf24;"></i> Download 1-Yr Sample CSV
+                </a>
+            </div>
+        </div>
+
+        <!-- Ingestion Tabs -->
+        <div class="ingestion-tabs">
+            <button class="tab-btn active" id="tab-btn-autofetch" onclick="switchIngestionTab('AUTOFETCH')">
+                <i class="fa-solid fa-cloud-arrow-down"></i> Option A: 1-Click NSE Auto-Fetch
+            </button>
+            <button class="tab-btn" id="tab-btn-upload" onclick="switchIngestionTab('UPLOAD')">
+                <i class="fa-solid fa-file-arrow-up"></i> Option B: Upload 1-Yr CSV / Excel File
+            </button>
+        </div>
+    </div>
+
+    <!-- Configuration Grid -->
+    <div class="lab-grid">
+        <!-- Panel 1: Data Ingestion Source (All 2,000+ NSE Stocks) -->
+        <div class="lab-panel" id="panel-autofetch">
+            <div class="panel-title" style="justify-content: space-between;">
+                <span style="display: flex; align-items: center; gap: 8px;">
+                    <i class="fa-solid fa-satellite-dish" style="color: #38bdf8;"></i> 1-CLICK MARKET DATA INGESTION
+                </span>
+                <span class="lab-badge badge-blue"><i class="fa-solid fa-layer-group"></i> 2,398 NSE STOCKS</span>
+            </div>
+
+            <!-- Ingestion Target Mode: Single Stock vs Universe Basket -->
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.6rem;">
+                <button type="button" class="tab-btn active" id="btn-mode-single" onclick="setFetchMode('SINGLE')" style="justify-content: center; padding: 0.5rem;">
+                    <i class="fa-solid fa-crosshairs"></i> Single Stock (2,398 Stocks)
+                </button>
+                <button type="button" class="tab-btn" id="btn-mode-batch" onclick="setFetchMode('BATCH')" style="justify-content: center; padding: 0.5rem;">
+                    <i class="fa-solid fa-cubes-stacked"></i> Basket / Universe Portfolio
+                </button>
+            </div>
+
+            <!-- Single Stock Input with Top-Down Dropdown Menu -->
+            <div class="form-group" id="group-single-stock">
+                <label class="form-label" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; margin-bottom: 0.4rem;">
+                    <span><i class="fa-solid fa-arrow-down-short-wide" style="color: #38bdf8;"></i> SELECT STOCK (TOP-DOWN DROPDOWN)</span>
+                    <span id="stock-name-preview" style="color: #00f090; font-weight: 700; text-transform: none;">Reliance Industries Limited</span>
+                </label>
+
+                <!-- Category Filter + Alphabet Jump Bar -->
+                <div style="display: flex; gap: 0.5rem; align-items: center; justify-content: space-between; margin-bottom: 0.4rem; flex-wrap: wrap;">
+                    <div style="display: flex; gap: 0.4rem; align-items: center;">
+                        <span style="font-size: 0.68rem; font-weight: 700; color: #94a3b8;"><i class="fa-solid fa-filter"></i> BROWSE:</span>
+                        <select id="stock-category-filter" class="form-select" style="padding: 3px 8px; font-size: 0.74rem; width: auto; background: #1e293b; border-color: rgba(56, 189, 248, 0.4);" onchange="filterStockDropdown(this.value)">
+                            <option value="ALL">All 2,398 Stocks (A-Z)</option>
+                            <option value="POPULAR" selected>⭐ Top 30 Popular &amp; Heavyweights</option>
+                            <option value="NIFTY50">NIFTY 50 Bluechips</option>
+                            <option value="MOMENTUM">High-Beta &amp; Momentum</option>
+                        </select>
+                    </div>
+                    <div style="font-size: 0.72rem; color: #38bdf8; font-weight: 600;" id="filtered-stocks-count">2,398 Stocks Ready</div>
+                </div>
+
+                <!-- Alphabet Quick-Jump Bar -->
+                <div class="alphabet-bar" style="display: flex; gap: 2px; flex-wrap: wrap; margin-bottom: 0.5rem; background: rgba(15, 23, 42, 0.6); padding: 4px; border-radius: 6px; border: 1px solid rgba(255, 255, 255, 0.05);">
+                    <button type="button" class="alpha-btn active" onclick="jumpToAlphabet('ALL', this)" style="padding: 2px 6px; font-size: 0.68rem; border-radius: 3px; background: rgba(56, 189, 248, 0.25); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.4); cursor: pointer; font-weight: 700;">ALL</button>
+                    <button type="button" class="alpha-btn" onclick="jumpToAlphabet('A', this)">A</button>
+                    <button type="button" class="alpha-btn" onclick="jumpToAlphabet('B', this)">B</button>
+                    <button type="button" class="alpha-btn" onclick="jumpToAlphabet('C', this)">C</button>
+                    <button type="button" class="alpha-btn" onclick="jumpToAlphabet('D', this)">D</button>
+                    <button type="button" class="alpha-btn" onclick="jumpToAlphabet('E', this)">E</button>
+                    <button type="button" class="alpha-btn" onclick="jumpToAlphabet('F', this)">F</button>
+                    <button type="button" class="alpha-btn" onclick="jumpToAlphabet('G', this)">G</button>
+                    <button type="button" class="alpha-btn" onclick="jumpToAlphabet('H', this)">H</button>
+                    <button type="button" class="alpha-btn" onclick="jumpToAlphabet('I', this)">I</button>
+                    <button type="button" class="alpha-btn" onclick="jumpToAlphabet('J', this)">J</button>
+                    <button type="button" class="alpha-btn" onclick="jumpToAlphabet('K', this)">K</button>
+                    <button type="button" class="alpha-btn" onclick="jumpToAlphabet('L', this)">L</button>
+                    <button type="button" class="alpha-btn" onclick="jumpToAlphabet('M', this)">M</button>
+                    <button type="button" class="alpha-btn" onclick="jumpToAlphabet('N', this)">N</button>
+                    <button type="button" class="alpha-btn" onclick="jumpToAlphabet('O', this)">O</button>
+                    <button type="button" class="alpha-btn" onclick="jumpToAlphabet('P', this)">P</button>
+                    <button type="button" class="alpha-btn" onclick="jumpToAlphabet('Q', this)">Q</button>
+                    <button type="button" class="alpha-btn" onclick="jumpToAlphabet('R', this)">R</button>
+                    <button type="button" class="alpha-btn" onclick="jumpToAlphabet('S', this)">S</button>
+                    <button type="button" class="alpha-btn" onclick="jumpToAlphabet('T', this)">T</button>
+                    <button type="button" class="alpha-btn" onclick="jumpToAlphabet('U', this)">U</button>
+                    <button type="button" class="alpha-btn" onclick="jumpToAlphabet('V', this)">V</button>
+                    <button type="button" class="alpha-btn" onclick="jumpToAlphabet('W', this)">W</button>
+                    <button type="button" class="alpha-btn" onclick="jumpToAlphabet('X', this)">X</button>
+                    <button type="button" class="alpha-btn" onclick="jumpToAlphabet('Y', this)">Y</button>
+                    <button type="button" class="alpha-btn" onclick="jumpToAlphabet('Z', this)">Z</button>
+                </div>
+
+                <!-- Primary Top-Down Dropdown Menu -->
+                <div style="position: relative;">
+                    <select id="lab-symbol-select" class="form-select" onchange="onSelectStockChange(this.value)" style="font-size: 0.95rem; font-weight: 700; padding: 0.65rem 0.85rem; border-color: rgba(56, 189, 248, 0.5); background: #0b1120; color: #ffffff; cursor: pointer;">
+                        <!-- Initial pre-rendered options -->
+                        <optgroup label="⭐ High Turnover &amp; Benchmark Leaders">
+                            <option value="RELIANCE.NS" selected>RELIANCE.NS — Reliance Industries Limited</option>
+                            <option value="TCS.NS">TCS.NS — Tata Consultancy Services Limited</option>
+                            <option value="HDFCBANK.NS">HDFCBANK.NS — HDFC Bank Limited</option>
+                            <option value="INFY.NS">INFY.NS — Infosys Limited</option>
+                            <option value="ICICIBANK.NS">ICICIBANK.NS — ICICI Bank Limited</option>
+                            <option value="SBIN.NS">SBIN.NS — State Bank of India</option>
+                            <option value="BHARTIARTL.NS">BHARTIARTL.NS — Bharti Airtel Limited</option>
+                            <option value="ITC.NS">ITC.NS — ITC Limited</option>
+                            <option value="LT.NS">LT.NS — Larsen &amp; Toubro Limited</option>
+                            <option value="TATAMOTORS.NS">TATAMOTORS.NS — Tata Motors Limited</option>
+                        </optgroup>
+                        <optgroup label="High Momentum &amp; Popular">
+                            <option value="ZOMATO.NS">ZOMATO.NS — Zomato Limited</option>
+                            <option value="SUZLON.NS">SUZLON.NS — Suzlon Energy Limited</option>
+                            <option value="JIOFIN.NS">JIOFIN.NS — Jio Financial Services Limited</option>
+                            <option value="BEL.NS">BEL.NS — Bharat Electronics Limited</option>
+                            <option value="HAL.NS">HAL.NS — Hindustan Aeronautics Limited</option>
+                            <option value="IREDA.NS">IREDA.NS — Indian Renewable Energy Dev Agency</option>
+                            <option value="RVNL.NS">RVNL.NS — Rail Vikas Nigam Limited</option>
+                        </optgroup>
+                    </select>
+                    <!-- Hidden synced value -->
+                    <input type="hidden" id="lab-symbol" value="RELIANCE.NS">
+                </div>
+
+                <!-- Instant Filter Search (Optional) -->
+                <div style="display: flex; gap: 0.5rem; align-items: center; margin-top: 0.4rem;">
+                    <div style="position: relative; flex: 1;">
+                        <i class="fa-solid fa-magnifying-glass" style="position: absolute; left: 10px; top: 50%; transform: translateY(-50%); font-size: 0.72rem; color: #64748b;"></i>
+                        <input type="text" id="lab-symbol-filter-input" class="form-input" style="padding-left: 28px; font-size: 0.75rem; padding-top: 4px; padding-bottom: 4px;" placeholder="Filter dropdown by name or ticker (e.g. Adani, Tata, Bhel)..." oninput="onLiveFilterInput(this.value)">
+                    </div>
+                    <button type="button" class="tab-btn" onclick="resetStockFilter()" style="padding: 4px 8px; font-size: 0.72rem; white-space: nowrap;">Reset</button>
+                </div>
+
+                <!-- Quick Category Sector Chips -->
+                <div style="display: flex; flex-direction: column; gap: 0.35rem; margin-top: 0.5rem;">
+                    <div style="font-size: 0.68rem; font-weight: 700; color: #64748b; text-transform: uppercase;">1-Click Instant Anchors:</div>
+                    <div class="chips-row">
+                        <span class="stock-chip" onclick="setSymbol('RELIANCE.NS')">RELIANCE</span>
+                        <span class="stock-chip" onclick="setSymbol('TCS.NS')">TCS</span>
+                        <span class="stock-chip" onclick="setSymbol('HDFCBANK.NS')">HDFCBANK</span>
+                        <span class="stock-chip" onclick="setSymbol('INFY.NS')">INFY</span>
+                        <span class="stock-chip" onclick="setSymbol('ICICIBANK.NS')">ICICIBANK</span>
+                        <span class="stock-chip" onclick="setSymbol('TATAMOTORS.NS')">TATAMOTORS</span>
+                        <span class="stock-chip" onclick="setSymbol('ZOMATO.NS')" style="color: #f43f5e; border-color: rgba(244, 63, 94, 0.4);">ZOMATO</span>
+                        <span class="stock-chip" onclick="setSymbol('SUZLON.NS')" style="color: #00f090; border-color: rgba(0, 240, 144, 0.4);">SUZLON</span>
+                        <span class="stock-chip" onclick="setSymbol('JIOFIN.NS')">JIOFIN</span>
+                        <span class="stock-chip" onclick="setSymbol('BEL.NS')">BEL</span>
+                        <span class="stock-chip" onclick="setSymbol('HAL.NS')">HAL</span>
+                        <span class="stock-chip" onclick="setSymbol('IREDA.NS')">IREDA</span>
+                        <span class="stock-chip" onclick="setSymbol('RVNL.NS')">RVNL</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Universe Batch Select (Shown when BATCH mode active) -->
+            <div class="form-group" id="group-batch-universe" style="display: none;">
+                <label class="form-label">SELECT UNIVERSE BASKET TO BACKTEST</label>
+                <select id="lab-universe" class="form-select">
+                    <option value="TOP_15" selected>Top 15 High-Beta &amp; Turnover Leaders (Fast Basket)</option>
+                    <option value="NIFTY_50">Full NIFTY 50 Bluechips Basket (50 Stocks)</option>
+                    <option value="TOP_200">Top 30 High Liquidity Momentum Stocks</option>
+                </select>
+                <div style="font-size: 0.74rem; color: #94a3b8; margin-top: 0.3rem;">
+                    Backtests across the multi-stock basket simultaneously and compiles an aggregated portfolio equity curve!
+                </div>
+            </div>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                <div class="form-group">
+                    <label class="form-label">HISTORICAL DURATION</label>
+                    <select id="lab-period" class="form-select">
+                        <option value="1y" selected>1 Year Historical</option>
+                        <option value="2y">2 Years Deep History</option>
+                        <option value="6mo">6 Months Recent</option>
+                        <option value="60d">60 Days (High-Resolution)</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">TIMEFRAME RESOLUTION</label>
+                    <select id="lab-interval" class="form-select">
+                        <option value="1d" selected>Daily Candlesticks (Full 1-Yr)</option>
+                        <option value="15m">15-Minute Intraday (High Precision)</option>
+                        <option value="5m">5-Minute Intraday (Ultra Precision)</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+
+        <!-- Panel 1 Alternative: File Upload (Hidden by default until tab selected) -->
+        <div class="lab-panel" id="panel-upload" style="display: none;">
+            <div class="panel-title">
+                <i class="fa-solid fa-file-csv" style="color: #fbbf24;"></i> UPLOAD HISTORICAL DATASET (CSV / EXCEL)
+            </div>
+            <div class="dropzone-box" id="dropzone" onclick="document.getElementById('file-upload-input').click()">
+                <i class="fa-solid fa-cloud-arrow-up dropzone-icon"></i>
+                <div style="font-weight: 700; color: #f8fafc; font-size: 0.95rem;">Drag &amp; Drop 1-Year CSV or Excel File</div>
+                <div style="color: #94a3b8; font-size: 0.78rem; margin-top: 0.3rem;">Supports .csv, .xlsx, .txt (Auto-detects Date, Open, High, Low, Close, Volume)</div>
+                <input type="file" id="file-upload-input" style="display: none;" accept=".csv,.xlsx,.xls,.txt" onchange="handleFileSelected(this)">
+            </div>
+            <div id="file-selected-info" style="display: none; background: rgba(0, 240, 144, 0.08); border: 1px solid rgba(0, 240, 144, 0.3); border-radius: 8px; padding: 0.75rem; font-size: 0.85rem; color: #00f090;">
+                <i class="fa-solid fa-circle-check"></i> <span id="file-selected-name">file.csv</span> (<span id="file-selected-size">0 KB</span>)
+            </div>
+        </div>
+
+        <!-- Panel 2: Strategy Model & Execution Rules -->
+        <div class="lab-panel">
+            <div class="panel-title">
+                <i class="fa-solid fa-brain" style="color: #00f090;"></i> STRATEGY MODEL &amp; RISK RULES
+            </div>
+            <div class="form-group">
+                <label class="form-label">STRATEGY TO BACKTEST</label>
+                <select id="lab-strategy" class="form-select">
+                    <option value="AUTO_ENSEMBLE" selected>Auto-Pilot Ensemble (Self-Adaptive Regime Engine)</option>
+                    <option value="SMC_LIQUIDITY_SWEEP">SMC Liquidity Sweep (PDL / PDH Bear &amp; Bull Trap Hunt)</option>
+                    <option value="VWAP_EMA_RSI">VWAP + EMA + RSI Confluence (Volume Anchor &amp; Momentum)</option>
+                    <option value="VOLUME_SHOCKER">Volume Shocker Breakout (Institutional RVOL &ge; 1.75x)</option>
+                    <option value="123_REVERSAL">1-2-3 Reversal Map [AGPro Series v2.1] (Neckline Break &amp; Target)</option>
+                    <option value="RSI_20_80">RSI Extreme (Buy &le; 20 / Sell &ge; 80 Mean Reversion)</option>
+                    <option value="DMA_200">200 DMA Regime Trend (Buy Above / Short Below 200 DMA)</option>
+                </select>
+            </div>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0.75rem;">
+                <div class="form-group">
+                    <label class="form-label">CAPITAL (₹)</label>
+                    <input type="number" id="lab-capital" class="form-input" value="50000">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">TRADE MARGIN (₹)</label>
+                    <input type="number" id="lab-alloc" class="form-input" value="5000">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">MIS LEVERAGE</label>
+                    <select id="lab-leverage" class="form-select">
+                        <option value="5" selected>5x (NSE MIS)</option>
+                        <option value="1">1x (Cash/CNC)</option>
+                    </select>
+                </div>
+            </div>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;">
+                <div class="form-group">
+                    <label class="form-label">MAX STOP-LOSS (%) <span style="color: #fbbf24;">(1% CEILING)</span></label>
+                    <input type="number" id="lab-sl" class="form-input" value="1.0" step="0.1" min="0.2" max="5.0">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">TARGET / R:R MULTIPLIER</label>
+                    <input type="number" id="lab-tp" class="form-input" value="2.8" step="0.1" min="1.0" max="6.0">
+                </div>
+            </div>
+
+            <div style="display: flex; gap: 1.25rem; flex-wrap: wrap; margin-top: 0.2rem;">
+                <label style="display: flex; align-items: center; gap: 6px; font-size: 0.8rem; color: #cbd5e1; cursor: pointer;">
+                    <input type="checkbox" id="lab-trailing" checked> Trailing Breakeven (+0.65% shield)
+                </label>
+                <label style="display: flex; align-items: center; gap: 6px; font-size: 0.8rem; color: #cbd5e1; cursor: pointer;">
+                    <input type="checkbox" id="lab-eod" checked> 3:00 PM (15:00 IST) Auto-Square-Off
+                </label>
+                <label style="display: flex; align-items: center; gap: 6px; font-size: 0.8rem; color: #cbd5e1; cursor: pointer;">
+                    <input type="checkbox" id="lab-charges" checked> Real NSE Taxes &amp; Brokerage
+                </label>
+            </div>
+        </div>
+    </div>
+
+    <!-- Big Action Button -->
+    <button class="btn-run-backtest" id="btn-run-action" onclick="executeBacktest()">
+        <i class="fa-solid fa-bolt" style="font-size: 1.2rem;"></i> RUN 1-YEAR FLASH BACKTEST (INSTANT &lt; 2s)
+    </button>
+
+    <!-- Results Section (Populated dynamically) -->
+    <div id="results-wrapper" style="display: none; display: flex; flex-direction: column; gap: 1.5rem;">
+        <!-- KPI Cards Grid -->
+        <div class="kpi-grid">
+            <div class="kpi-card" id="card-pnl">
+                <span class="kpi-title"><i class="fa-solid fa-sack-dollar"></i> Net Profit / Return</span>
+                <span class="kpi-val" id="res-pnl" style="color: #00f090;">+₹0.00</span>
+                <span class="kpi-sub" id="res-roi">ROI: +0.00%</span>
+            </div>
+            <div class="kpi-card">
+                <span class="kpi-title"><i class="fa-solid fa-bullseye"></i> Win Rate</span>
+                <span class="kpi-val" id="res-winrate" style="color: #38bdf8;">0.0%</span>
+                <span class="kpi-sub" id="res-winloss">0 Wins / 0 Losses</span>
+            </div>
+            <div class="kpi-card">
+                <span class="kpi-title"><i class="fa-solid fa-scale-balanced"></i> Profit Factor</span>
+                <span class="kpi-val" id="res-pf" style="color: #fbbf24;">0.00</span>
+                <span class="kpi-sub" id="res-rr">R:R: 0.00x achieved</span>
+            </div>
+            <div class="kpi-card">
+                <span class="kpi-title"><i class="fa-solid fa-shield-virus"></i> Max Drawdown</span>
+                <span class="kpi-val" id="res-dd" style="color: #f43f5e;">0.0%</span>
+                <span class="kpi-sub" id="res-dd-amt">Peak Risk: ₹0.00</span>
+            </div>
+            <div class="kpi-card">
+                <span class="kpi-title"><i class="fa-solid fa-receipt"></i> Taxes &amp; Charges Paid</span>
+                <span class="kpi-val" id="res-charges" style="color: #94a3b8;">₹0.00</span>
+                <span class="kpi-sub" id="res-gross">Gross: ₹0.00</span>
+            </div>
+            <div class="kpi-card">
+                <span class="kpi-title"><i class="fa-solid fa-clock"></i> Execution Speed</span>
+                <span class="kpi-val" id="res-speed" style="color: #00f090;">0.00s</span>
+                <span class="kpi-sub" id="res-candles">0 Candles Processed</span>
+            </div>
+        </div>
+
+        <!-- Equity Curve Chart -->
+        <div class="chart-panel">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <div class="panel-title" style="border: none; padding: 0;">
+                    <i class="fa-solid fa-chart-line" style="color: #00f090;"></i> 1-YEAR ACCOUNT EQUITY CURVE
+                </div>
+                <span class="lab-badge badge-green" id="chart-summary-badge">Equity Growth</span>
+            </div>
+            <div class="chart-canvas-wrap">
+                <canvas id="equity-chart" style="width: 100%; height: 100%;"></canvas>
+            </div>
+        </div>
+
+        <!-- Month-by-Month Performance Matrix -->
+        <div class="trades-table-wrap">
+            <div class="trades-table-header" style="background: rgba(251, 191, 36, 0.05);">
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <span style="font-weight: 800; font-size: 0.95rem; color: #ffffff;">
+                        <i class="fa-solid fa-calendar-days" style="color: #fbbf24;"></i> MONTH-BY-MONTH PERFORMANCE BREAKDOWN
+                    </span>
+                    <span class="lab-badge badge-amber" id="total-months-badge">0 Months</span>
+                </div>
+                <div style="color: #94a3b8; font-size: 0.76rem;">
+                    Click <span style="color: #fbbf24;">"View Month Trades"</span> on any row to inspect its individual trades below
+                </div>
+            </div>
+            <div style="overflow-x: auto;">
+                <table class="trades-table">
+                    <thead>
+                        <tr>
+                            <th>Month</th>
+                            <th>Total Trades</th>
+                            <th>Win / Loss</th>
+                            <th>Win Rate %</th>
+                            <th>Gross P&amp;L</th>
+                            <th>Taxes &amp; Charges</th>
+                            <th>Net P&amp;L (₹)</th>
+                            <th>Monthly ROI</th>
+                            <th style="text-align: right;">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody id="monthly-tbody">
+                        <tr><td colspan="9" style="text-align: center; padding: 1.5rem; color: #94a3b8;">Run backtest to view month-by-month performance.</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Batch Universe Stocks Leaderboard (Shown for Multi-Stock Basket Backtests) -->
+        <div class="trades-table-wrap" id="batch-leaderboard-wrap" style="display: none; border: 1px solid rgba(56, 189, 248, 0.3);">
+            <div class="trades-table-header" style="background: rgba(56, 189, 248, 0.08);">
+                <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+                    <span style="font-weight: 800; font-size: 0.95rem; color: #38bdf8;">
+                        <i class="fa-solid fa-ranking-star"></i> MULTI-STOCK BASKET LEADERBOARD
+                    </span>
+                    <span class="lab-badge badge-blue" id="batch-count-badge">0 Stocks</span>
+                    <span id="active-stock-pill" style="display: none;" class="lab-badge badge-amber"></span>
+                </div>
+                <div style="display: flex; gap: 8px; align-items: center;">
+                    <button class="tab-btn" onclick="clearStockFilter()" id="btn-show-all-stocks" style="padding: 4px 10px; font-size: 0.74rem;">Show All Basket Stocks</button>
+                </div>
+            </div>
+            <div style="overflow-x: auto; max-height: 380px;">
+                <table class="trades-table">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>Stock / Symbol</th>
+                            <th>Total Trades</th>
+                            <th>Win Rate %</th>
+                            <th>Profit Factor</th>
+                            <th>Net P&amp;L (₹)</th>
+                            <th>Basket ROI %</th>
+                            <th>Max Drawdown %</th>
+                            <th style="text-align: right;">Filter Action</th>
+                        </tr>
+                    </thead>
+                    <tbody id="batch-tbody">
+                        <tr><td colspan="9" style="text-align: center; padding: 1.5rem; color: #94a3b8;">Run a Basket / Universe Portfolio backtest to view stock-by-stock performance.</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Trades History Table -->
+        <div class="trades-table-wrap">
+            <div class="trades-table-header">
+                <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+                    <span style="font-weight: 800; font-size: 0.95rem; color: #ffffff;">
+                        <i class="fa-solid fa-list-check" style="color: #fbbf24;"></i> EXECUTED TRADE LOG
+                    </span>
+                    <span class="lab-badge badge-blue" id="total-trades-badge">0 Trades</span>
+                    <span id="active-month-pill" style="display: none;" class="lab-badge badge-amber"></span>
+                </div>
+                <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+                    <label style="font-size: 0.74rem; font-weight: 700; color: #94a3b8;">MONTH:</label>
+                    <select id="trade-month-filter" class="form-select" style="padding: 4px 10px; font-size: 0.74rem; width: auto;" onchange="onMonthSelectChange(this.value)">
+                        <option value="ALL">All Months</option>
+                    </select>
+                    <button class="tab-btn" onclick="filterTrades('ALL')" id="filter-all" style="padding: 4px 10px; font-size: 0.74rem;">All Trades</button>
+                    <button class="tab-btn" onclick="filterTrades('WIN')" id="filter-win" style="padding: 4px 10px; font-size: 0.74rem;">Wins Only</button>
+                    <button class="tab-btn" onclick="filterTrades('LOSS')" id="filter-loss" style="padding: 4px 10px; font-size: 0.74rem;">Losses Only</button>
+                    <button class="tab-btn" onclick="exportTradesCSV()" style="padding: 4px 10px; font-size: 0.74rem; background: rgba(0, 240, 144, 0.15); border-color: #00f090; color: #00f090;">
+                        <i class="fa-solid fa-file-export"></i> Export CSV
+                    </button>
+                </div>
+            </div>
+            <div style="overflow-x: auto; max-height: 480px;">
+                <table class="trades-table">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th id="th-stock-symbol" style="display: none;">Stock</th>
+                            <th>Side</th>
+                            <th>Entry Time</th>
+                            <th>Exit Time</th>
+                            <th>Entry ₹</th>
+                            <th>Exit ₹</th>
+                            <th>Qty</th>
+                            <th>Gross P&amp;L</th>
+                            <th>Charges</th>
+                            <th>Net P&amp;L</th>
+                            <th>ROI %</th>
+                            <th>Exit Reason</th>
+                            <th>Strategy Model</th>
+                        </tr>
+                    </thead>
+                    <tbody id="trades-tbody">
+                        <tr><td colspan="14" style="text-align: center; padding: 2rem; color: #94a3b8;">Click "RUN 1-YEAR FLASH BACKTEST" to simulate results.</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    let activeIngestion = 'AUTOFETCH';
+    let currentFetchMode = 'SINGLE';
+    let uploadedFileObj = null;
+    let currentTradesList = [];
+    let currentMonthlyList = [];
+    let currentBatchSummaries = [];
+    let currentFilter = 'ALL';
+    let activeMonthFilter = 'ALL';
+    let activeStockFilter = 'ALL';
+    window.nseStocksMap = {};
+
+    function switchIngestionTab(mode) {
+        activeIngestion = mode;
+        const btnAuto = document.getElementById('tab-btn-autofetch');
+        const btnUpload = document.getElementById('tab-btn-upload');
+        const panelAuto = document.getElementById('panel-autofetch');
+        const panelUpload = document.getElementById('panel-upload');
+
+        if (mode === 'AUTOFETCH') {
+            btnAuto.classList.add('active');
+            btnUpload.classList.remove('active');
+            panelAuto.style.display = 'flex';
+            panelUpload.style.display = 'none';
+        } else {
+            btnUpload.classList.add('active');
+            btnAuto.classList.remove('active');
+            panelUpload.style.display = 'flex';
+            panelUpload.style.display = 'none';
+        }
+    }
+
+    function setFetchMode(mode) {
+        currentFetchMode = mode;
+        const btnSingle = document.getElementById('btn-mode-single');
+        const btnBatch = document.getElementById('btn-mode-batch');
+        const groupSingle = document.getElementById('group-single-stock');
+        const groupBatch = document.getElementById('group-batch-universe');
+
+        if (mode === 'SINGLE') {
+            btnSingle.classList.add('active');
+            btnBatch.classList.remove('active');
+            groupSingle.style.display = 'block';
+            groupBatch.style.display = 'none';
+        } else {
+            btnBatch.classList.add('active');
+            btnSingle.classList.remove('active');
+            groupSingle.style.display = 'none';
+            groupBatch.style.display = 'block';
+        }
+    }
+
+    function onSymbolInput(val) {
+        if (!val) return;
+        const clean = val.trim().toUpperCase().replace('.NS', '');
+        const withNS = clean + '.NS';
+        const name = window.nseStocksMap[withNS] || window.nseStocksMap[clean] || '';
+        const previewEl = document.getElementById('stock-name-preview');
+        if (previewEl) {
+            previewEl.innerText = name ? name : clean;
+        }
+    }
+
+    let allNSEStocksList = {{ nse_stocks_json|default('[]')|safe }};
+    const POPULAR_SYMBOLS = [
+        'RELIANCE.NS', 'TCS.NS', 'HDFCBANK.NS', 'INFY.NS', 'ICICIBANK.NS',
+        'BHARTIARTL.NS', 'ITC.NS', 'SBIN.NS', 'LT.NS', 'TATAMOTORS.NS',
+        'HINDUNILVR.NS', 'AXISBANK.NS', 'BAJFINANCE.NS', 'MARUTI.NS', 'SUNPHARMA.NS',
+        'KOTAKBANK.NS', 'TITAN.NS', 'M&M.NS', 'ADANIENT.NS', 'TATASTEEL.NS',
+        'ZOMATO.NS', 'SUZLON.NS', 'JIOFIN.NS', 'BEL.NS', 'HAL.NS',
+        'IREDA.NS', 'RVNL.NS', 'COALINDIA.NS', 'NTPC.NS', 'POWERGRID.NS'
+    ];
+    let currentCategoryFilter = 'POPULAR';
+    let currentAlphabetFilter = 'ALL';
+
+    // Populate lookup map immediately if stocks were pre-rendered from server
+    if (Array.isArray(allNSEStocksList) && allNSEStocksList.length > 0) {
+        allNSEStocksList.forEach(s => {
+            const sym = s.symbol || s.ticker;
+            const name = s.name || sym;
+            window.nseStocksMap[sym] = name;
+            if (s.ticker) window.nseStocksMap[s.ticker] = name;
+        });
+    }
+
+    async function loadNSEUniverseCatalog() {
+        if (!Array.isArray(allNSEStocksList) || allNSEStocksList.length === 0) {
+            try {
+                const res = await fetch('/api/nse/stocks?limit=2500');
+                const data = await res.json();
+                const stocks = data.stocks || (Array.isArray(data) ? data : []);
+                if (Array.isArray(stocks) && stocks.length > 0) {
+                    allNSEStocksList = stocks;
+                    stocks.forEach(s => {
+                        const sym = s.symbol || s.ticker;
+                        const name = s.name || sym;
+                        window.nseStocksMap[sym] = name;
+                        if (s.ticker) window.nseStocksMap[s.ticker] = name;
+                    });
+                }
+            } catch (e) {
+                console.warn('Could not preload full NSE universe catalog:', e);
+            }
+        }
+        renderStockSelectOptions();
+    }
+
+    function renderStockSelectOptions(customFilteredList = null) {
+        const select = document.getElementById('lab-symbol-select');
+        if (!select) return;
+
+        let listToRender = customFilteredList;
+        if (!listToRender) {
+            if (currentAlphabetFilter !== 'ALL') {
+                listToRender = allNSEStocksList.filter(s => {
+                    const t = (s.ticker || s.symbol || '').toUpperCase().replace('^', '');
+                    return t.startsWith(currentAlphabetFilter);
+                });
+            } else if (currentCategoryFilter === 'POPULAR') {
+                listToRender = allNSEStocksList.filter(s => {
+                    const sym = s.symbol || (s.ticker + '.NS');
+                    return POPULAR_SYMBOLS.includes(sym) || POPULAR_SYMBOLS.includes(s.ticker);
+                });
+                if (listToRender.length === 0) listToRender = allNSEStocksList.slice(0, 30);
+            } else if (currentCategoryFilter === 'NIFTY50') {
+                listToRender = allNSEStocksList.slice(0, 50);
+            } else if (currentCategoryFilter === 'MOMENTUM') {
+                const momSet = ['ZOMATO.NS', 'SUZLON.NS', 'JIOFIN.NS', 'BEL.NS', 'HAL.NS', 'IREDA.NS', 'RVNL.NS', 'TATAMOTORS.NS', 'BHEL.NS', 'COCHINSHIP.NS', 'MAZDOCK.NS'];
+                listToRender = allNSEStocksList.filter(s => momSet.includes(s.symbol) || momSet.includes(s.ticker + '.NS'));
+            } else {
+                listToRender = allNSEStocksList;
+            }
+        }
+
+        const countBadge = document.getElementById('filtered-stocks-count');
+        if (countBadge) {
+            const countLabel = currentAlphabetFilter !== 'ALL' 
+                ? `Letter "${currentAlphabetFilter}": ${listToRender.length} Stocks` 
+                : `${listToRender.length} Stocks in Dropdown`;
+            countBadge.innerText = countLabel;
+        }
+
+        const currentVal = document.getElementById('lab-symbol').value || 'RELIANCE.NS';
+        let optionsHtml = '';
+
+        if (listToRender.length === 0) {
+            optionsHtml = `<option value="">No stocks found starting with "${currentAlphabetFilter}"</option>`;
+        } else {
+            listToRender.forEach((s, idx) => {
+                const sym = s.symbol || (s.ticker + '.NS');
+                const name = s.name || sym;
+                const isSelected = (sym === currentVal || s.ticker === currentVal || (currentAlphabetFilter !== 'ALL' && idx === 0 && !listToRender.some(x => x.symbol === currentVal || x.ticker === currentVal))) ? 'selected' : '';
+                optionsHtml += `<option value="${sym}" ${isSelected}>${sym} — ${name}</option>`;
+            });
+        }
+
+        select.innerHTML = optionsHtml;
+        if (select.value) {
+            document.getElementById('lab-symbol').value = select.value;
+            onSymbolInput(select.value);
+        }
+    }
+
+    function filterStockDropdown(cat) {
+        currentCategoryFilter = cat;
+        currentAlphabetFilter = 'ALL';
+        updateAlphaButtons('ALL');
+        const searchInput = document.getElementById('lab-symbol-filter-input');
+        if (searchInput) searchInput.value = '';
+        renderStockSelectOptions();
+    }
+
+    function jumpToAlphabet(letter, btnEl) {
+        currentAlphabetFilter = letter;
+        currentCategoryFilter = (letter === 'ALL') ? 'POPULAR' : 'ALL';
+        const catSel = document.getElementById('stock-category-filter');
+        if (catSel) catSel.value = currentCategoryFilter;
+
+        updateAlphaButtons(letter);
+        const searchInput = document.getElementById('lab-symbol-filter-input');
+        if (searchInput) searchInput.value = '';
+        renderStockSelectOptions();
+    }
+
+    function updateAlphaButtons(activeLetter) {
+        const btns = document.querySelectorAll('.alpha-btn');
+        btns.forEach(b => {
+            const isMatch = b.innerText.trim() === activeLetter;
+            b.classList.toggle('active', isMatch);
+            if (isMatch) {
+                b.style.background = 'rgba(56, 189, 248, 0.25)';
+                b.style.color = '#38bdf8';
+                b.style.borderColor = 'rgba(56, 189, 248, 0.5)';
+            } else {
+                b.style.background = 'rgba(255, 255, 255, 0.05)';
+                b.style.color = '#94a3b8';
+                b.style.borderColor = 'rgba(255, 255, 255, 0.1)';
+            }
+        });
+    }
+
+    function onLiveFilterInput(query) {
+        const q = (query || '').trim().toUpperCase();
+        if (!q) {
+            renderStockSelectOptions();
+            return;
+        }
+        const filtered = allNSEStocksList.filter(s => {
+            const sym = (s.symbol || '').toUpperCase();
+            const ticker = (s.ticker || '').toUpperCase();
+            const name = (s.name || '').toUpperCase();
+            return sym.includes(q) || ticker.includes(q) || name.includes(q);
+        });
+        renderStockSelectOptions(filtered);
+    }
+
+    function resetStockFilter() {
+        currentCategoryFilter = 'POPULAR';
+        currentAlphabetFilter = 'ALL';
+        updateAlphaButtons('ALL');
+        const catSel = document.getElementById('stock-category-filter');
+        if (catSel) catSel.value = 'POPULAR';
+        const searchInput = document.getElementById('lab-symbol-filter-input');
+        if (searchInput) searchInput.value = '';
+        renderStockSelectOptions();
+    }
+
+    function onSelectStockChange(val) {
+        if (!val) return;
+        document.getElementById('lab-symbol').value = val;
+        onSymbolInput(val);
+    }
+
+    function setSymbol(sym) {
+        document.getElementById('lab-symbol').value = sym;
+        const sel = document.getElementById('lab-symbol-select');
+        if (sel) {
+            let found = false;
+            for (let i = 0; i < sel.options.length; i++) {
+                if (sel.options[i].value === sym) {
+                    sel.selectedIndex = i;
+                    found = true;
+                    break;
+                }
+            }
+            if (!found) {
+                const name = window.nseStocksMap[sym] || sym;
+                const opt = new Option(`${sym} — ${name}`, sym, true, true);
+                sel.add(opt, 0);
+                sel.selectedIndex = 0;
+            }
+        }
+        onSymbolInput(sym);
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        loadNSEUniverseCatalog();
+    });
+
+    function handleFileSelected(input) {
+        if (input.files && input.files[0]) {
+            uploadedFileObj = input.files[0];
+            document.getElementById('file-selected-info').style.display = 'block';
+            document.getElementById('file-selected-name').innerText = uploadedFileObj.name;
+            document.getElementById('file-selected-size').innerText = `${Math.round(uploadedFileObj.size / 1024)} KB`;
+        }
+    }
+
+    // Drag and drop listeners
+    const dropzone = document.getElementById('dropzone');
+    if (dropzone) {
+        ['dragenter', 'dragover'].forEach(eventName => {
+            dropzone.addEventListener(eventName, (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                dropzone.classList.add('dragover');
+            });
+        });
+        ['dragleave', 'drop'].forEach(eventName => {
+            dropzone.addEventListener(eventName, (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                dropzone.classList.remove('dragover');
+            });
+        });
+        dropzone.addEventListener('drop', (e) => {
+            if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+                uploadedFileObj = e.dataTransfer.files[0];
+                document.getElementById('file-selected-info').style.display = 'block';
+                document.getElementById('file-selected-name').innerText = uploadedFileObj.name;
+                document.getElementById('file-selected-size').innerText = `${Math.round(uploadedFileObj.size / 1024)} KB`;
+            }
+        });
+    }
+
+    async function executeBacktest() {
+        const btn = document.getElementById('btn-run-action');
+        btn.disabled = true;
+        btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> RUNNING VECTORIZED BACKTEST...`;
+
+        const payload = {
+            strategy: document.getElementById('lab-strategy').value,
+            capital: parseFloat(document.getElementById('lab-capital').value) || 50000,
+            allocation: parseFloat(document.getElementById('lab-alloc').value) || 5000,
+            leverage: parseFloat(document.getElementById('lab-leverage').value) || 5,
+            stop_loss_pct: parseFloat(document.getElementById('lab-sl').value) || 1.0,
+            take_profit_pct: parseFloat(document.getElementById('lab-tp').value) || 2.8,
+            use_trailing: document.getElementById('lab-trailing').checked,
+            use_eod_cutoff: document.getElementById('lab-eod').checked,
+            include_charges: document.getElementById('lab-charges').checked
+        };
+
+        try {
+            let res, data;
+            if (activeIngestion === 'AUTOFETCH') {
+                payload.mode = currentFetchMode;
+                if (currentFetchMode === 'BATCH') {
+                    payload.universe = document.getElementById('lab-universe').value;
+                } else {
+                    payload.symbol = document.getElementById('lab-symbol').value;
+                }
+                payload.period = document.getElementById('lab-period').value;
+                payload.interval = document.getElementById('lab-interval').value;
+
+                res = await fetch('/api/backtest/run', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+            } else {
+                if (!uploadedFileObj) {
+                    alert('Please select or drop a 1-year CSV/Excel file first, or switch to 1-Click NSE Auto-Fetch.');
+                    btn.disabled = false;
+                    btn.innerHTML = `<i class="fa-solid fa-bolt"></i> RUN 1-YEAR FLASH BACKTEST (INSTANT &lt; 2s)`;
+                    return;
+                }
+                const formData = new FormData();
+                formData.append('file', uploadedFileObj);
+                formData.append('params', JSON.stringify(payload));
+
+                res = await fetch('/api/backtest/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+            }
+
+            data = await res.json();
+            if (!data.success) {
+                alert(`Backtest Error: ${data.error || 'Failed to execute backtest'}`);
+            } else {
+                renderBacktestResults(data);
+                btn.innerHTML = `BACKTEST FINISHED IN ${data.metrics.execution_seconds}s (CLICK TO RE-RUN)`;
+            }
+        } catch (err) {
+            console.error('Backtest error:', err);
+            alert(`Error: ${err.message}`);
+            btn.innerHTML = `<i class="fa-solid fa-bolt"></i> RUN 1-YEAR FLASH BACKTEST (INSTANT &lt; 2s)`;
+        } finally {
+            btn.disabled = false;
+        }
+    }
+
+    function renderBacktestResults(res) {
+        document.getElementById('results-wrapper').style.display = 'flex';
+        const m = res.metrics;
+
+        // KPI values
+        const pnlEl = document.getElementById('res-pnl');
+        pnlEl.innerText = `${m.net_pnl >= 0 ? '+' : ''}₹${m.net_pnl.toLocaleString('en-IN', {minimumFractionDigits: 2})}`;
+        pnlEl.style.color = m.net_pnl >= 0 ? '#00f090' : '#ef4444';
+
+        const roiEl = document.getElementById('res-roi');
+        roiEl.innerText = `ROI: ${m.roi_pct >= 0 ? '+' : ''}${m.roi_pct.toFixed(2)}% (End: ₹${m.final_capital.toLocaleString('en-IN')})`;
+        roiEl.style.color = m.roi_pct >= 0 ? '#00f090' : '#ef4444';
+
+        document.getElementById('res-winrate').innerText = `${m.win_rate.toFixed(1)}%`;
+        document.getElementById('res-winloss').innerText = `${m.win_count} Wins / ${m.loss_count} Losses`;
+
+        document.getElementById('res-pf').innerText = m.profit_factor.toFixed(2);
+        document.getElementById('res-rr').innerText = `R:R: ${m.risk_reward_achieved.toFixed(2)}x achieved`;
+
+        document.getElementById('res-dd').innerText = `${m.max_drawdown_pct.toFixed(2)}%`;
+        document.getElementById('res-dd-amt').innerText = `Peak Risk: -₹${m.max_drawdown_amount.toLocaleString('en-IN')}`;
+
+        document.getElementById('res-charges').innerText = `₹${m.total_charges.toLocaleString('en-IN', {minimumFractionDigits: 2})}`;
+        document.getElementById('res-gross').innerText = `Gross P&L: ₹${m.gross_pnl.toLocaleString('en-IN')}`;
+
+        document.getElementById('res-speed').innerText = `${m.execution_seconds}s`;
+        document.getElementById('res-candles').innerText = `${res.data_summary.total_candles.toLocaleString('en-IN')} Candles Processed`;
+
+        // Render Multi-Stock Batch Universe Leaderboard (if batch run)
+        const batchWrap = document.getElementById('batch-leaderboard-wrap');
+        const thStock = document.getElementById('th-stock-symbol');
+        if (res.stock_summaries && res.stock_summaries.length > 0) {
+            currentBatchSummaries = res.stock_summaries;
+            renderBatchTable(res.stock_summaries);
+            batchWrap.style.display = 'block';
+            if (thStock) thStock.style.display = 'table-cell';
+        } else {
+            currentBatchSummaries = [];
+            batchWrap.style.display = 'none';
+            if (thStock) thStock.style.display = 'none';
+        }
+
+        // Render Month-by-Month Breakdown
+        currentMonthlyList = res.monthly_breakdown || [];
+        renderMonthlyTable(currentMonthlyList);
+
+        // Populate Month Dropdown Filter
+        populateMonthSelect(currentMonthlyList);
+
+        // Render Trades Table
+        currentTradesList = res.trades || [];
+        activeMonthFilter = 'ALL';
+        activeStockFilter = 'ALL';
+        const stockPill = document.getElementById('active-stock-pill');
+        if (stockPill) stockPill.style.display = 'none';
+        renderTradesTable();
+
+        // Render Equity Curve
+        drawEquityChart(res.equity_curve || []);
+    }
+
+    function renderMonthlyTable(months) {
+        const tbody = document.getElementById('monthly-tbody');
+        tbody.innerHTML = '';
+        document.getElementById('total-months-badge').innerText = `${months.length} Months`;
+
+        if (months.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="9" style="text-align: center; padding: 1.5rem; color: #94a3b8;">No monthly trade data available.</td></tr>`;
+            return;
+        }
+
+        months.forEach(m => {
+            const tr = document.createElement('tr');
+            const pnlColor = m.net_pnl >= 0 ? '#00f090' : '#ef4444';
+            const roiBadgeClass = m.roi_pct >= 0 ? 'badge-win' : 'badge-loss';
+            tr.innerHTML = `
+                <td style="font-weight: 800; color: #ffffff;"><i class="fa-regular fa-calendar" style="color: #fbbf24; margin-right: 6px;"></i> ${m.month_label}</td>
+                <td style="font-weight: 700;">${m.total_trades} trades</td>
+                <td style="font-size: 0.8rem;"><span style="color: #00f090; font-weight: 700;">${m.win_count}W</span> / <span style="color: #ef4444; font-weight: 700;">${m.loss_count}L</span></td>
+                <td><span class="${m.win_rate >= 50 ? 'badge-win' : 'badge-loss'}">${m.win_rate.toFixed(1)}%</span></td>
+                <td style="font-family: monospace;">₹${m.gross_pnl.toFixed(2)}</td>
+                <td style="font-size: 0.78rem; color: #94a3b8;">₹${m.charges.toFixed(2)}</td>
+                <td style="font-weight: 800; font-family: monospace; color: ${pnlColor}; font-size: 0.9rem;">${m.net_pnl >= 0 ? '+' : ''}₹${m.net_pnl.toLocaleString('en-IN', {minimumFractionDigits: 2})}</td>
+                <td><span class="${roiBadgeClass}">${m.roi_pct >= 0 ? '+' : ''}${m.roi_pct.toFixed(2)}%</span></td>
+                <td style="text-align: right;">
+                    <button class="tab-btn" onclick="filterToSpecificMonth('${m.month_key}', '${m.month_label}')" style="padding: 4px 10px; font-size: 0.74rem; border-color: rgba(251, 191, 36, 0.4); color: #fbbf24;">
+                        <i class="fa-solid fa-arrow-down"></i> View Month Trades
+                    </button>
+                </td>
+            `;
+            tbody.appendChild(tr);
+        });
+    }
+
+    function populateMonthSelect(months) {
+        const select = document.getElementById('trade-month-filter');
+        select.innerHTML = `<option value="ALL">All Months (${currentTradesList.length} Trades)</option>`;
+        months.forEach(m => {
+            const opt = document.createElement('option');
+            opt.value = m.month_key;
+            opt.innerText = `${m.month_label} (${m.total_trades} Trades | ${m.net_pnl >= 0 ? '+' : ''}₹${m.net_pnl.toFixed(0)})`;
+            select.appendChild(opt);
+        });
+    }
+
+    function onMonthSelectChange(monthKey) {
+        activeMonthFilter = monthKey;
+        const pill = document.getElementById('active-month-pill');
+        if (monthKey === 'ALL') {
+            pill.style.display = 'none';
+        } else {
+            const mObj = currentMonthlyList.find(m => m.month_key === monthKey);
+            const mLabel = mObj ? mObj.month_label : monthKey;
+            pill.style.display = 'inline-flex';
+            pill.innerHTML = `<i class="fa-regular fa-calendar"></i> Month: <strong>${mLabel}</strong> <span style="cursor: pointer; margin-left: 6px;" onclick="clearMonthFilter()">Clear</span>`;
+        }
+        renderTradesTable();
+    }
+
+    function filterToSpecificMonth(monthKey, monthLabel) {
+        activeMonthFilter = monthKey;
+        const select = document.getElementById('trade-month-filter');
+        if (select) select.value = monthKey;
+        const pill = document.getElementById('active-month-pill');
+        pill.style.display = 'inline-flex';
+        pill.innerHTML = `<i class="fa-regular fa-calendar"></i> Month: <strong>${monthLabel || monthKey}</strong> <span style="cursor: pointer; margin-left: 6px;" onclick="clearMonthFilter()">Clear</span>`;
+        renderTradesTable();
+
+        // Scroll to trades table smoothly
+        const tableCard = document.querySelector('.trades-table-wrap:last-child');
+        if (tableCard) tableCard.scrollIntoView({ behavior: 'smooth' });
+    }
+
+    function clearMonthFilter() {
+        activeMonthFilter = 'ALL';
+        const select = document.getElementById('trade-month-filter');
+        if (select) select.value = 'ALL';
+        const pill = document.getElementById('active-month-pill');
+        pill.style.display = 'none';
+        renderTradesTable();
+    }
+
+    function filterTrades(type) {
+        currentFilter = type;
+        document.getElementById('filter-all').classList.toggle('active', type === 'ALL');
+        document.getElementById('filter-win').classList.toggle('active', type === 'WIN');
+        document.getElementById('filter-loss').classList.toggle('active', type === 'LOSS');
+        renderTradesTable();
+    }
+
+    function renderBatchTable(summaries) {
+        const tbody = document.getElementById('batch-tbody');
+        tbody.innerHTML = '';
+        document.getElementById('batch-count-badge').innerText = `${summaries.length} Stocks`;
+
+        summaries.forEach((s, idx) => {
+            const tr = document.createElement('tr');
+            const pnlColor = s.net_pnl >= 0 ? '#00f090' : '#ef4444';
+            const roiBadgeClass = s.roi_pct >= 0 ? 'badge-win' : 'badge-loss';
+            const companyName = window.nseStocksMap[s.symbol] || window.nseStocksMap[s.ticker] || s.ticker;
+
+            tr.innerHTML = `
+                <td style="color: #64748b; font-weight: 700;">#${idx + 1}</td>
+                <td>
+                    <div style="font-weight: 800; color: #ffffff;">${s.symbol}</div>
+                    <div style="font-size: 0.72rem; color: #94a3b8; max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${companyName}</div>
+                </td>
+                <td style="font-weight: 700;">${s.total_trades} trades</td>
+                <td><span class="${s.win_rate >= 50 ? 'badge-win' : 'badge-loss'}">${s.win_rate.toFixed(1)}%</span></td>
+                <td style="font-family: monospace;">${s.profit_factor.toFixed(2)}x</td>
+                <td style="font-weight: 800; font-family: monospace; color: ${pnlColor}; font-size: 0.88rem;">${s.net_pnl >= 0 ? '+' : ''}₹${s.net_pnl.toLocaleString('en-IN', {minimumFractionDigits: 2})}</td>
+                <td><span class="${roiBadgeClass}">${s.roi_pct >= 0 ? '+' : ''}${s.roi_pct.toFixed(2)}%</span></td>
+                <td style="color: #f43f5e; font-weight: 700;">-${s.max_drawdown_pct.toFixed(2)}%</td>
+                <td style="text-align: right;">
+                    <button class="tab-btn" onclick="filterToSpecificStock('${s.ticker || s.symbol}')" style="padding: 4px 10px; font-size: 0.74rem; border-color: rgba(56, 189, 248, 0.4); color: #38bdf8;">
+                        <i class="fa-solid fa-filter"></i> Isolate Trades
+                    </button>
+                </td>
+            `;
+            tbody.appendChild(tr);
+        });
+    }
+
+    function filterToSpecificStock(sym) {
+        activeStockFilter = sym.replace('.NS', '');
+        const pill = document.getElementById('active-stock-pill');
+        if (pill) {
+            pill.style.display = 'inline-flex';
+            pill.innerHTML = `<i class="fa-solid fa-filter"></i> Stock: <strong>${activeStockFilter}</strong> <span style="cursor: pointer; margin-left: 6px;" onclick="clearStockFilter()">Clear</span>`;
+        }
+        renderTradesTable();
+        const tableCard = document.querySelector('.trades-table-wrap:last-child');
+        if (tableCard) tableCard.scrollIntoView({ behavior: 'smooth' });
+    }
+
+    function clearStockFilter() {
+        activeStockFilter = 'ALL';
+        const pill = document.getElementById('active-stock-pill');
+        if (pill) pill.style.display = 'none';
+        renderTradesTable();
+    }
+
+    function renderTradesTable() {
+        const tbody = document.getElementById('trades-tbody');
+        tbody.innerHTML = '';
+
+        let filtered = currentTradesList;
+        // Filter by month
+        if (activeMonthFilter !== 'ALL') {
+            filtered = filtered.filter(t => (t.month_key === activeMonthFilter) || (t.exit_time && t.exit_time.startsWith(activeMonthFilter)));
+        }
+        // Filter by specific stock (if batch mode)
+        if (activeStockFilter !== 'ALL') {
+            filtered = filtered.filter(t => t.symbol === activeStockFilter || t.symbol === (activeStockFilter + '.NS') || (t.symbol && t.symbol.replace('.NS', '') === activeStockFilter));
+        }
+        // Filter by win/loss
+        if (currentFilter === 'WIN') filtered = filtered.filter(t => t.is_win);
+        else if (currentFilter === 'LOSS') filtered = filtered.filter(t => !t.is_win);
+
+        const hasSymbols = filtered.some(t => !!t.symbol);
+        const thStock = document.getElementById('th-stock-symbol');
+        if (thStock) thStock.style.display = hasSymbols ? 'table-cell' : 'none';
+
+        document.getElementById('total-trades-badge').innerText = `${filtered.length} Trades shown`;
+
+        if (filtered.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="14" style="text-align: center; padding: 2rem; color: #94a3b8;">No trades match selected filters (Month: "${activeMonthFilter}", Stock: "${activeStockFilter}", Type: "${currentFilter}").</td></tr>`;
+            return;
+        }
+
+        filtered.forEach(tr => {
+            const trEl = document.createElement('tr');
+            const pnlColor = tr.net_pnl >= 0 ? '#00f090' : '#ef4444';
+            const symCol = hasSymbols ? `<td><span class="lab-badge badge-blue" style="font-size: 0.68rem; padding: 2px 6px;">${tr.symbol || ''}</span></td>` : '';
+            trEl.innerHTML = `
+                <td style="color: #64748b; font-weight: 700;">#${tr.id}</td>
+                ${symCol}
+                <td><span class="${tr.side === 'BUY' ? 'badge-buy' : 'badge-sell'}">${tr.side}</span></td>
+                <td style="font-family: monospace; font-size: 0.76rem;">${tr.entry_time}</td>
+                <td style="font-family: monospace; font-size: 0.76rem;">${tr.exit_time}</td>
+                <td style="font-weight: 700;">₹${tr.entry_price.toFixed(2)}</td>
+                <td style="font-weight: 700;">₹${tr.exit_price.toFixed(2)}</td>
+                <td>${tr.quantity}</td>
+                <td style="font-family: monospace;">₹${tr.gross_pnl.toFixed(2)}</td>
+                <td style="color: #94a3b8; font-size: 0.75rem;">₹${tr.charges.toFixed(2)}</td>
+                <td style="font-weight: 800; font-family: monospace; color: ${pnlColor};">${tr.net_pnl >= 0 ? '+' : ''}₹${tr.net_pnl.toFixed(2)}</td>
+                <td style="font-weight: 800; color: ${pnlColor};">${tr.roi_pct >= 0 ? '+' : ''}${tr.roi_pct.toFixed(1)}%</td>
+                <td style="font-size: 0.76rem; color: #cbd5e1;">${tr.exit_reason}</td>
+                <td><span class="lab-badge badge-amber" style="font-size: 0.68rem; padding: 2px 6px;">${tr.strategy_tag}</span></td>
+            `;
+            tbody.appendChild(trEl);
+        });
+    }
+
+    function drawEquityChart(dataPoints) {
+        const canvas = document.getElementById('equity-chart');
+        if (!canvas || dataPoints.length === 0) return;
+        const ctx = canvas.getContext('2d');
+        const rect = canvas.getBoundingClientRect();
+        canvas.width = rect.width * 2;
+        canvas.height = rect.height * 2;
+        ctx.scale(2, 2);
+
+        const width = rect.width;
+        const height = rect.height;
+        ctx.clearRect(0, 0, width, height);
+
+        const equities = dataPoints.map(d => d.equity);
+        const minEq = Math.min(...equities) * 0.98;
+        const maxEq = Math.max(...equities) * 1.02;
+        const range = maxEq - minEq || 1;
+
+        // Draw background grid lines
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.05)';
+        ctx.lineWidth = 1;
+        for (let y = 0.2; y <= 0.8; y += 0.2) {
+            ctx.beginPath();
+            ctx.moveTo(0, height * y);
+            ctx.lineTo(width, height * y);
+            ctx.stroke();
+        }
+
+        // Draw Area & Line
+        ctx.beginPath();
+        dataPoints.forEach((d, idx) => {
+            const x = (idx / (dataPoints.length - 1)) * width;
+            const y = height - ((d.equity - minEq) / range) * height;
+            if (idx === 0) ctx.moveTo(x, y);
+            else ctx.lineTo(x, y);
+        });
+
+        // Stroke line
+        const isUp = equities[equities.length - 1] >= equities[0];
+        const strokeColor = isUp ? '#00f090' : '#ef4444';
+        ctx.strokeStyle = strokeColor;
+        ctx.lineWidth = 2.5;
+        ctx.stroke();
+
+        // Fill gradient
+        const lastX = width;
+        const firstX = 0;
+        ctx.lineTo(lastX, height);
+        ctx.lineTo(firstX, height);
+        ctx.closePath();
+        const grad = ctx.createLinearGradient(0, 0, 0, height);
+        grad.addColorStop(0, isUp ? 'rgba(0, 240, 144, 0.25)' : 'rgba(239, 68, 68, 0.25)');
+        grad.addColorStop(1, 'rgba(0, 0, 0, 0.0)');
+        ctx.fillStyle = grad;
+        ctx.fill();
+    }
+
+    function exportTradesCSV() {
+        if (!currentTradesList || currentTradesList.length === 0) {
+            alert('No trades available to export.');
+            return;
+        }
+        let csv = "Trade #,Side,Entry Time,Exit Time,Entry Price,Exit Price,Quantity,Gross PnL,Charges,Net PnL,ROI %,Exit Reason,Strategy\n";
+        currentTradesList.forEach(t => {
+            csv += `${t.id},${t.side},"${t.entry_time}","${t.exit_time}",${t.entry_price},${t.exit_price},${t.quantity},${t.gross_pnl},${t.charges},${t.net_pnl},${t.roi_pct},"${t.exit_reason}","${t.strategy_tag}"\n`;
+        });
+        const blob = new Blob([csv], { type: 'text/csv' });
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `backtest_trades_${Date.now()}.csv`;
+        a.click();
+    }
+</script>
+{% endblock %}
