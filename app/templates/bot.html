@@ -3530,7 +3530,8 @@
             const maxLoss = Math.abs(p.average_price - slPrice) * p.quantity;
             const maxLossPct = p.average_price > 0 ? ((Math.abs(p.average_price - slPrice) / p.average_price) * 100) : 1.0;
 
-            let tpDisplay = `₹${(p.take_profit || (isShort ? p.average_price * 0.97 : p.average_price * 1.03)).toFixed(2)}`;
+            const tpVal = p.take_profit || (isShort ? p.average_price * 0.99 : p.average_price * 1.01);
+            let tpDisplay = `₹${tpVal.toFixed(2)}`;
             if (p.take_profit) {
                 tpDisplay += ` <span style="font-size: 0.68rem; color: #a78bfa;">🎯 Target</span>`;
             }
@@ -3656,6 +3657,9 @@
                 <td style="color: var(--green); font-weight: 700;">${tpDisplay}</td>
                 <td>
                     <div style="display: flex; gap: 4px; align-items: center;">
+                        <button class="btn-sm btn-outline" style="padding: 3px 6px; font-size: 0.72rem; border-color: rgba(0, 240, 144, 0.45); color: var(--green);" onclick="editAlphaPositionSlTp('${p.symbol}', ${slPrice.toFixed(2)}, ${tpVal.toFixed(2)})" title="Edit Stop-Loss & Target">
+                            <i class="fa-solid fa-sliders"></i> SL/TP
+                        </button>
                         <button class="btn-sm btn-outline" style="padding: 3px 6px; font-size: 0.72rem; border-color: rgba(56, 189, 248, 0.4); color: #38bdf8;" onclick="openBrokerTicket('${p.symbol}', '${p.side || 'LONG'}', ${p.average_price}, ${p.stop_loss}, ${p.take_profit}, ${p.quantity})" title="1-Click Broker Order Ticket">
                             <i class="fa-solid fa-ticket"></i>
                         </button>
@@ -4945,6 +4949,55 @@
             `;
             tbody.appendChild(tr);
         });
+    }
+
+    async function editAlphaPositionSlTp(symbol, currentSl, currentTp) {
+        const slInput = prompt(`Enter new Stop-Loss (₹) for ${symbol.replace('.NS','')}:`, currentSl);
+        if (slInput === null) return;
+        const tpInput = prompt(`Enter new Target / Take-Profit (₹) for ${symbol.replace('.NS','')}:`, currentTp);
+        if (tpInput === null) return;
+
+        const newSl = parseFloat(slInput);
+        const newTp = parseFloat(tpInput);
+        if (isNaN(newSl) || newSl <= 0 || isNaN(newTp) || newTp <= 0) {
+            showToast('Please enter valid positive numbers for Stop-Loss and Target.', 'error');
+            return;
+        }
+
+        // Update local cache immediately
+        const stored = getStoredActivePositions();
+        stored.forEach(p => {
+            if (p.symbol === symbol) {
+                p.stop_loss = Math.round(newSl * 100) / 100;
+                p.take_profit = Math.round(newTp * 100) / 100;
+            }
+        });
+        saveStoredActivePositions(stored);
+        if (Array.isArray(window.cachedActivePositions)) {
+            window.cachedActivePositions.forEach(p => {
+                if (p.symbol === symbol) {
+                    p.stop_loss = Math.round(newSl * 100) / 100;
+                    p.take_profit = Math.round(newTp * 100) / 100;
+                }
+            });
+        }
+
+        try {
+            const res = await fetch('/api/positions/update-sl-tp', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ symbol, stop_loss: newSl, take_profit: newTp })
+            });
+            const data = await res.json();
+            if (data.success) {
+                showToast(`Updated ${symbol.replace('.NS','')} | SL: ₹${newSl.toFixed(2)} | Target: ₹${newTp.toFixed(2)}`, 'success');
+            } else {
+                showToast(`Saved locally (${data.message || 'server sync pending'})`, 'warning');
+            }
+        } catch (e) {
+            showToast(`Updated ${symbol.replace('.NS','')} SL/TP locally`, 'info');
+        }
+        loadBotHoldings();
     }
 
     async function exitBotPosition(symbol, quantity, side = 'LONG') {

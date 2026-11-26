@@ -1427,6 +1427,29 @@ def bot_cron():
         "nifty_bot_running": bot_instance.is_running
     })
 
+@api_bp.route('/positions/update-sl-tp', methods=['POST'])
+def update_alpha_position_sl_tp():
+    from app.models.trading import Position
+    from app import db
+    data = request.get_json(silent=True) or {}
+    symbol = str(data.get("symbol") or "").strip().upper()
+    if not symbol:
+        return jsonify({"success": False, "message": "Symbol required"}), 400
+    pos = Position.query.filter_by(symbol=symbol).first()
+    if not pos:
+        return jsonify({"success": False, "message": f"Position {symbol} not found"}), 404
+    if data.get("stop_loss") is not None:
+        pos.stop_loss = round(float(data["stop_loss"]), 2)
+    if data.get("take_profit") is not None:
+        pos.take_profit = round(float(data["take_profit"]), 2)
+    db.session.commit()
+    return jsonify({
+        "success": True,
+        "symbol": symbol,
+        "stop_loss": pos.stop_loss,
+        "take_profit": pos.take_profit
+    })
+
 @api_bp.route('/bot/simulate', methods=['POST'])
 def simulate_bot():
     from app.services.bot import bot_instance
