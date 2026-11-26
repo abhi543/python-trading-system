@@ -2079,6 +2079,7 @@
         const mins = ist.getHours() * 60 + ist.getMinutes();
         const isOpen = (day >= 1 && day <= 5) && (mins >= 555 && mins < 900);
         window.isMarketAfterHours = !isOpen;
+        window.isAlphaOpen = isOpen;
 
         const initBadge = document.getElementById('bot-session-badge');
         if (initBadge) {
@@ -2105,9 +2106,20 @@
         updateConfigSummaryRibbon();
         fetchBotOverview();
 
+        const manualStopped = localStorage.getItem('nifty_bot_manual_stop') === 'true';
         const savedState = localStorage.getItem('nifty_bot_active') === 'true';
-        if (savedState) {
+        if (isOpen && !manualStopped) {
             setBotActiveState(true, false);
+            localStorage.setItem('nifty_bot_manual_stop', 'false');
+            botSession.status = 'RUNNING';
+            tickBotNow();
+        } else if (!isOpen) {
+            setBotActiveState(false, false);
+            botSession.status = 'STOPPED';
+            localStorage.removeItem('nifty_bot_manual_stop'); // Reset manual stop flag overnight for next market day
+        } else if (savedState) {
+            setBotActiveState(true, false);
+            localStorage.setItem('nifty_bot_manual_stop', 'false');
             botSession.status = 'RUNNING';
         } else {
             botSession.status = 'STOPPED';
@@ -2316,7 +2328,12 @@
         window.isAlphaOpen = (data.is_alpha_open !== undefined) ? !!data.is_alpha_open : !isAlphaSquareoffWindow();
         window.isMarketAfterHours = !window.isMarketOpen;
         if (!window.isAlphaOpen && isBotActive) {
+            tickBotNow(); // Trigger 3:00 PM EOD auto-squareoff before pausing
             setBotActiveState(false, false);
+            localStorage.removeItem('nifty_bot_manual_stop');
+        } else if (window.isAlphaOpen && !isBotActive && localStorage.getItem('nifty_bot_manual_stop') !== 'true') {
+            setBotActiveState(true, false);
+            tickBotNow();
         }
 
         const closedBanner = document.getElementById('alpha-market-closed-banner');
@@ -2790,6 +2807,7 @@
 
     async function toggleBot() {
         if (isBotActive) {
+            localStorage.setItem('nifty_bot_manual_stop', 'true');
             setBotActiveState(false);
             botSession.status = 'STOPPED';
             botSession.stop_time = new Date().toLocaleTimeString('en-IN', { hour12: false }) + ' IST';
@@ -2810,6 +2828,7 @@
                 botSession.session_count = (botSession.session_count || 1) + 1;
             }
             botSession.session_id = 'sess_' + Date.now();
+            localStorage.setItem('nifty_bot_manual_stop', 'false');
             botSession.status = 'RUNNING';
             botSession.start_time = new Date().toLocaleTimeString('en-IN', { hour12: false }) + ' IST';
             botSession.stop_time = null;

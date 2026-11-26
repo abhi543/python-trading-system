@@ -121,6 +121,7 @@ class AutoTradingBot:
             self.engine = PaperTradingEngine
 
         persisted = _load_persistent_bot_state(self.state_filename)
+        self.manual_stopped = bool(persisted.get("manual_stopped", False))
         self.is_running = persisted.get("is_running", False)
         default_scan = "TOP_200_TURNOVER"
         default_strat = "AUTO_ENSEMBLE"
@@ -219,6 +220,7 @@ class AutoTradingBot:
         try:
             data = {
                 "is_running": self.is_running,
+                "manual_stopped": getattr(self, "manual_stopped", False),
                 "scan_mode": self.scan_mode,
                 "single_symbol": self.single_symbol,
                 "strategy": self.strategy,
@@ -387,6 +389,16 @@ class AutoTradingBot:
 
         market_open = is_nse_market_open()
         alpha_open = is_alpha_trading_hours()
+        if self.name == "ALPHA":
+            if alpha_open and not getattr(self, "manual_stopped", False) and not is_active:
+                self.is_running = True
+                is_active = True
+                self.session_status = "RUNNING"
+                self.add_log("☀️ [AUTO-SCHEDULE] Market Open (09:15–15:00 IST): ALPHA auto-started!", "SUCCESS")
+            elif not alpha_open and is_active:
+                self.is_running = False
+                is_active = False
+                self.session_status = "MARKET_CLOSED_PAUSED"
         can_run = alpha_open if self.name == "ALPHA" else True
         time_restriction_msg = ""
         if self.name == "ALPHA" and not alpha_open:
@@ -600,6 +612,7 @@ class AutoTradingBot:
             }
 
         # Start a brand new session report on restart/start
+        self.manual_stopped = False
         self.start_new_session()
 
         after_hours = not is_nse_market_open()
@@ -617,6 +630,7 @@ class AutoTradingBot:
 
     def stop(self):
         self.is_running = False
+        self.manual_stopped = True
         self.session_status = "STOPPED"
         self.session_stop_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         self.persist_state()
