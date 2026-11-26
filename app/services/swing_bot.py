@@ -403,6 +403,7 @@ class SwingTradingBot:
 
     def scan_and_evaluate(self) -> Dict[str, Any]:
         """Scans the swing universe, manages open position trailing stops & exits, and discovers setups"""
+        now = datetime.now(timezone.utc)
         self.last_scan_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
         # 1. Manage Active Positions (Trailing Stops & Targets)
@@ -544,7 +545,7 @@ class SwingTradingBot:
         start_of_ist_day_utc = datetime(now_ist.year, now_ist.month, now_ist.day, 0, 0, 0) - timedelta(hours=5, minutes=30)
         already_added_today = (getattr(self, "_last_entry_ist_date", None) == today_ist_str)
         if not already_added_today:
-            for hp in held_positions:
+            for hp in active_positions:
                 hp_dt = hp.entry_date
                 if hp_dt and hp_dt.tzinfo is None:
                     hp_dt = hp_dt.replace(tzinfo=timezone.utc)
