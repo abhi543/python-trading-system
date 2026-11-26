@@ -199,9 +199,51 @@ class SwingTradeHistory(db.Model):
     net_total = db.Column(db.Float, default=0.0)
     timestamp = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
+class TerminalAccount(db.Model):
+    __tablename__ = 'terminal_account'
+    id = db.Column(db.Integer, primary_key=True)
+    cash_balance = db.Column(db.Float, default=50000.0)
+    updated_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+
+class TerminalPosition(db.Model):
+    __tablename__ = 'terminal_positions'
+    id = db.Column(db.Integer, primary_key=True)
+    symbol = db.Column(db.String(20), nullable=False, unique=True)
+    side = db.Column(db.String(10), default='LONG')
+    quantity = db.Column(db.Float, nullable=False)
+    average_price = db.Column(db.Float, nullable=False)
+    peak_price = db.Column(db.Float, default=0.0)
+    stop_loss = db.Column(db.Float, default=0.0)
+    take_profit = db.Column(db.Float, default=0.0)
+    trailing_active = db.Column(db.Boolean, default=False)
+    updated_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+
+class TerminalTradeHistory(db.Model):
+    __tablename__ = 'terminal_trade_history'
+    id = db.Column(db.Integer, primary_key=True)
+    symbol = db.Column(db.String(20), nullable=False)
+    side = db.Column(db.String(10), nullable=False)
+    quantity = db.Column(db.Float, nullable=False)
+    price = db.Column(db.Float, nullable=False)
+    total = db.Column(db.Float, nullable=False)
+    realized_pnl = db.Column(db.Float, default=0.0)
+    charges = db.Column(db.Float, default=0.0)
+    brokerage = db.Column(db.Float, default=0.0)
+    stt = db.Column(db.Float, default=0.0)
+    exchange_charges = db.Column(db.Float, default=0.0)
+    sebi_charges = db.Column(db.Float, default=0.0)
+    gst = db.Column(db.Float, default=0.0)
+    stamp_duty = db.Column(db.Float, default=0.0)
+    net_total = db.Column(db.Float, default=0.0)
+    timestamp = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+
 def init_default_data(initial_cash=50000.0, after_hours_initial_cash=1000000.0, swing_initial_cash=100000.0):
     if not Account.query.first():
         db.session.add(Account(cash_balance=initial_cash))
+        db.session.commit()
+
+    if not TerminalAccount.query.first():
+        db.session.add(TerminalAccount(cash_balance=initial_cash))
         db.session.commit()
 
     if not AfterHoursAccount.query.first():

@@ -521,13 +521,13 @@ async function loadPortfolio() {
 
         let res;
         if (localPositions.length > 0) {
-            res = await fetch('/api/portfolio', {
+            res = await fetch('/api/terminal/portfolio', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ client_positions: localPositions })
             });
         } else {
-            res = await fetch('/api/portfolio');
+            res = await fetch('/api/terminal/portfolio');
         }
         const data = await res.json();
 
@@ -628,7 +628,7 @@ async function loadPortfolio() {
 
 async function loadTrades() {
     try {
-        const res = await fetch('/api/trades');
+        const res = await fetch('/api/terminal/trades');
         const trades = await res.json();
         const tbody = document.getElementById('trades-table-body');
         
@@ -683,7 +683,7 @@ window.closePosition = async function(symbol, quantity, side = 'LONG') {
             localStorage.setItem('nifty_positions_entry_lock_v1', JSON.stringify(lock));
         } catch(e){}
 
-        const res = await fetch('/api/order', {
+        const res = await fetch('/api/terminal/order', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ symbol, side: exitSide, quantity })
@@ -721,7 +721,7 @@ function setupEventListeners() {
         const qty = parseFloat(document.getElementById('order-qty').value);
 
         try {
-            const res = await fetch('/api/order', {
+            const res = await fetch('/api/terminal/order', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ symbol: activeSymbol, side, quantity: qty })

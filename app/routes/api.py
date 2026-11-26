@@ -256,6 +256,48 @@ def sync_after_hours_closed_trades_from_client(client_closed_trades):
     # We do NOT resurrect old deleted trades from client localStorage.
     return
 
+@api_bp.route('/terminal/portfolio', methods=['GET', 'POST'])
+def get_terminal_portfolio():
+    from app.services.paper_trader import TerminalPaperTradingEngine
+    return jsonify(TerminalPaperTradingEngine.get_portfolio_summary())
+
+@api_bp.route('/terminal/order', methods=['POST'])
+def place_terminal_order():
+    from app.services.paper_trader import TerminalPaperTradingEngine
+    body = request.get_json(silent=True) or {}
+    symbol = body.get('symbol')
+    side = body.get('side')
+    quantity = float(body.get('quantity', 0))
+    res = TerminalPaperTradingEngine.execute_order(symbol, side, quantity)
+    if not res.get("success"):
+        return jsonify(res), 400
+    return jsonify(res)
+
+@api_bp.route('/terminal/trades', methods=['GET'])
+def get_terminal_trades():
+    from app.models.trading import TerminalTradeHistory
+    trades = TerminalTradeHistory.query.order_by(TerminalTradeHistory.timestamp.desc()).limit(100).all()
+    return jsonify([{
+        "id": t.id, "symbol": t.symbol, "side": t.side, "quantity": t.quantity,
+        "price": t.price, "total": t.total, "realized_pnl": t.realized_pnl,
+        "charges": t.charges, "net_total": t.net_total,
+        "timestamp": t.timestamp.strftime("%Y-%m-%d %H:%M:%S")
+    } for t in trades])
+
+@api_bp.route('/terminal/reset', methods=['POST'])
+def reset_terminal_account():
+    from app.models.trading import TerminalAccount, TerminalPosition, TerminalTradeHistory
+    from app import db
+    TerminalPosition.query.delete()
+    TerminalTradeHistory.query.delete()
+    acc = TerminalAccount.query.first()
+    if acc:
+        acc.cash_balance = 50000.0
+    else:
+        db.session.add(TerminalAccount(cash_balance=50000.0))
+    db.session.commit()
+    return jsonify({"success": True, "message": "Terminal wallet reset to ₹50,000.00"})
+
 @api_bp.route('/portfolio', methods=['GET', 'POST'])
 def get_portfolio():
     if request.method == 'POST':

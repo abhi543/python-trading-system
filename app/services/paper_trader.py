@@ -2,7 +2,8 @@ from datetime import datetime, timezone, timedelta
 from app import db
 from app.models.trading import (
     Account, Position, TradeHistory,
-    AfterHoursAccount, AfterHoursPosition, AfterHoursTradeHistory
+    AfterHoursAccount, AfterHoursPosition, AfterHoursTradeHistory,
+    TerminalAccount, TerminalPosition, TerminalTradeHistory
 )
 from app.services.market_data import MarketDataService
 
@@ -908,4 +909,187 @@ class AfterHoursPaperTradingEngine:
                 "message": f"Shorted {quantity} {symbol} @ ₹{price:.2f} [5x Leverage | Margin: ₹{margin_required:,.2f}]",
                 "trade_id": trade.id, "charges": charges_data
             }
+
+
+class TerminalPaperTradingEngine:
+    """Isolated Paper Trading Engine strictly for the Manual Terminal (/) — separate from Bot Alpha."""
+    LEVERAGE = 5.0
+    INITIAL_CASH = 50000.0
+
+    @staticmethod
+    def reconcile_account_balance():
+        account = TerminalAccount.query.first()
+        if not account:
+            account = TerminalAccount(cash_balance=TerminalPaperTradingEngine.INITIAL_CASH)
+            db.session.add(account)
+            db.session.commit()
+        positions = TerminalPosition.query.filter(TerminalPosition.quantity > 0).all()
+        total_margin_used = sum((p.quantity * p.average_price) / TerminalPaperTradingEngine.LEVERAGE for p in positions)
+        total_realized = db.session.query(db.func.sum(TerminalTradeHistory.realized_pnl)).scalar() or 0.0
+        total_charges = db.session.query(db.func.sum(TerminalTradeHistory.charges)).scalar() or 0.0
+        account.cash_balance = round(max(0.0, TerminalPaperTradingEngine.INITIAL_CASH + total_realized - total_charges - total_margin_used), 2)
+        db.session.commit()
+        return account
+
+    @staticmethod
+    def get_portfolio_summary():
+        account = TerminalPaperTradingEngine.reconcile_account_balance()
+        positions = TerminalPosition.query.filter(TerminalPosition.quantity > 0).all()
+
+        total_market_value = 0.0
+        total_unrealized_pnl = 0.0
+        total_margin_used = 0.0
+        portfolio_positions = []
+
+        symbols_list = [p.symbol for p in positions]
+        quotes_map = MarketDataService.get_batch_quotes(symbols_list) if symbols_list else {}
+
+        for pos in positions:
+            quote = quotes_map.get(pos.symbol) or MarketDataService.get_quote(pos.symbol)
+            curr_price = quote["price"] if "error" not in quote else pos.average_price
+            pos_side = getattr(pos, 'side', 'LONG') or 'LONG'
+            market_val = round(pos.quantity * curr_price, 2)
+            cost_basis = round(pos.quantity * pos.average_price, 2)
+            margin_used = round(cost_basis / TerminalPaperTradingEngine.LEVERAGE, 2)
+            unrealized_pnl = round((cost_basis - market_val) if pos_side == 'SHORT' else (market_val - cost_basis), 2)
+            unrealized_pnl_pct = round((unrealized_pnl / margin_used) * 100, 2) if margin_used > 0 else 0.0
+
+            total_market_value += market_val
+            total_unrealized_pnl += unrealized_pnl
+            total_margin_used += margin_used
+
+            portfolio_positions.append({
+                "id": pos.id,
+                "symbol": pos.symbol,
+                "side": pos_side,
+                "quantity": pos.quantity,
+                "average_price": round(pos.average_price, 2),
+                "current_price": round(curr_price, 2),
+                "market_value": market_val,
+                "margin_used": margin_used,
+                "leverage": 5,
+                "unrealized_pnl": unrealized_pnl,
+                "unrealized_pnl_pct": unrealized_pnl_pct,
+                "peak_price": round(getattr(pos, 'peak_price', pos.average_price) or pos.average_price, 2),
+                "stop_loss": round(getattr(pos, 'stop_loss', 0.0) or 0.0, 2),
+                "take_profit": round(getattr(pos, 'take_profit', 0.0) or 0.0, 2),
+                "trailing_active": bool(getattr(pos, 'trailing_active', False))
+            })
+
+        now_utc = datetime.now(timezone.utc)
+        now_ist = now_utc + timedelta(hours=5, minutes=30)
+        start_of_ist_day_utc = datetime(now_ist.year, now_ist.month, now_ist.day, 0, 0, 0) - timedelta(hours=5, minutes=30)
+        total_realized_pnl = db.session.query(db.func.sum(TerminalTradeHistory.realized_pnl)).scalar() or 0.0
+        day_realized_pnl = db.session.query(db.func.sum(TerminalTradeHistory.realized_pnl)).filter(
+            TerminalTradeHistory.timestamp >= start_of_ist_day_utc
+        ).scalar() or 0.0
+        total_equity = round(TerminalPaperTradingEngine.INITIAL_CASH + total_realized_pnl + total_unrealized_pnl, 2)
+        buying_power = round(account.cash_balance * TerminalPaperTradingEngine.LEVERAGE, 2)
+
+        account_data = {
+            "cash_balance": round(account.cash_balance, 2),
+            "wallet_balance": round(account.cash_balance, 2),
+            "available_margin": round(account.cash_balance, 2),
+            "margin_used": round(total_margin_used, 2),
+            "buying_power": buying_power,
+            "leverage": 5,
+            "market_value": round(total_market_value, 2),
+            "total_equity": total_equity,
+            "unrealized_pnl": round(total_unrealized_pnl, 2),
+            "realized_pnl": round(total_realized_pnl, 2),
+            "day_realized_pnl": round(day_realized_pnl, 2),
+            "day_pnl": round(day_realized_pnl, 2)
+        }
+        return {**account_data, "account": account_data, "positions": portfolio_positions}
+
+    @staticmethod
+    def execute_order(symbol: str, side: str, quantity: float, execution_price: float = None):
+        symbol = symbol.strip().upper()
+        side = side.strip().upper()
+        quantity = float(quantity)
+        if quantity <= 0:
+            return {"success": False, "message": "Quantity must be greater than zero"}
+        if side not in ["BUY", "SELL", "SHORT", "COVER"]:
+            return {"success": False, "message": "Side must be BUY, SELL, SHORT, or COVER"}
+
+        if execution_price is not None and execution_price > 0:
+            price = round(float(execution_price), 2)
+        else:
+            quote = MarketDataService.get_quote(symbol)
+            if "error" in quote:
+                return {"success": False, "message": f"Could not fetch price: {quote['error']}"}
+            price = quote["price"]
+
+        turnover = round(quantity * price, 2)
+        account = TerminalPaperTradingEngine.reconcile_account_balance()
+        position = TerminalPosition.query.filter_by(symbol=symbol).first()
+        pos_side = (getattr(position, 'side', 'LONG') or 'LONG') if position else None
+
+        if (side in ["BUY", "COVER"]) and position and pos_side == "SHORT":
+            charges_data = PaperTradingEngine.calculate_transaction_charges(turnover, "BUY")
+            total_charges = charges_data["total_charges"]
+            qty_to_cover = min(quantity, position.quantity)
+            cost_basis = round(qty_to_cover * position.average_price, 2)
+            net_realized_pnl = round((cost_basis - round(qty_to_cover * price, 2)) - total_charges, 2)
+            account.cash_balance += round(cost_basis / TerminalPaperTradingEngine.LEVERAGE, 2) + net_realized_pnl
+            position.quantity -= qty_to_cover
+            if position.quantity <= 0:
+                db.session.delete(position)
+            trade = TerminalTradeHistory(
+                symbol=symbol, side="COVER", quantity=qty_to_cover, price=price, total=round(qty_to_cover * price, 2),
+                realized_pnl=net_realized_pnl, charges=total_charges, brokerage=charges_data["brokerage"],
+                stt=charges_data["stt"], exchange_charges=charges_data["exchange_charges"],
+                sebi_charges=charges_data["sebi_charges"], gst=charges_data["gst"],
+                stamp_duty=charges_data["stamp_duty"], net_total=round(cost_basis / TerminalPaperTradingEngine.LEVERAGE, 2)
+            )
+            db.session.add(trade)
+            db.session.commit()
+            return {"success": True, "action": "COVER", "price": price, "realized_pnl": net_realized_pnl, "message": f"Covered {qty_to_cover} {symbol} @ ₹{price:.2f} | P&L: ₹{net_realized_pnl:,.2f}"}
+
+        elif (side in ["SELL", "SHORT"]) and position and pos_side == "LONG":
+            charges_data = PaperTradingEngine.calculate_transaction_charges(turnover, "SELL")
+            total_charges = charges_data["total_charges"]
+            qty_to_sell = min(quantity, position.quantity)
+            cost_basis = round(qty_to_sell * position.average_price, 2)
+            net_realized_pnl = round((round(qty_to_sell * price, 2) - cost_basis) - total_charges, 2)
+            account.cash_balance += round(cost_basis / TerminalPaperTradingEngine.LEVERAGE, 2) + net_realized_pnl
+            position.quantity -= qty_to_sell
+            if position.quantity <= 0:
+                db.session.delete(position)
+            trade = TerminalTradeHistory(
+                symbol=symbol, side="SELL", quantity=qty_to_sell, price=price, total=round(qty_to_sell * price, 2),
+                realized_pnl=net_realized_pnl, charges=total_charges, brokerage=charges_data["brokerage"],
+                stt=charges_data["stt"], exchange_charges=charges_data["exchange_charges"],
+                sebi_charges=charges_data["sebi_charges"], gst=charges_data["gst"],
+                stamp_duty=charges_data["stamp_duty"], net_total=round(cost_basis / TerminalPaperTradingEngine.LEVERAGE, 2)
+            )
+            db.session.add(trade)
+            db.session.commit()
+            return {"success": True, "action": "SELL", "price": price, "realized_pnl": net_realized_pnl, "message": f"Sold {qty_to_sell} {symbol} @ ₹{price:.2f} | P&L: ₹{net_realized_pnl:,.2f}"}
+
+        elif side in ["BUY", "SELL", "SHORT"]:
+            order_side = "SHORT" if side in ["SELL", "SHORT"] else "BUY"
+            charges_data = PaperTradingEngine.calculate_transaction_charges(turnover, "SELL" if order_side == "SHORT" else "BUY")
+            total_charges = charges_data["total_charges"]
+            margin_required = round((turnover / TerminalPaperTradingEngine.LEVERAGE) + total_charges, 2)
+            if account.cash_balance < margin_required:
+                return {"success": False, "message": f"Insufficient Terminal margin. Required: ₹{margin_required:,.2f}, Available: ₹{account.cash_balance:,.2f}"}
+            account.cash_balance -= margin_required
+            if not position:
+                position = TerminalPosition(symbol=symbol, side=("SHORT" if order_side == "SHORT" else "LONG"), quantity=quantity, average_price=price, peak_price=price)
+                db.session.add(position)
+            else:
+                total_qty = position.quantity + quantity
+                position.average_price = ((position.quantity * position.average_price) + turnover) / total_qty
+                position.quantity = total_qty
+            trade = TerminalTradeHistory(
+                symbol=symbol, side=order_side, quantity=quantity, price=price, total=turnover,
+                realized_pnl=0.0, charges=total_charges, brokerage=charges_data["brokerage"],
+                stt=charges_data["stt"], exchange_charges=charges_data["exchange_charges"],
+                sebi_charges=charges_data["sebi_charges"], gst=charges_data["gst"],
+                stamp_duty=charges_data["stamp_duty"], net_total=margin_required
+            )
+            db.session.add(trade)
+            db.session.commit()
+            return {"success": True, "action": order_side, "price": price, "realized_pnl": 0.0, "message": f"{order_side} {quantity} {symbol} @ ₹{price:.2f} [Terminal 5x]"}
 
