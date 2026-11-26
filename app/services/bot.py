@@ -1257,15 +1257,23 @@ class AutoTradingBot:
                 reason = f"RSI Neutral ({current_rsi:.1f}) | Buy at <= {oversold_th:.0f}, Sell at >= {overbought_th:.0f}"
 
         elif self.strategy == "VOLUME_SHOCKER":
-            # ⚡ VOLUME SHOCKER STRATEGY: Institutional Accumulation (RVOL >= 1.75x)
+            # ⚡ VOLUME SHOCKER STRATEGY: Institutional Accumulation / Distribution (RVOL >= 1.75x)
             is_shocker_buy = (vol_ratio >= 1.75) and (0.35 <= change_pct <= 9.5) and (current_price >= (ema_200 * 0.98 if ema_200 else current_price * 0.95))
+            is_shocker_short = (vol_ratio >= 1.75) and (-9.5 <= change_pct <= -0.35) and (current_price <= (ema_200 * 1.02 if ema_200 else current_price * 1.05))
             if is_shocker_buy:
                 signal = "BUY"
                 reason = f"⚡ Volume Shocker: {vol_ratio:.1f}x volume surge with +{change_pct:.2f}% institutional expansion"
                 reversal_score = min(99, int(88 + min(11, (vol_ratio - 1.5) * 5)))
                 reversal_grade = "A+"
-                suggested_tp = round(current_price * 1.045, 2)
-                suggested_sl = round(current_price * 0.98, 2)
+                suggested_sl = round(current_price * 0.99, 2)
+                suggested_tp = round(current_price * 1.03, 2)
+            elif is_shocker_short:
+                signal = "SELL"
+                reason = f"⚡ Volume Shocker Short: {vol_ratio:.1f}x volume surge with {change_pct:.2f}% institutional breakdown"
+                reversal_score = min(99, int(88 + min(11, (vol_ratio - 1.5) * 5)))
+                reversal_grade = "A+"
+                suggested_sl = round(current_price * 1.01, 2)
+                suggested_tp = round(current_price * 0.97, 2)
             else:
                 reason = f"RVOL {vol_ratio:.1f}x below volume shock threshold (1.75x) or waiting for price confirmation"
 
