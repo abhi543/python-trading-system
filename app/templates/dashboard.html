@@ -102,8 +102,8 @@
 <!-- BOTTOM SECTION: POSITIONS & STRATEGY BACKTESTER -->
 <div class="bottom-layout">
     <div class="tabs-header">
-        <button class="tab-btn active" data-tab="tab-bot"><i class="fa-solid fa-robot"></i> Quick Bot Control <span class="badge" id="bot-tab-badge" style="margin-left: 6px; padding: 2px 6px; font-size: 0.65rem; background: rgba(0, 240, 144, 0.15); color: var(--green);">IDLE</span></button>
-        <button class="tab-btn" data-tab="tab-positions"><i class="fa-solid fa-briefcase"></i> Active Positions</button>
+        <button class="tab-btn active" data-tab="tab-positions"><i class="fa-solid fa-briefcase"></i> Active Positions (<span id="term-pos-count">0</span>)</button>
+        <button class="tab-btn" data-tab="tab-bot"><i class="fa-solid fa-robot"></i> Quick Bot Control <span class="badge" id="bot-tab-badge" style="margin-left: 6px; padding: 2px 6px; font-size: 0.65rem; background: rgba(0, 240, 144, 0.15); color: var(--green);">IDLE</span></button>
         <button class="tab-btn" data-tab="tab-trades"><i class="fa-solid fa-clock-rotate-left"></i> Execution Audit Log</button>
         <button class="tab-btn" data-tab="tab-backtester"><i class="fa-solid fa-chart-line"></i> Historical Backtester</button>
         <a href="/bot" class="tab-btn" style="text-decoration: none; color: var(--green); margin-left: auto; border-left: 1px solid var(--border);">
@@ -112,7 +112,7 @@
     </div>
 
     <!-- AUTO-TRADING BOT TAB (STREAMLINED & MERGED) -->
-    <div id="tab-bot" class="tab-content active">
+    <div id="tab-bot" class="tab-content">
         <!-- COMPACT BOT STATUS STRIP -->
         <div class="bot-compact-strip">
             <div class="bot-compact-meta">
@@ -222,7 +222,7 @@
     </div>
 
     <!-- POSITIONS TAB -->
-    <div id="tab-positions" class="tab-content">
+    <div id="tab-positions" class="tab-content active">
         <table class="data-table">
             <thead>
                 <tr>
@@ -515,7 +515,7 @@ async function loadPortfolio() {
     try {
         let localPositions = [];
         try {
-            const raw = localStorage.getItem('nifty_active_holdings_v3');
+            const raw = localStorage.getItem('terminal_active_holdings_v1');
             if (raw) localPositions = JSON.parse(raw) || [];
         } catch(e){}
 
@@ -569,10 +569,13 @@ async function loadPortfolio() {
             positions = positions.filter(p => !window.recentlyExitedSymbols.has(p.symbol));
         }
         if (positions.length > 0) {
-            try { localStorage.setItem('nifty_active_holdings_v3', JSON.stringify(positions)); } catch(e){}
+            try { localStorage.setItem('terminal_active_holdings_v1', JSON.stringify(positions)); } catch(e){}
         } else if (localPositions.length > 0 && (!window.recentlyExitedSymbols || window.recentlyExitedSymbols.size === 0)) {
             positions = localPositions;
         }
+
+        const posCountEl = document.getElementById('term-pos-count');
+        if (posCountEl) posCountEl.innerText = (positions ? positions.length : 0);
 
         const tbody = document.getElementById('positions-table-body');
         if (!positions || positions.length === 0) {
