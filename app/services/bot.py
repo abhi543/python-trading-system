@@ -112,7 +112,7 @@ class AutoTradingBot:
             self.account_model = AfterHoursAccount
             self.engine = AfterHoursPaperTradingEngine
         else:
-            default_alloc = 500.0   # ₹500 per trade for ₹50,000 Desk (starts from just ₹500)
+            default_alloc = 3000.0   # ₹3,000 per trade (5x = ₹15,000 exposure; max 6 positions fits 1 Zerodha Basket)
             from app.models.trading import Position, TradeHistory, Account
             from app.services.paper_trader import PaperTradingEngine
             self.pos_model = Position
@@ -123,22 +123,18 @@ class AutoTradingBot:
         persisted = _load_persistent_bot_state(self.state_filename)
         self.is_running = persisted.get("is_running", False)
         default_scan = "TOP_200_TURNOVER"
-        default_strat = "VOLUME_SHOCKER" if self.name == "ALPHA" else "AUTO_ENSEMBLE"
+        default_strat = "AUTO_ENSEMBLE"
         self.scan_mode = persisted.get("scan_mode", default_scan)
-        if self.scan_mode == "KRONOS_UNIVERSE":
+        if self.scan_mode in ("KRONOS_UNIVERSE", "CSV_WATCHLIST"):
             self.scan_mode = "TOP_200_TURNOVER"
         self.single_symbol = persisted.get("single_symbol", "RELIANCE.NS")
         self.custom_symbols = persisted.get("custom_symbols", [])
         self.strategy = persisted.get("strategy", default_strat)
         if self.name == "ALPHA":
-            # Start stock traded from just 500 margin
             persisted_alloc = persisted.get("allocation_per_trade")
-            if persisted_alloc is None or float(persisted_alloc) >= 5000:
-                self.allocation_per_trade = default_alloc  # 500.0
-            else:
-                self.allocation_per_trade = float(persisted_alloc)
-            # No limit of holdings (0 = unlimited holdings)
-            self.max_positions = 0
+            self.allocation_per_trade = float(persisted_alloc) if persisted_alloc is not None and float(persisted_alloc) >= 1000 else default_alloc
+            persisted_max = int(persisted.get("max_positions", 6))
+            self.max_positions = persisted_max if 1 <= persisted_max <= 20 else 6
         else:
             self.allocation_per_trade = float(persisted.get("allocation_per_trade", default_alloc))
             self.max_positions = int(persisted.get("max_positions", 0))
@@ -161,7 +157,7 @@ class AutoTradingBot:
         self.rsi_oversold = float(persisted.get("rsi_oversold", 20.0))
         self.rsi_overbought = float(persisted.get("rsi_overbought", 80.0))
         self.stop_loss_pct = min(float(persisted.get("stop_loss_pct", 1.0)), 1.0)
-        self.take_profit_pct = float(persisted.get("take_profit_pct", 1.0))
+        self.take_profit_pct = 2.0 if self.name == "ALPHA" else float(persisted.get("take_profit_pct", 1.0))
         
         # Option A: Macro Trend & Volume Confirmation
         self.use_ema200_filter = persisted.get("use_ema200_filter", True)
@@ -180,7 +176,7 @@ class AutoTradingBot:
         # Institutional Survival Mode & Apex Capital Shield
         self.survival_mode = persisted.get("survival_mode", True)
         self.daily_max_drawdown_pct = float(persisted.get("daily_max_drawdown_pct", 1.5))
-        self.min_risk_reward_ratio = 1.0 if self.name == "ALPHA" else float(persisted.get("min_risk_reward_ratio", 2.5))
+        self.min_risk_reward_ratio = 2.0 if self.name == "ALPHA" else float(persisted.get("min_risk_reward_ratio", 2.5))
         self.survival_breakeven_pct = float(persisted.get("survival_breakeven_pct", 0.5))
         self.enable_partial_profits = persisted.get("enable_partial_profits", True)
         self.stagnation_timeout_mins = int(persisted.get("stagnation_timeout_mins", 45))
@@ -354,8 +350,27 @@ class AutoTradingBot:
             self.persist_state()
 
     def get_intraday_traded_symbols(self, client_traded_symbols: list = None) -> set:
-        """Limit of trades removed: returns empty set so valid signals can execute trades without limit"""
-        return set()
+        """Prevent duplicate intraday re-entries on Alpha using TradeHistory (Night Hawk remains unlimited)."""
+        if self.is_after_hours_forced or self.name != "ALPHA":
+            return set()
+        traded = set()
+        if isinstance(client_traded_symbols, list):
+            for s in client_traded_symbols:
+                if s:
+                    traded.add(str(s).strip().upper())
+        try:
+            now_ist = datetime.now(timezone.utc) + timedelta(hours=5, minutes=30)
+            start_of_ist_day_utc = datetime(now_ist.year, now_ist.month, now_ist.day, 0, 0, 0) - timedelta(hours=5, minutes=30)
+            rows = self.trade_model.query.filter(
+                self.trade_model.side.in_(["BUY", "SHORT"]),
+                self.trade_model.timestamp >= start_of_ist_day_utc
+            ).all()
+            for r in rows:
+                if r.symbol:
+                    traded.add(r.symbol.strip().upper())
+        except Exception:
+            pass
+        return traded
 
     def get_status(self) -> dict:
         persisted = _load_persistent_bot_state(self.state_filename)
@@ -1271,9 +1286,9 @@ class AutoTradingBot:
                 reason = f"RSI Neutral ({current_rsi:.1f}) | Buy at <= {oversold_th:.0f}, Sell at >= {overbought_th:.0f}"
 
         elif self.strategy == "VOLUME_SHOCKER":
-            # ⚡ VOLUME SHOCKER STRATEGY: Institutional Accumulation / Distribution (RVOL >= 1.75x)
-            is_shocker_buy = (vol_ratio >= 1.75) and (0.35 <= change_pct <= 9.5) and (current_price >= (ema_200 * 0.98 if ema_200 else current_price * 0.95))
-            is_shocker_short = (vol_ratio >= 1.75) and (-9.5 <= change_pct <= -0.35) and (current_price <= (ema_200 * 1.02 if ema_200 else current_price * 1.05))
+            # ⚡ VOLUME SHOCKER STRATEGY: Institutional Accumulation / Distribution (RVOL >= 1.75x, Anti-Chase <= 3.5%)
+            is_shocker_buy = (vol_ratio >= 1.75) and (0.35 <= change_pct <= 3.5) and (current_price >= (ema_200 * 0.98 if ema_200 else current_price * 0.95))
+            is_shocker_short = (vol_ratio >= 1.75) and (-3.5 <= change_pct <= -0.35) and (current_price <= (ema_200 * 1.02 if ema_200 else current_price * 1.05))
             if is_shocker_buy:
                 signal = "BUY"
                 reason = f"⚡ Volume Shocker: {vol_ratio:.1f}x volume surge with +{change_pct:.2f}% institutional expansion"
@@ -1430,21 +1445,27 @@ class AutoTradingBot:
                 reason = f"SHORT Filtered: Weak Volume Surge ({vol_ratio:.2f}x < {min_vol:.1f}x threshold)"
                 filter_status = "FILTERED_VOLUME"
 
-        # Intraday 1:1 Risk-to-Reward enforcement for Bot ALPHA
+        # Anti-chase guard for Bot ALPHA: never enter new trades on stocks already extended > 3.5% on the day
+        if self.name == "ALPHA" and not self.is_after_hours_forced and signal in ["BUY", "SELL"] and not pos and abs(change_pct) > 3.5:
+            signal = "HOLD"
+            reason = f"🛡️ Anti-Chase Guard: Day move ({change_pct:+.2f}%) already extended (> ±3.5%)"
+            filter_status = "FILTERED_EXTENDED"
+
+        # Intraday 1:2.0 Set & Forget Risk-to-Reward for Bot ALPHA (1% SL / 2% TP)
         if self.name == "ALPHA" and not self.is_after_hours_forced and signal in ["BUY", "SELL"] and not pos:
             pot_sl = suggested_sl or (round(current_price * (1 - min(abs(self.stop_loss_pct or 1.0), 1.0) / 100.0), 2) if signal == "BUY" else round(current_price * (1 + min(abs(self.stop_loss_pct or 1.0), 1.0) / 100.0), 2))
             suggested_sl = pot_sl
             risk_dist = max(current_price * 0.002, abs(current_price - pot_sl))
-            suggested_tp = round(current_price + risk_dist, 2) if signal == "BUY" else round(current_price - risk_dist, 2)
+            suggested_tp = round(current_price + (risk_dist * 2.0), 2) if signal == "BUY" else round(current_price - (risk_dist * 2.0), 2)
 
-        # Survival Mode Asymmetric Risk-to-Reward Floor (1:1 for Alpha Intraday, 1:2.5 for Night Hawk)
+        # Survival Mode Asymmetric Risk-to-Reward Floor (1:2.0 for Alpha Intraday, 1:2.5 for Night Hawk)
         if signal in ["BUY", "SELL"] and not pos and getattr(self, "survival_mode", True):
             pot_sl = suggested_sl or (current_price * 0.99 if signal == "BUY" else current_price * 1.01)
-            pot_tp = suggested_tp or (current_price * 1.01 if self.name == "ALPHA" else current_price * 1.025 if signal == "BUY" else current_price * 0.99 if self.name == "ALPHA" else current_price * 0.975)
+            pot_tp = suggested_tp or (current_price * 1.02 if self.name == "ALPHA" else current_price * 1.025 if signal == "BUY" else current_price * 0.98 if self.name == "ALPHA" else current_price * 0.975)
             pot_risk = abs(current_price - pot_sl)
             pot_reward = abs(pot_tp - current_price)
             rr_val = round(pot_reward / pot_risk, 2) if pot_risk > 0 else 0.0
-            min_rr = 1.0 if (self.name == "ALPHA" and not self.is_after_hours_forced) else getattr(self, "min_risk_reward_ratio", 2.5)
+            min_rr = 2.0 if (self.name == "ALPHA" and not self.is_after_hours_forced) else getattr(self, "min_risk_reward_ratio", 2.5)
             if rr_val < min_rr:
                 signal = "HOLD"
                 reason = f"🛡️ Survival Shield: Setup R:R (1:{rr_val:.1f}) below institutional 1:{min_rr:.1f} floor"
@@ -1956,7 +1977,7 @@ class AutoTradingBot:
                                             pos_rec.stop_loss = round(price * (1 - self.stop_loss_pct / 100), 2)
                                             pos_rec.take_profit = round(price * (1 + self.take_profit_pct / 100), 2)
                                         if self.name == "ALPHA" and not self.is_after_hours_forced and pos_rec.stop_loss > 0:
-                                            pos_rec.take_profit = round(price + abs(price - pos_rec.stop_loss), 2)
+                                            pos_rec.take_profit = round(price + (abs(price - pos_rec.stop_loss) * 2.0), 2)
                                         pos_rec.peak_price = price
                                         pos_rec.trailing_active = False
                                         try:
@@ -2114,7 +2135,7 @@ class AutoTradingBot:
                                             pos_rec.stop_loss = round(price * (1 + self.stop_loss_pct / 100), 2)
                                             pos_rec.take_profit = round(price * (1 - self.take_profit_pct / 100), 2)
                                         if self.name == "ALPHA" and not self.is_after_hours_forced and pos_rec.stop_loss > 0:
-                                            pos_rec.take_profit = round(price - abs(pos_rec.stop_loss - price), 2)
+                                            pos_rec.take_profit = round(price - (abs(pos_rec.stop_loss - price) * 2.0), 2)
                                         pos_rec.peak_price = price
                                         pos_rec.trailing_active = False
                                         try:
