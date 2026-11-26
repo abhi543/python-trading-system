@@ -128,7 +128,6 @@ class AutoTradingBot:
         if self.scan_mode in ("KRONOS_UNIVERSE", "CSV_WATCHLIST"):
             self.scan_mode = "TOP_200_TURNOVER"
         self.single_symbol = persisted.get("single_symbol", "RELIANCE.NS")
-        self.custom_symbols = persisted.get("custom_symbols", [])
         self.strategy = persisted.get("strategy", default_strat)
         if self.name == "ALPHA":
             persisted_alloc = persisted.get("allocation_per_trade")
@@ -222,7 +221,6 @@ class AutoTradingBot:
                 "is_running": self.is_running,
                 "scan_mode": self.scan_mode,
                 "single_symbol": self.single_symbol,
-                "custom_symbols": getattr(self, "custom_symbols", []),
                 "strategy": self.strategy,
                 "allocation_per_trade": self.allocation_per_trade,
                 "leverage": self.leverage,
@@ -406,7 +404,6 @@ class AutoTradingBot:
             "market_status": "AFTER_HOURS_SIMULATION" if after_hours else "LIVE_NSE_MARKET",
             "scan_mode": self.scan_mode,
             "single_symbol": self.single_symbol,
-            "custom_symbols": getattr(self, "custom_symbols", []),
             "strategy": self.strategy,
             "allocation_per_trade": self.allocation_per_trade,
             "leverage": self.leverage,
@@ -467,17 +464,6 @@ class AutoTradingBot:
             self.scan_mode = config["scan_mode"]
         if "single_symbol" in config and config["single_symbol"]:
             self.single_symbol = config["single_symbol"].strip().upper()
-        if "custom_symbols" in config and isinstance(config["custom_symbols"], list):
-            cleaned = []
-            for raw_s in config["custom_symbols"]:
-                s = str(raw_s or "").strip().strip('"').strip("'").upper()
-                if not s:
-                    continue
-                if "." not in s and not s.startswith("^"):
-                    s = f"{s}.NS"
-                if s not in cleaned:
-                    cleaned.append(s)
-            self.custom_symbols = cleaned[:200]
         if "strategy" in config and config["strategy"]:
             old_strat = self.strategy
             self.strategy = config["strategy"]
@@ -1726,9 +1712,6 @@ class AutoTradingBot:
         elif self.scan_mode == "KRONOS_UNIVERSE" or self.strategy == "KRONOS_AI":
             target_stocks = NIFTY_50_DEFAULT
             batch_label = "NIFTY 50 Universe (50 Stocks)"
-        elif self.scan_mode == "CSV_WATCHLIST":
-            target_stocks = list(getattr(self, "custom_symbols", []) or [])
-            batch_label = f"📄 Custom CSV Watchlist ({len(target_stocks)} Stocks)"
         elif self.scan_mode == "ALL_NIFTY_200":
             target_stocks = NIFTY_200_DEFAULT
         elif self.scan_mode == "ALL_NIFTY_50":
