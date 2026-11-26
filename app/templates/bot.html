@@ -2053,9 +2053,13 @@
     window.cachedActivePositions = [];
 
     document.addEventListener('DOMContentLoaded', () => {
-        const savedStrat = localStorage.getItem('nifty_bot_strategy') || 'AUTO_ENSEMBLE';
+        localStorage.setItem('nifty_bot_strategy', 'AUTO_ENSEMBLE');
         const stratEl = document.getElementById('bot-strategy');
-        if (stratEl && savedStrat) stratEl.value = savedStrat;
+        if (stratEl) {
+            stratEl.value = 'AUTO_ENSEMBLE';
+            stratEl.disabled = true;
+            stratEl.title = 'Locked to Auto-Pilot Ensemble for Bot Alpha';
+        }
 
         const savedScan = localStorage.getItem('nifty_bot_scan_mode');
         if (savedScan === 'CSV_WATCHLIST') {
@@ -2357,12 +2361,9 @@
         if (data.single_symbol && !document.getElementById('bot-symbol').matches(':focus')) {
             document.getElementById('bot-symbol').value = data.single_symbol;
         }
-        const savedStrat = localStorage.getItem('nifty_bot_strategy');
-        if (savedStrat) {
-            document.getElementById('bot-strategy').value = savedStrat;
-        } else if (data.strategy && !document.getElementById('bot-strategy').matches(':focus')) {
-            document.getElementById('bot-strategy').value = data.strategy;
-        }
+        localStorage.setItem('nifty_bot_strategy', 'AUTO_ENSEMBLE');
+        const stratElUi = document.getElementById('bot-strategy');
+        if (stratElUi) stratElUi.value = 'AUTO_ENSEMBLE';
         if (data.use_ema200_filter !== undefined) {
             document.getElementById('bot-use-ema200').checked = data.use_ema200_filter;
         }
@@ -2863,7 +2864,7 @@
             use_ai_filter: (typeof currentStrictAiMode !== 'undefined' ? currentStrictAiMode : false),
             scan_mode: document.getElementById('bot-scan-mode')?.value || 'TOP_200_TURNOVER',
             single_symbol: document.getElementById('bot-symbol')?.value?.trim()?.toUpperCase() || 'RELIANCE.NS',
-            strategy: document.getElementById('bot-strategy')?.value || 'AUTO_ENSEMBLE',
+            strategy: 'AUTO_ENSEMBLE',
             allocation_per_trade: parseFloat(document.getElementById('bot-allocation')?.value) || 500,
             max_positions: (document.getElementById('bot-max-positions') && !isNaN(parseInt(document.getElementById('bot-max-positions').value))) ? parseInt(document.getElementById('bot-max-positions').value) : 0,
             interval_seconds: 60,

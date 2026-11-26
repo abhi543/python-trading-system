@@ -128,7 +128,7 @@ class AutoTradingBot:
         if self.scan_mode in ("KRONOS_UNIVERSE", "CSV_WATCHLIST"):
             self.scan_mode = "TOP_200_TURNOVER"
         self.single_symbol = persisted.get("single_symbol", "RELIANCE.NS")
-        self.strategy = persisted.get("strategy", default_strat)
+        self.strategy = "AUTO_ENSEMBLE" if self.name == "ALPHA" else persisted.get("strategy", default_strat)
         if self.name == "ALPHA":
             persisted_alloc = persisted.get("allocation_per_trade")
             self.allocation_per_trade = float(persisted_alloc) if persisted_alloc is not None and float(persisted_alloc) >= 1000 else default_alloc
@@ -464,7 +464,9 @@ class AutoTradingBot:
             self.scan_mode = config["scan_mode"]
         if "single_symbol" in config and config["single_symbol"]:
             self.single_symbol = config["single_symbol"].strip().upper()
-        if "strategy" in config and config["strategy"]:
+        if self.name == "ALPHA":
+            self.strategy = "AUTO_ENSEMBLE"
+        elif "strategy" in config and config["strategy"]:
             old_strat = self.strategy
             self.strategy = config["strategy"]
             if old_strat != self.strategy:
