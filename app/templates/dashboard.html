@@ -1,1378 +1,1133 @@
 {% extends "base.html" %}
 
+{% block title %}Terminal | ALGO-TRADE Pro{% endblock %}
+
 {% block content %}
-<div class="grid-layout">
-    <!-- LEFT PANEL: WATCHLIST -->
-    <aside class="panel watchlist-panel">
-        <div class="panel-header">
-            <h3><i class="fa-solid fa-list-ul"></i> Market Watch</h3>
-            <form id="add-symbol-form" class="add-symbol-form">
-                <input type="text" id="new-symbol-input" placeholder="TICKER" maxlength="8" required>
-                <button type="submit" class="btn-add" title="Add Ticker"><i class="fa-solid fa-plus"></i></button>
+<style>
+    .terminal-stack {
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+    }
+
+    /* Row 1: Account Summary */
+    .account-summary-grid {
+        display: grid;
+        grid-template-columns: 2fr 1fr;
+        gap: 16px;
+    }
+
+    .hero-equity-card {
+        padding: 20px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+    }
+
+    .hero-label {
+        font-size: 11px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: var(--text-muted);
+        margin-bottom: 6px;
+    }
+
+    .hero-value {
+        font-family: var(--font-mono);
+        font-variant-numeric: tabular-nums;
+        font-size: 30px;
+        font-weight: 700;
+        letter-spacing: -0.02em;
+        color: var(--text);
+        line-height: 1.15;
+    }
+
+    .hero-delta-row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-top: 8px;
+    }
+
+    .delta-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        padding: 3px 8px;
+        border-radius: var(--radius-pill);
+        font-family: var(--font-mono);
+        font-variant-numeric: tabular-nums;
+        font-size: 12px;
+        font-weight: 600;
+        background: var(--profit-soft);
+        color: var(--profit);
+    }
+
+    .delta-chip.negative {
+        background: var(--loss-soft);
+        color: var(--loss);
+    }
+
+    .day-pnl-card {
+        padding: 20px;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+    }
+
+    .secondary-metrics-strip {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 12px;
+    }
+
+    .metric-mini-card {
+        padding: 12px 16px;
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+    }
+
+    .metric-mini-label {
+        font-size: 11px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: var(--text-muted);
+    }
+
+    .metric-mini-val {
+        font-family: var(--font-mono);
+        font-variant-numeric: tabular-nums;
+        font-size: 16px;
+        font-weight: 700;
+        color: var(--text);
+    }
+
+    /* Row 2: Chart (70%) + Order Ticket (30%) */
+    .terminal-main-grid {
+        display: grid;
+        grid-template-columns: minmax(0, 7fr) minmax(300px, 3fr);
+        gap: 16px;
+        align-items: stretch;
+    }
+
+    .chart-card {
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+    }
+
+    .chart-card-header {
+        padding: 12px 16px;
+        border-bottom: 1px solid var(--border);
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+    }
+
+    .symbol-selector-wrap {
+        position: relative;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+    }
+
+    .symbol-picker-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 6px 12px;
+        border-radius: var(--radius-ctrl);
+        background: var(--bg-elevated);
+        border: 1px solid var(--border);
+        color: var(--text);
+        font-family: var(--font-mono);
+        font-size: 14px;
+        font-weight: 700;
+        cursor: pointer;
+    }
+
+    .symbol-picker-btn:hover {
+        border-color: var(--accent);
+    }
+
+    .symbol-dropdown {
+        position: absolute;
+        top: calc(100% + 6px);
+        left: 0;
+        width: 280px;
+        background: var(--bg-card);
+        border: 1px solid var(--border-strong);
+        border-radius: var(--radius-card);
+        box-shadow: var(--shadow-modal);
+        z-index: 500;
+        padding: 8px;
+        display: none;
+    }
+
+    .symbol-dropdown.open {
+        display: block;
+    }
+
+    .symbol-dropdown-list {
+        max-height: 240px;
+        overflow-y: auto;
+        margin-top: 6px;
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+    }
+
+    .quote-price-group {
+        display: flex;
+        align-items: baseline;
+        gap: 8px;
+    }
+
+    .quote-ltp {
+        font-family: var(--font-mono);
+        font-variant-numeric: tabular-nums;
+        font-size: 20px;
+        font-weight: 700;
+        color: var(--text);
+    }
+
+    .chart-controls-group {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .pill-group {
+        display: inline-flex;
+        background: var(--bg-elevated);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-ctrl);
+        padding: 2px;
+        gap: 2px;
+    }
+
+    .pill-btn {
+        border: none;
+        background: transparent;
+        color: var(--text-muted);
+        font-family: var(--font-mono);
+        font-size: 11px;
+        font-weight: 600;
+        padding: 5px 9px;
+        border-radius: 6px;
+        cursor: pointer;
+        transition: all 0.15s ease;
+    }
+
+    .pill-btn:hover {
+        color: var(--text);
+    }
+
+    .pill-btn.active {
+        background: var(--accent);
+        color: #ffffff;
+    }
+
+    .chart-tooltip-bar {
+        padding: 6px 16px;
+        border-bottom: 1px solid var(--border);
+        background: var(--bg-elevated);
+        font-family: var(--font-mono);
+        font-variant-numeric: tabular-nums;
+        font-size: 11px;
+        color: var(--text-muted);
+        display: flex;
+        flex-wrap: wrap;
+        gap: 14px;
+    }
+
+    #chart-container {
+        width: 100%;
+        height: 420px;
+    }
+
+    /* Order Ticket */
+    .order-ticket-card {
+        padding: 16px;
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+    }
+
+    .side-toggle {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 6px;
+        background: var(--bg-elevated);
+        padding: 4px;
+        border-radius: var(--radius-ctrl);
+        border: 1px solid var(--border);
+    }
+
+    .side-btn {
+        padding: 9px;
+        border-radius: 6px;
+        border: none;
+        background: transparent;
+        color: var(--text-muted);
+        font-weight: 700;
+        font-size: 12px;
+        letter-spacing: 0.04em;
+        cursor: pointer;
+        transition: all 0.15s ease;
+    }
+
+    .side-btn.active-buy {
+        background: var(--profit);
+        color: #062112;
+    }
+
+    .side-btn.active-sell {
+        background: var(--loss);
+        color: #ffffff;
+    }
+
+    .ticket-field-label {
+        font-size: 11px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: var(--text-muted);
+        margin-bottom: 5px;
+        display: flex;
+        justify-content: space-between;
+    }
+
+    .qty-preset-row {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 6px;
+        margin-top: 6px;
+    }
+
+    .qty-preset-btn {
+        padding: 5px;
+        border-radius: 6px;
+        background: var(--bg-elevated);
+        border: 1px solid var(--border);
+        color: var(--text-muted);
+        font-family: var(--font-mono);
+        font-size: 11px;
+        font-weight: 600;
+        cursor: pointer;
+    }
+
+    .qty-preset-btn:hover {
+        border-color: var(--accent);
+        color: var(--text);
+    }
+
+    .ticket-summary-box {
+        background: var(--bg-elevated);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-ctrl);
+        padding: 10px 12px;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        font-size: 12px;
+    }
+
+    .ticket-summary-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    /* Row 3: Positions & Audit Log */
+    .ledger-card-header {
+        padding: 12px 16px;
+        border-bottom: 1px solid var(--border);
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+    }
+
+    .mobile-ticket-fab {
+        display: none;
+    }
+
+    @media (max-width: 1080px) {
+        .account-summary-grid {
+            grid-template-columns: 1fr;
+        }
+        .secondary-metrics-strip {
+            grid-template-columns: repeat(2, 1fr);
+        }
+        .terminal-main-grid {
+            grid-template-columns: 1fr;
+        }
+    }
+
+    @media (max-width: 768px) {
+        .hero-value {
+            font-size: 24px;
+        }
+        #chart-container {
+            height: 320px;
+        }
+        .mobile-ticket-fab {
+            display: inline-flex;
+            position: fixed;
+            right: 16px;
+            bottom: 76px;
+            z-index: 1400;
+            padding: 10px 16px;
+            border-radius: var(--radius-pill);
+            background: var(--accent);
+            color: #ffffff;
+            border: none;
+            font-weight: 700;
+            font-size: 13px;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+            align-items: center;
+            gap: 6px;
+            cursor: pointer;
+        }
+        .order-ticket-card.mobile-sheet-open {
+            position: fixed;
+            left: 0;
+            right: 0;
+            bottom: 62px;
+            z-index: 1450;
+            border-bottom-left-radius: 0;
+            border-bottom-right-radius: 0;
+            max-height: 80vh;
+            overflow-y: auto;
+            box-shadow: 0 -12px 40px rgba(0, 0, 0, 0.6);
+        }
+    }
+</style>
+
+<div class="terminal-stack">
+    <!-- ROW 1: ACCOUNT SUMMARY -->
+    <section aria-label="Account Summary" style="display: flex; flex-direction: column; gap: 12px;">
+        <div class="account-summary-grid">
+            <!-- Hero Total Equity Card -->
+            <div class="card-pro hero-equity-card">
+                <div>
+                    <div class="hero-label">Total Equity</div>
+                    <div class="hero-value tabular-num" id="term-total-equity">₹50,000.00</div>
+                    <div class="hero-delta-row">
+                        <span class="delta-chip" id="term-equity-delta">▲ +0.00% Today</span>
+                        <span style="font-size: 12px; color: var(--text-muted);">5X Intraday Margin Account</span>
+                    </div>
+                </div>
+                <div style="text-align: right;">
+                    <svg id="equity-sparkline" width="140" height="48" viewBox="0 0 140 48" aria-label="30-day equity sparkline">
+                        <path id="equity-sparkline-path" d="M 2 36 L 30 34 L 58 28 L 86 30 L 114 20 L 138 14" fill="none" stroke="var(--profit)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                    <div style="font-size: 10px; color: var(--text-muted); margin-top: 2px;">30D Equity Curve</div>
+                </div>
+            </div>
+
+            <!-- Day P&L Card -->
+            <div class="card-pro day-pnl-card">
+                <div class="hero-label">Day P&amp;L</div>
+                <div class="hero-value tabular-num" id="term-day-pnl" style="font-size: 26px;">₹0.00</div>
+                <div style="font-size: 12px; color: var(--text-muted); margin-top: 6px;">Realized + Unrealized Session</div>
+            </div>
+        </div>
+
+        <!-- Secondary Metric Strip -->
+        <div class="secondary-metrics-strip">
+            <div class="card-pro metric-mini-card">
+                <span class="metric-mini-label">Wallet</span>
+                <span class="metric-mini-val tabular-num" id="term-wallet">₹50,000.00</span>
+            </div>
+            <div class="card-pro metric-mini-card">
+                <span class="metric-mini-label">Realized P&amp;L</span>
+                <span class="metric-mini-val tabular-num" id="term-realized-pnl">₹0.00</span>
+            </div>
+            <div class="card-pro metric-mini-card">
+                <span class="metric-mini-label">Unrealized P&amp;L</span>
+                <span class="metric-mini-val tabular-num" id="term-unrealized-pnl">₹0.00</span>
+            </div>
+            <div class="card-pro metric-mini-card">
+                <span class="metric-mini-label">5X Buying Power</span>
+                <span class="metric-mini-val tabular-num" id="term-buying-power">₹2,50,000.00</span>
+            </div>
+        </div>
+    </section>
+
+    <!-- ROW 2: CHART (70%) + ORDER TICKET (30%) -->
+    <section class="terminal-main-grid">
+        <!-- Chart Card -->
+        <div class="card-pro chart-card">
+            <div class="chart-card-header">
+                <div class="symbol-selector-wrap">
+                    <button type="button" class="symbol-picker-btn" id="symbol-picker-btn" onclick="toggleSymbolDropdown()">
+                        <span id="chart-active-symbol">RELIANCE</span>
+                        <i data-lucide="chevron-down" style="width: 14px; height: 14px; color: var(--text-muted);"></i>
+                    </button>
+
+                    <div class="symbol-dropdown" id="symbol-dropdown">
+                        <input type="text" id="symbol-dropdown-search" class="pro-input" placeholder="Filter NSE symbol..." oninput="filterChartSymbolDropdown(this.value)">
+                        <div class="symbol-dropdown-list" id="symbol-dropdown-list"></div>
+                    </div>
+
+                    <div class="quote-price-group">
+                        <span class="quote-ltp tabular-num" id="chart-ltp">₹0.00</span>
+                        <span class="delta-chip" id="chart-change-chip">0.00%</span>
+                    </div>
+                </div>
+
+                <div class="chart-controls-group">
+                    <!-- Overlays -->
+                    <div class="pill-group" role="group" aria-label="Chart Overlays">
+                        <button type="button" class="pill-btn" id="overlay-sma-btn" onclick="toggleOverlay('sma')">SMA 20</button>
+                        <button type="button" class="pill-btn" id="overlay-ema-btn" onclick="toggleOverlay('ema')">EMA 50</button>
+                        <button type="button" class="pill-btn" id="overlay-vwap-btn" onclick="toggleOverlay('vwap')">VWAP</button>
+                    </div>
+
+                    <!-- Timeframe Pills -->
+                    <div class="pill-group" role="group" aria-label="Timeframes">
+                        <button type="button" class="pill-btn" data-tf="1D" onclick="setTimeframe('1d', '5m', this)">1D</button>
+                        <button type="button" class="pill-btn" data-tf="5D" onclick="setTimeframe('5d', '15m', this)">5D</button>
+                        <button type="button" class="pill-btn active" data-tf="1M" onclick="setTimeframe('1mo', '1d', this)">1M</button>
+                        <button type="button" class="pill-btn" data-tf="6M" onclick="setTimeframe('6mo', '1d', this)">6M</button>
+                        <button type="button" class="pill-btn" data-tf="1Y" onclick="setTimeframe('1y', '1d', this)">1Y</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Crosshair OHLCV Tooltip -->
+            <div class="chart-tooltip-bar" id="chart-crosshair-tooltip">
+                <span>O: <strong id="tt-o">--</strong></span>
+                <span>H: <strong id="tt-h">--</strong></span>
+                <span>L: <strong id="tt-l">--</strong></span>
+                <span>C: <strong id="tt-c">--</strong></span>
+                <span>Vol: <strong id="tt-v">--</strong></span>
+            </div>
+
+            <div id="chart-container"></div>
+        </div>
+
+        <!-- Order Ticket Card -->
+        <div class="card-pro order-ticket-card" id="order-ticket-card">
+            <div style="display: flex; align-items: center; justify-content: space-between;">
+                <span style="font-size: 13px; font-weight: 700; display: inline-flex; align-items: center; gap: 6px;">
+                    <i data-lucide="zap" style="width: 15px; height: 15px; color: var(--accent);"></i>
+                    Order Ticket
+                </span>
+                <span style="font-size: 11px; color: var(--text-muted); font-family: var(--font-mono);" id="ticket-max-qty">Max: -- sh</span>
+            </div>
+
+            <form id="order-form" onsubmit="submitTerminalOrder(event)" style="display: flex; flex-direction: column; gap: 12px;">
+                <div class="side-toggle">
+                    <button type="button" class="side-btn active-buy" id="side-buy-btn" onclick="setOrderSide('BUY')">BUY / LONG</button>
+                    <button type="button" class="side-btn" id="side-sell-btn" onclick="setOrderSide('SELL')">SELL / SHORT</button>
+                </div>
+
+                <div>
+                    <label class="ticket-field-label" for="order-symbol-input">Symbol</label>
+                    <input type="text" id="order-symbol-input" class="pro-input tabular-num" value="RELIANCE.NS" readonly>
+                </div>
+
+                <div>
+                    <label class="ticket-field-label" for="order-qty">
+                        <span>Quantity</span>
+                        <span id="ticket-ltp-hint">LTP: ₹0.00</span>
+                    </label>
+                    <input type="number" id="order-qty" class="pro-input tabular-num" value="1" min="1" step="1" oninput="updateOrderSummary()" required>
+                    <div class="qty-preset-row">
+                        <button type="button" class="qty-preset-btn" onclick="setQtyPct(0.25)">25%</button>
+                        <button type="button" class="qty-preset-btn" onclick="setQtyPct(0.50)">50%</button>
+                        <button type="button" class="qty-preset-btn" onclick="setQtyPct(0.75)">75%</button>
+                        <button type="button" class="qty-preset-btn" onclick="setQtyPct(1.0)">100%</button>
+                    </div>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+                    <div>
+                        <label class="ticket-field-label" for="order-sl-input">Stop Loss</label>
+                        <input type="number" id="order-sl-input" class="pro-input tabular-num" placeholder="Optional" step="0.05">
+                    </div>
+                    <div>
+                        <label class="ticket-field-label" for="order-tp-input">Target</label>
+                        <input type="number" id="order-tp-input" class="pro-input tabular-num" placeholder="Optional" step="0.05">
+                    </div>
+                </div>
+
+                <div class="ticket-summary-box tabular-num">
+                    <div class="ticket-summary-row">
+                        <span style="color: var(--text-muted);">Order Value</span>
+                        <span id="ticket-est-total">₹0.00</span>
+                    </div>
+                    <div class="ticket-summary-row">
+                        <span style="color: var(--text-muted);">Margin Required (5X)</span>
+                        <span id="ticket-margin-req" style="font-weight: 700;">₹0.00</span>
+                    </div>
+                </div>
+
+                <button type="submit" id="order-submit-btn" class="pro-btn" style="background: var(--profit); border-color: var(--profit); color: #052212; font-weight: 700; padding: 11px;">
+                    BUY RELIANCE.NS
+                </button>
             </form>
         </div>
-        <div class="watchlist-list" id="watchlist-items">
-            <div style="display: flex; flex-direction: column; gap: 0.5rem; padding: 0.75rem;">
-                <div class="skeleton-shimmer" style="height: 42px; width: 100%; border-radius: 6px;"></div>
-                <div class="skeleton-shimmer" style="height: 42px; width: 100%; border-radius: 6px;"></div>
-                <div class="skeleton-shimmer" style="height: 42px; width: 100%; border-radius: 6px;"></div>
-                <div class="skeleton-shimmer" style="height: 42px; width: 100%; border-radius: 6px;"></div>
-                <div class="skeleton-shimmer" style="height: 42px; width: 100%; border-radius: 6px;"></div>
-            </div>
-        </div>
-    </aside>
+    </section>
 
-    <!-- CENTER COLUMN: CHART (TOP) + SCROLLABLE POSITIONS (BOTTOM) -->
-    <div class="terminal-center-col">
-        <section class="panel chart-panel">
-            <div class="chart-header">
-                <div class="active-ticker-info">
-                    <span class="symbol-display" id="active-symbol">RELIANCE.NS</span>
-                    <span class="price-display" id="active-price">₹0.00</span>
-                    <span class="change-display" id="active-change">+0.00 (+0.00%)</span>
-                </div>
-                <div class="timeframe-selectors" style="display: flex; gap: 8px; align-items: center;">
-                    <a href="/scanner" class="btn-sm" style="background: linear-gradient(135deg, #00d2ff, #0088ff); color: #07090e; font-weight: 800; text-decoration: none; padding: 6px 14px; border-radius: 6px; font-size: 0.75rem; display: inline-flex; align-items: center; gap: 6px; box-shadow: 0 0 14px rgba(0, 210, 255, 0.45); border: 1px solid #00d2ff; letter-spacing: 0.02em;">
-                        <i class="fa-solid fa-crosshairs"></i> SCANNER RADAR &rarr;
-                    </a>
-                    <button class="tf-btn" data-period="1d" data-interval="5m">1D</button>
-                    <button class="tf-btn" data-period="5d" data-interval="15m">5D</button>
-                    <button class="tf-btn active" data-period="1mo" data-interval="1d">1M</button>
-                    <button class="tf-btn" data-period="6mo" data-interval="1d">6M</button>
-                    <button class="tf-btn" data-period="1y" data-interval="1d">1Y</button>
-                </div>
+    <!-- ROW 3: TOP-DOWN SCROLLABLE ACTIVE POSITIONS & EXECUTION AUDIT LOG -->
+    <section class="card-pro" style="overflow: hidden;">
+        <div class="ledger-card-header">
+            <div style="display: flex; align-items: center; gap: 10px;">
+                <span style="font-size: 14px; font-weight: 700;">Active Positions</span>
+                <span class="delta-chip" id="positions-count-badge" style="background: var(--accent-soft); color: var(--accent);">0</span>
             </div>
-            <div id="chart-container" class="chart-container"></div>
-        </section>
-
-        <!-- INLINE TOP-DOWN SCROLLABLE POSITIONS & AUDIT LOG -->
-        <div class="bottom-layout">
-            <div class="tabs-header">
-                <button class="tab-btn active" data-tab="tab-positions"><i class="fa-solid fa-briefcase"></i> Active Positions (<span id="term-pos-count">0</span>)</button>
-                <button class="tab-btn" data-tab="tab-trades"><i class="fa-solid fa-clock-rotate-left"></i> Execution Audit Log</button>
-                <button type="button" onclick="exitAllTerminalPositions()" class="btn-sm" style="margin-left: auto; margin-right: 8px; background: rgba(255, 51, 102, 0.16); color: #ff6b6b; border: 1px solid rgba(255, 51, 102, 0.4); padding: 4px 10px; border-radius: 6px; font-size: 0.72rem; font-weight: 800; cursor: pointer;">
-                    <i class="fa-solid fa-xmark"></i> Close All
-                </button>
-            </div>
-
-            <!-- POSITIONS TAB -->
-            <div id="tab-positions" class="tab-content active">
-                <table class="data-table">
-                    <thead>
-                        <tr>
-                            <th>Symbol</th>
-                            <th>Side</th>
-                            <th>Shares</th>
-                            <th>Avg Cost</th>
-                            <th>Current Price</th>
-                            <th>Market Value</th>
-                            <th>Unrealized P&amp;L</th>
-                            <th>Action</th>
-                        </tr>
-                    </thead>
-                    <tbody id="positions-table-body">
-                        <tr><td colspan="8" class="text-center" style="padding: 1.5rem; color: var(--text-muted);">No active positions. Execute a BUY/SELL order on the right to start.</td></tr>
-                    </tbody>
-                </table>
-            </div>
-
-            <!-- TRADES TAB -->
-            <div id="tab-trades" class="tab-content">
-                <table class="data-table">
-                    <thead>
-                        <tr>
-                            <th>Timestamp</th>
-                            <th>Symbol</th>
-                            <th>Side</th>
-                            <th>Quantity</th>
-                            <th>Fill Price</th>
-                            <th>Notional Total</th>
-                            <th>Charges &amp; Taxes</th>
-                            <th>Net Realized P&amp;L</th>
-                        </tr>
-                    </thead>
-                    <tbody id="trades-table-body">
-                        <tr><td colspan="8" class="text-center" style="padding: 1.5rem; color: var(--text-muted);">No trades executed yet.</td></tr>
-                    </tbody>
-                </table>
-            </div>
-        </div>
-    </div>
-
-    <!-- RIGHT PANEL: ORDER EXECUTION TICKET (REDESIGNED) -->
-    <aside class="panel trade-panel">
-        <div class="panel-header">
-            <h3><i class="fa-solid fa-bolt" style="color: var(--accent-current);"></i> Quick Order Ticket</h3>
-        </div>
-        <form id="order-form" class="order-form">
-            <div class="form-group">
-                <label>Target Asset (NSE / NIFTY 50)</label>
-                <input type="text" id="order-symbol" class="form-control mono font-bold" readonly value="RELIANCE.NS">
-            </div>
-
-            <!-- Segmented BUY / SELL Side Control -->
-            <div class="segmented-side-control">
-                <button type="button" id="btn-side-buy" class="side-toggle-btn btn-buy-active" onclick="setOrderSide('BUY')">
-                    <i class="fa-solid fa-arrow-trend-up"></i> BUY / LONG
-                </button>
-                <button type="button" id="btn-side-sell" class="side-toggle-btn" onclick="setOrderSide('SELL')">
-                    <i class="fa-solid fa-arrow-trend-down"></i> SELL / SHORT
-                </button>
-            </div>
-            <input type="hidden" name="side" id="order-side-input" value="BUY">
-
-            <div class="form-group">
-                <label style="display: flex; justify-content: space-between; align-items: center;">
-                    <span>Order Size (Shares)</span>
-                    <span id="quick-cash-hint" style="font-size: 0.68rem; color: var(--text-muted); font-family: var(--font-code);">Max: --</span>
-                </label>
-                <input type="number" id="order-qty" class="form-control mono" min="1" step="1" value="10" required>
-                <!-- Quick Size Row (25%, 50%, 75%, 100%) -->
-                <div class="quick-size-row">
-                    <button type="button" class="quick-size-btn" onclick="applyQuickSize(0.25)">25%</button>
-                    <button type="button" class="quick-size-btn" onclick="applyQuickSize(0.50)">50%</button>
-                    <button type="button" class="quick-size-btn" onclick="applyQuickSize(0.75)">75%</button>
-                    <button type="button" class="quick-size-btn" onclick="applyQuickSize(1.00)">100%</button>
-                </div>
-            </div>
-
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem;">
-                <div class="form-group" style="margin-bottom: 0;">
-                    <label style="font-size: 0.68rem;">Stop-Loss (₹ opt.)</label>
-                    <input type="number" id="order-sl-input" class="form-control mono" step="0.05" placeholder="Auto / Optional">
-                </div>
-                <div class="form-group" style="margin-bottom: 0;">
-                    <label style="font-size: 0.68rem;">Target (₹ opt.)</label>
-                    <input type="number" id="order-tp-input" class="form-control mono" step="0.05" placeholder="Auto / Optional">
-                </div>
-            </div>
-            <div style="display: flex; gap: 0.4rem; margin-top: 0.35rem;">
-                <button type="button" class="quick-size-btn" onclick="presetTerminalSlTp(1, 1)">1% SL / 1:1</button>
-                <button type="button" class="quick-size-btn" onclick="presetTerminalSlTp(1, 2)">1% SL / 1:2</button>
-                <button type="button" class="quick-size-btn" onclick="presetTerminalSlTp(0, 0)">Clear</button>
-            </div>
-
-            <div class="order-summary">
-                <div class="summary-row">
-                    <span>Market Ask/Bid</span>
-                    <span id="order-summary-price" class="mono font-bold">₹0.00</span>
-                </div>
-                <div class="summary-row font-bold">
-                    <span>Estimated Total</span>
-                    <span id="order-summary-total" class="mono font-bold text-green">₹0.00</span>
-                </div>
-            </div>
-
-            <button type="submit" id="submit-order-btn" class="btn-submit btn-buy" style="margin-top: 0.5rem; font-size: 0.95rem; font-weight: 800; padding: 0.85rem;">
-                BUY RELIANCE.NS
+            <button type="button" class="pro-btn pro-btn-danger" id="exit-all-positions-btn" onclick="exitAllTerminalPositions()" style="padding: 6px 12px; font-size: 12px;">
+                <i data-lucide="x-circle" style="width: 14px; height: 14px;"></i>
+                <span>Square Off All</span>
             </button>
-        </form>
-    </aside>
+        </div>
+        <div style="overflow-x: auto; max-height: 300px;">
+            <table class="table-pro">
+                <thead>
+                    <tr>
+                        <th>Symbol</th>
+                        <th>Side</th>
+                        <th class="num">Qty</th>
+                        <th class="num">Avg Entry</th>
+                        <th class="num">LTP</th>
+                        <th class="num">Unrealized P&amp;L</th>
+                        <th class="num">Action</th>
+                    </tr>
+                </thead>
+                <tbody id="terminal-positions-tbody">
+                    <tr>
+                        <td colspan="7" style="text-align: center; padding: 28px; color: var(--text-muted);">No open positions</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <section class="card-pro" style="overflow: hidden;">
+        <div class="ledger-card-header">
+            <span style="font-size: 14px; font-weight: 700;">Execution Audit Log</span>
+            <button type="button" class="pro-btn" onclick="loadTrades()" style="padding: 5px 10px; font-size: 12px;">
+                <i data-lucide="refresh-cw" style="width: 13px; height: 13px;"></i>
+                <span>Refresh</span>
+            </button>
+        </div>
+        <div style="overflow-x: auto; max-height: 280px;">
+            <table class="table-pro">
+                <thead>
+                    <tr>
+                        <th>Time</th>
+                        <th>Symbol</th>
+                        <th>Side</th>
+                        <th class="num">Qty</th>
+                        <th class="num">Price</th>
+                        <th class="num">Realized P&amp;L</th>
+                    </tr>
+                </thead>
+                <tbody id="terminal-trades-tbody">
+                    <tr>
+                        <td colspan="6" style="text-align: center; padding: 24px; color: var(--text-muted);">No executions recorded yet</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </section>
 </div>
 
-<div class="bottom-layout" style="margin-top: 0.75rem;">
-    <!-- AUTO-TRADING BOT TAB (STREAMLINED & MERGED) -->
-    <div id="tab-bot" class="tab-content">
-        <!-- COMPACT BOT STATUS STRIP -->
-        <div class="bot-compact-strip">
-            <div class="bot-compact-meta">
-                <div class="bot-compact-item">
-                    <span class="bot-compact-label">Bot Execution State</span>
-                    <span id="bot-status-pill" class="status-pill" style="margin-top: 2px;">
-                        <span class="pulse-dot"></span> <span id="bot-status-text">OFFLINE</span>
-                    </span>
-                </div>
-                <div class="bot-compact-item">
-                    <span class="bot-compact-label">Scanning Scope</span>
-                    <span class="bot-compact-val" id="bot-card-scanned" style="color: var(--blue);">50 NIFTY Stocks</span>
-                </div>
-                <div class="bot-compact-item">
-                    <span class="bot-compact-label">Strategy Model</span>
-                    <span class="bot-compact-val" style="color: var(--green);">Dual SMA Cross (9/21)</span>
-                </div>
-                <div class="bot-compact-item">
-                    <span class="bot-compact-label">Active Signals</span>
-                    <span class="bot-compact-val" id="bot-card-signals">0 BUY / 0 SELL</span>
-                </div>
-                <div class="bot-compact-item">
-                    <span class="bot-compact-label">Portfolio Slots</span>
-                    <span class="bot-compact-val mono" id="bot-card-slots">0 / 3 Active</span>
-                </div>
-            </div>
-
-            <div style="display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap;">
-                <button type="button" id="bot-toggle-btn" class="btn-submit btn-buy" style="padding: 0.45rem 0.95rem; font-size: 0.78rem;">
-                    <i class="fa-solid fa-play"></i> START BOT
-                </button>
-                <button type="button" id="bot-tick-now-btn" class="btn-reset" style="padding: 0.45rem 0.85rem;" title="Scan all NIFTY 50 stocks right now">
-                    <i class="fa-solid fa-bolt"></i> Scan Now
-                </button>
-                <a href="/bot" class="btn-open-bot-station" title="Launch dedicated full Bot Station with advanced parameters">
-                    <span>Open Bot Station</span> <i class="fa-solid fa-arrow-right"></i>
-                </a>
-            </div>
-        </div>
-
-        <!-- SIGNAL RADAR & NIFTY 50 HEATMAP CONTAINER -->
-        <div style="background: var(--bg-body); border: 1px solid var(--border); border-radius: 8px; display: flex; flex-direction: column; overflow: hidden; margin-bottom: 1rem;">
-            <!-- RADAR TOOLBAR -->
-            <div class="radar-header-bar">
-                <div style="display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap;">
-                    <strong style="font-size: 0.8rem; color: var(--text-main);"><i class="fa-solid fa-radar" style="color: var(--green);"></i> NIFTY 50 Signal Radar</strong>
-                    <div class="radar-filter-group">
-                        <button type="button" class="radar-filter-chip active" id="filter-chip-all" onclick="setRadarFilter('ALL', this)">All (50)</button>
-                        <button type="button" class="radar-filter-chip" id="filter-chip-buy" onclick="setRadarFilter('BUY', this)">🟢 BUY Only</button>
-                        <button type="button" class="radar-filter-chip" id="filter-chip-sell" onclick="setRadarFilter('SELL', this)">🔴 SELL Only</button>
-                    </div>
-                </div>
-
-                <div style="display: flex; align-items: center; gap: 0.75rem;">
-                    <div class="radar-view-toggle">
-                        <button type="button" class="radar-toggle-btn active" id="view-toggle-table" onclick="toggleRadarView('table')">
-                            <i class="fa-solid fa-table-list"></i> Table
-                        </button>
-                        <button type="button" class="radar-toggle-btn" id="view-toggle-heatmap" onclick="toggleRadarView('heatmap')">
-                            <i class="fa-solid fa-border-all"></i> Nifty 50 Heatmap
-                        </button>
-                    </div>
-                    <span style="font-size: 0.65rem; color: var(--green);"><i class="fa-solid fa-circle pulse-dot"></i> REAL-TIME</span>
-                </div>
-            </div>
-
-            <!-- TABLE VIEW -->
-            <div id="radar-table-view" style="overflow-y: auto; max-height: 280px;">
-                <table class="data-table" style="font-size: 0.8rem;">
-                    <thead>
-                        <tr>
-                            <th onclick="sortRadarTable('symbol')" style="cursor: pointer;" title="Sort by Symbol">Stock <i class="fa-solid fa-sort" style="font-size: 0.7rem; opacity: 0.6;"></i></th>
-                            <th onclick="sortRadarTable('price')" style="cursor: pointer;" title="Sort by LTP">Price <i class="fa-solid fa-sort" style="font-size: 0.7rem; opacity: 0.6;"></i></th>
-                            <th onclick="sortRadarTable('change_pct')" style="cursor: pointer;" title="Sort by Day % Change">Day % <i class="fa-solid fa-sort" style="font-size: 0.7rem; opacity: 0.6;"></i></th>
-                            <th onclick="sortRadarTable('signal')" style="cursor: pointer;" title="Sort by Signal">Signal <i class="fa-solid fa-sort" style="font-size: 0.7rem; opacity: 0.6;"></i></th>
-                            <th>Trend / Indicators</th>
-                            <th>Bot Action</th>
-                            <th>Chart</th>
-                        </tr>
-                    </thead>
-                    <tbody id="bot-scanner-tbody">
-                        <tr><td colspan="7" class="text-center" style="padding: 1.5rem; color: var(--text-muted);">Click <strong>Scan Now</strong> or <strong>START BOT</strong> to evaluate all 50 stocks.</td></tr>
-                    </tbody>
-                </table>
-            </div>
-
-            <!-- HEATMAP VIEW -->
-            <div id="radar-heatmap-view" class="nifty-heatmap-container" style="display: none;">
-                <div class="heatmap-grid" id="nifty-heatmap-grid">
-                    <div style="grid-column: 1 / -1; text-align: center; padding: 2rem; color: var(--text-muted);">
-                        Click <strong>Scan Now</strong> to generate the live NIFTY 50 Heatmap grid.
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- LIVE LOG TERMINAL -->
-        <div style="background: var(--bg-body); border: 1px solid var(--border); border-radius: 8px; display: flex; flex-direction: column; overflow: hidden; max-height: 140px;">
-            <div style="padding: 0.45rem 0.85rem; background: var(--bg-surface); border-bottom: 1px solid var(--border); font-size: 0.75rem; font-weight: 700; color: var(--text-muted); display: flex; justify-content: space-between; align-items: center;">
-                <span><i class="fa-solid fa-terminal"></i> Bot Execution Console</span>
-                <span id="bot-last-tick-time" style="font-size: 0.65rem; color: var(--text-muted);">Last run: --:--:--</span>
-            </div>
-            <div id="bot-logs-container" style="padding: 0.65rem 0.85rem; font-family: var(--font-code); font-size: 0.75rem; overflow-y: auto; max-height: 100px; display: flex; flex-direction: column; gap: 0.3rem;">
-                <div style="color: var(--text-muted);">Bot ready. Configured to monitor all 50 NIFTY stocks.</div>
-            </div>
-        </div>
-    </div>
-
-    <!-- BACKTEST TAB -->
-    <div id="tab-backtester" class="tab-content">
-        <form id="backtest-form" class="backtest-form">
-            <div class="form-inline">
-                <label>Strategy:</label>
-                <select id="bt-strategy" class="sm-input" style="width: 175px;" onchange="onBtStrategyChange()">
-                    <option value="RSI_20_80">⚡ RSI Extreme (20/80)</option>
-                    <option value="VWAP_EMA_RSI" selected>⚡ VWAP + EMA + RSI</option>
-                    <option value="DMA_200">📈 200 DMA Regime</option>
-                    <option value="SMA_CROSSOVER">Dual SMA Cross</option>
-                </select>
-            </div>
-            <div class="form-inline">
-                <label>Symbol:</label>
-                <input type="text" id="bt-symbol" class="sm-input" value="RELIANCE.NS" required style="width: 125px;">
-            </div>
-            <div class="form-inline" id="bt-short-group" style="display: none;">
-                <label>Fast SMA:</label>
-                <input type="number" id="bt-short" class="sm-input" value="20" min="5" max="100">
-            </div>
-            <div class="form-inline" id="bt-long-group" style="display: none;">
-                <label>Slow SMA:</label>
-                <input type="number" id="bt-long" class="sm-input" value="50" min="20" max="200">
-            </div>
-            <div class="form-inline" id="bt-ma-type-group" style="display: flex;">
-                <label>MA Type:</label>
-                <select id="bt-ma-type" class="sm-input" style="width: 85px;">
-                    <option value="SMA" selected>SMA</option>
-                    <option value="EMA">EMA</option>
-                </select>
-            </div>
-            <div class="form-inline">
-                <label>Capital (₹):</label>
-                <input type="number" id="bt-capital" class="sm-input" value="100000" style="width: 105px;">
-            </div>
-            <div class="form-inline">
-                <label>Period:</label>
-                <select id="bt-period" class="sm-input" style="width: 85px;">
-                    <option value="1y">1Y</option>
-                    <option value="2y" selected>2Y</option>
-                    <option value="5y">5Y</option>
-                </select>
-            </div>
-            <button type="submit" class="btn-simulate"><i class="fa-solid fa-play"></i> Run Simulation</button>
-        </form>
-
-        <div id="backtest-results" class="hidden" style="margin-top: 1.25rem;">
-            <div class="metrics-grid" style="grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 0.75rem; margin-bottom: 1rem;">
-                <div class="stat-card">
-                    <span class="stat-label">Algorithmic Return</span>
-                    <span class="stat-val text-green" id="bt-res-strategy-return">0%</span>
-                </div>
-                <div class="stat-card">
-                    <span class="stat-label">Benchmark Buy &amp; Hold</span>
-                    <span class="stat-val" id="bt-res-market-return">0%</span>
-                </div>
-                <div class="stat-card">
-                    <span class="stat-label">Max Drawdown</span>
-                    <span class="stat-val text-red" id="bt-res-max-drawdown">0.00%</span>
-                </div>
-                <div class="stat-card">
-                    <span class="stat-label">Win Rate</span>
-                    <span class="stat-val text-green" id="bt-res-win-rate">0.00%</span>
-                </div>
-                <div class="stat-card">
-                    <span class="stat-label">Sharpe Ratio</span>
-                    <span class="stat-val" id="bt-res-sharpe" style="color: var(--blue);">0.00</span>
-                </div>
-                <div class="stat-card">
-                    <span class="stat-label">Ending Capital</span>
-                    <span class="stat-val text-green" id="bt-res-ending-equity">₹0.00</span>
-                </div>
-            </div>
-            <div id="backtest-chart-container" class="chart-container-sm" style="height: 320px; border-radius: 8px; border: 1px solid var(--border); overflow: hidden;"></div>
-        </div>
-    </div>
-</div>
+<button type="button" class="mobile-ticket-fab" onclick="toggleMobileOrderSheet()">
+    <i data-lucide="zap" style="width: 16px; height: 16px;"></i>
+    <span>Order Ticket</span>
+</button>
 
 <script>
-let activeSymbol = 'RELIANCE.NS';
-let activePeriod = '1mo';
-let activeInterval = '1d';
-let chart = null;
-let candleSeries = null;
-let volumeSeries = null;
-let backtestChart = null;
-let currentQuotePrice = 0.0;
+    let activeSymbol = 'RELIANCE.NS';
+    let activePeriod = '1mo';
+    let activeInterval = '1d';
+    let orderSide = 'BUY';
+    let currentLTP = 0;
+    let availableBuyingPower = 250000;
+    let chart = null;
+    let candleSeries = null;
+    let volumeSeries = null;
+    let smaSeries = null;
+    let emaSeries = null;
+    let vwapSeries = null;
+    let lastCandles = [];
+    const activeOverlays = { sma: false, ema: false, vwap: false };
+    let nseStocksList = [
+        { symbol: 'RELIANCE.NS', name: 'Reliance Industries' },
+        { symbol: 'TCS.NS', name: 'Tata Consultancy Services' },
+        { symbol: 'HDFCBANK.NS', name: 'HDFC Bank' },
+        { symbol: 'INFY.NS', name: 'Infosys' },
+        { symbol: 'ICICIBANK.NS', name: 'ICICI Bank' },
+        { symbol: 'BHARTIARTL.NS', name: 'Bharti Airtel' },
+        { symbol: 'ITC.NS', name: 'ITC Limited' },
+        { symbol: 'SBIN.NS', name: 'State Bank of India' },
+        { symbol: 'LT.NS', name: 'Larsen & Toubro' },
+        { symbol: 'AXISBANK.NS', name: 'Axis Bank' }
+    ];
 
-function presetTerminalSlTp(slPct, rr) {
-    const slEl = document.getElementById('order-sl-input');
-    const tpEl = document.getElementById('order-tp-input');
-    if (!slEl || !tpEl) return;
-    if (!slPct || slPct <= 0 || currentQuotePrice <= 0) {
-        slEl.value = '';
-        tpEl.value = '';
-        return;
+    function getChartPalette() {
+        const isLight = document.documentElement.getAttribute('data-theme') === 'light';
+        return {
+            bg: isLight ? '#ffffff' : '#121722',
+            text: isLight ? '#5b677d' : '#8b94a7',
+            grid: isLight ? 'rgba(15, 23, 42, 0.06)' : 'rgba(255, 255, 255, 0.05)',
+            border: isLight ? '#dfe4ee' : '#1f2633'
+        };
     }
-    const side = document.getElementById('order-side-input')?.value || 'BUY';
-    const isShort = (side === 'SELL' || side === 'SHORT');
-    const slPrice = isShort ? currentQuotePrice * (1 + slPct / 100) : currentQuotePrice * (1 - slPct / 100);
-    const tpPrice = isShort ? currentQuotePrice * (1 - (slPct * rr) / 100) : currentQuotePrice * (1 + (slPct * rr) / 100);
-    slEl.value = slPrice.toFixed(2);
-    tpEl.value = tpPrice.toFixed(2);
-}
 
-async function exitAllTerminalPositions() {
-    if (!confirm('Close all active Terminal positions at live market prices?')) return;
-    try {
-        localStorage.removeItem('terminal_active_holdings_v1');
-        const res = await fetch('/api/terminal/exit-all', { method: 'POST' });
-        const data = await res.json();
-        showToast(`Closed ${data.closed || 0} Terminal position(s)`, 'success');
-        loadPortfolio();
-        loadTrades();
-    } catch (err) {
-        showToast('Failed to close Terminal positions: ' + err.message, 'error');
+    function initTerminalChart() {
+        const container = document.getElementById('chart-container');
+        if (!container || !window.LightweightCharts) return;
+        const pal = getChartPalette();
+
+        chart = LightweightCharts.createChart(container, {
+            layout: { background: { color: pal.bg }, textColor: pal.text },
+            grid: { vertLines: { color: pal.grid }, horzLines: { color: pal.grid } },
+            crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
+            rightPriceScale: { borderColor: pal.border },
+            timeScale: { borderColor: pal.border, timeVisible: true }
+        });
+
+        candleSeries = chart.addCandlestickSeries({
+            upColor: '#22c55e',
+            downColor: '#ef4444',
+            borderUpColor: '#22c55e',
+            borderDownColor: '#ef4444',
+            wickUpColor: '#22c55e',
+            wickDownColor: '#ef4444'
+        });
+
+        volumeSeries = chart.addHistogramSeries({
+            priceFormat: { type: 'volume' },
+            priceScaleId: '',
+            scaleMargins: { top: 0.78, bottom: 0 }
+        });
+
+        smaSeries = chart.addLineSeries({ color: '#4c8dff', lineWidth: 1.5, visible: false, priceLineVisible: false });
+        emaSeries = chart.addLineSeries({ color: '#f59e0b', lineWidth: 1.5, visible: false, priceLineVisible: false });
+        vwapSeries = chart.addLineSeries({ color: '#a855f7', lineWidth: 1.5, visible: false, priceLineVisible: false });
+
+        chart.subscribeCrosshairMove((param) => {
+            if (!param || !param.time || !param.seriesData) return;
+            const bar = param.seriesData.get(candleSeries);
+            const vol = param.seriesData.get(volumeSeries);
+            if (!bar) return;
+            document.getElementById('tt-o').textContent = window.formatINR(bar.open);
+            document.getElementById('tt-h').textContent = window.formatINR(bar.high);
+            document.getElementById('tt-l').textContent = window.formatINR(bar.low);
+            document.getElementById('tt-c').textContent = window.formatINR(bar.close);
+            document.getElementById('tt-v').textContent = vol ? Number(vol.value).toLocaleString('en-IN') : '--';
+        });
+
+        window.addEventListener('resize', () => {
+            if (chart && container) {
+                chart.applyOptions({ width: container.clientWidth, height: container.clientHeight });
+            }
+        });
+
+        window.addEventListener('theme-changed', () => {
+            const nextPal = getChartPalette();
+            chart.applyOptions({
+                layout: { background: { color: nextPal.bg }, textColor: nextPal.text },
+                grid: { vertLines: { color: nextPal.grid }, horzLines: { color: nextPal.grid } },
+                rightPriceScale: { borderColor: nextPal.border },
+                timeScale: { borderColor: nextPal.border }
+            });
+        });
     }
-}
 
-document.addEventListener('DOMContentLoaded', () => {
-    initChart();
-    setupEventListeners();
-    loadWatchlist();
-    loadPortfolio();
-    loadTrades();
-    selectSymbol(activeSymbol);
+    function computeOverlays(candles) {
+        const sma = [];
+        const ema = [];
+        const vwap = [];
+        let emaPrev = null;
+        let cumPV = 0;
+        let cumVol = 0;
+        const k = 2 / (50 + 1);
 
-    setInterval(() => {
-        loadPortfolio();
-        refreshActiveQuote();
-    }, 12000);
-});
+        for (let i = 0; i < candles.length; i++) {
+            const c = candles[i];
+            if (i >= 19) {
+                let sum = 0;
+                for (let j = i - 19; j <= i; j++) sum += candles[j].close;
+                sma.push({ time: c.time, value: sum / 20 });
+            }
+            emaPrev = emaPrev === null ? c.close : (c.close - emaPrev) * k + emaPrev;
+            ema.push({ time: c.time, value: emaPrev });
 
-function initChart() {
-    const container = document.getElementById('chart-container');
-    if (!container || !window.LightweightCharts) return;
-
-    chart = LightweightCharts.createChart(container, {
-        layout: {
-            background: { color: '#0e131f' },
-            textColor: '#7e8ba6',
-        },
-        grid: {
-            vertLines: { color: 'rgba(31, 41, 61, 0.45)' },
-            horzLines: { color: 'rgba(31, 41, 61, 0.45)' },
-        },
-        crosshair: {
-            mode: LightweightCharts.CrosshairMode.Normal,
-        },
-        rightPriceScale: {
-            borderColor: '#1f293d',
-        },
-        timeScale: {
-            borderColor: '#1f293d',
-            timeVisible: true,
-        },
-    });
-
-    candleSeries = chart.addCandlestickSeries({
-        upColor: '#00f090',
-        downColor: '#ff3366',
-        borderDownColor: '#ff3366',
-        borderUpColor: '#00f090',
-        wickDownColor: '#ff3366',
-        wickUpColor: '#00f090',
-    });
-
-    volumeSeries = chart.addHistogramSeries({
-        color: '#26a69a',
-        priceFormat: { type: 'volume' },
-        priceScaleId: '',
-        scaleMargins: { top: 0.8, bottom: 0 },
-    });
-
-    window.addEventListener('resize', () => {
-        if (chart && container) {
-            chart.applyOptions({ width: container.clientWidth, height: container.clientHeight });
+            const typical = (c.high + c.low + c.close) / 3;
+            const vol = c.volume || 0;
+            cumPV += typical * vol;
+            cumVol += vol;
+            if (cumVol > 0) {
+                vwap.push({ time: c.time, value: cumPV / cumVol });
+            }
         }
-    });
-}
+        if (smaSeries) smaSeries.setData(sma);
+        if (emaSeries) emaSeries.setData(ema);
+        if (vwapSeries) vwapSeries.setData(vwap);
+    }
 
-async function loadCandles(symbol, period, interval) {
-    try {
-        const res = await fetch(`/api/candles/${symbol}?period=${period}&interval=${interval}`);
-        const data = await res.json();
-        if (data.candles && data.candles.length > 0) {
-            candleSeries.setData(data.candles);
-            const volumeData = data.candles.map(c => ({
+    function toggleOverlay(name) {
+        activeOverlays[name] = !activeOverlays[name];
+        const btn = document.getElementById(`overlay-${name}-btn`);
+        if (btn) btn.classList.toggle('active', activeOverlays[name]);
+        if (name === 'sma' && smaSeries) smaSeries.applyOptions({ visible: activeOverlays.sma });
+        if (name === 'ema' && emaSeries) emaSeries.applyOptions({ visible: activeOverlays.ema });
+        if (name === 'vwap' && vwapSeries) vwapSeries.applyOptions({ visible: activeOverlays.vwap });
+    }
+
+    function setTimeframe(period, interval, btn) {
+        activePeriod = period;
+        activeInterval = interval;
+        document.querySelectorAll('[data-tf]').forEach(el => el.classList.remove('active'));
+        if (btn) btn.classList.add('active');
+        loadCandles(activeSymbol);
+    }
+
+    async function loadCandles(symbol) {
+        try {
+            const res = await fetch(`/api/candles/${encodeURIComponent(symbol)}?period=${activePeriod}&interval=${activeInterval}`);
+            const data = await res.json();
+            const raw = Array.isArray(data) ? data : (data.candles || []);
+            if (!raw.length || !candleSeries) return;
+
+            lastCandles = raw.map(c => ({
+                time: c.time,
+                open: Number(c.open),
+                high: Number(c.high),
+                low: Number(c.low),
+                close: Number(c.close),
+                volume: Number(c.volume || 0)
+            }));
+
+            candleSeries.setData(lastCandles);
+            volumeSeries.setData(lastCandles.map(c => ({
                 time: c.time,
                 value: c.volume,
-                color: c.close >= c.open ? 'rgba(0, 240, 144, 0.35)' : 'rgba(255, 51, 102, 0.35)'
-            }));
-            volumeSeries.setData(volumeData);
-            chart.timeScale().fitContent();
+                color: c.close >= c.open ? 'rgba(34, 197, 94, 0.35)' : 'rgba(239, 68, 68, 0.35)'
+            })));
+            computeOverlays(lastCandles);
+
+            const latest = lastCandles[lastCandles.length - 1];
+            document.getElementById('tt-o').textContent = window.formatINR(latest.open);
+            document.getElementById('tt-h').textContent = window.formatINR(latest.high);
+            document.getElementById('tt-l').textContent = window.formatINR(latest.low);
+            document.getElementById('tt-c').textContent = window.formatINR(latest.close);
+            document.getElementById('tt-v').textContent = latest.volume.toLocaleString('en-IN');
+        } catch (e) {
+            console.error('Candle fetch error:', e);
         }
-    } catch (err) {
-        console.error('Error fetching candles:', err);
     }
-}
 
-async function selectSymbol(symbol) {
-    activeSymbol = symbol.toUpperCase();
-    document.getElementById('active-symbol').innerText = activeSymbol;
-    document.getElementById('order-symbol').value = activeSymbol;
-    updateOrderButton();
-
-    document.querySelectorAll('.watchlist-row').forEach(row => {
-        row.classList.toggle('active', row.dataset.symbol === activeSymbol);
-    });
-
-    await refreshActiveQuote();
-    await loadCandles(activeSymbol, activePeriod, activeInterval);
-}
-
-async function refreshActiveQuote() {
-    try {
-        const res = await fetch(`/api/quote/${activeSymbol}`);
-        const data = await res.json();
-        if (data.price) {
-            currentQuotePrice = data.price;
-            const curr = data.currency_symbol || '₹';
-            document.getElementById('active-price').innerText = `${curr}${data.price.toFixed(2)}`;
-            
-            const changeEl = document.getElementById('active-change');
-            const sign = data.change >= 0 ? '+' : '';
-            changeEl.innerText = `${sign}${curr}${data.change.toFixed(2)} (${sign}${data.percent_change.toFixed(2)}%)`;
-            changeEl.className = `change-display ${data.change >= 0 ? 'text-green' : 'text-red'}`;
-
-            document.getElementById('order-summary-price').innerText = `${curr}${data.price.toFixed(2)}`;
-            calculateOrderTotal();
-        }
-    } catch (err) {
-        console.error('Error refreshing quote:', err);
-    }
-}
-
-function calculateOrderTotal() {
-    const qty = parseFloat(document.getElementById('order-qty').value) || 0;
-    const total = qty * currentQuotePrice;
-    document.getElementById('order-summary-total').innerText = `₹${total.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-}
-
-async function loadWatchlist() {
-    const container = document.getElementById('watchlist-items');
-    try {
-        const res = await fetch('/api/watchlist');
-        const list = await res.json();
-        
-        container.innerHTML = '';
-        list.forEach(item => {
-            const row = document.createElement('div');
-            row.className = `watchlist-row ${item.symbol === activeSymbol ? 'active' : ''}`;
-            row.dataset.symbol = item.symbol;
-            
-            const curr = item.currency_symbol || '₹';
-            const priceText = item.price ? `${curr}${item.price.toFixed(2)}` : 'N/A';
-            const changeText = item.percent_change !== undefined ? `${item.percent_change >= 0 ? '+' : ''}${item.percent_change.toFixed(2)}%` : '--';
-            const colorClass = (item.percent_change || 0) >= 0 ? 'text-green' : 'text-red';
-            
-            const displayName = item.symbol.replace('.NS', '');
-
-            row.innerHTML = `
-                <div>
-                    <div class="wl-symbol">${displayName}</div>
-                    <div style="font-size: 0.65rem; color: var(--text-muted); font-weight: 600;">NSE : NIFTY 50</div>
-                </div>
-                <div class="wl-quote">
-                    <div class="wl-price">${priceText}</div>
-                    <div class="wl-change ${colorClass}">${changeText}</div>
-                </div>
-            `;
-            row.addEventListener('click', () => selectSymbol(item.symbol));
-            container.appendChild(row);
-        });
-    } catch (err) {
-        container.innerHTML = `<div style="padding: 1rem; color: var(--red);">Error loading watchlist</div>`;
-    }
-}
-
-async function loadPortfolio() {
-    try {
-        let localPositions = [];
+    async function refreshQuote(symbol) {
         try {
-            const raw = localStorage.getItem('terminal_active_holdings_v1');
-            if (raw) localPositions = JSON.parse(raw) || [];
-        } catch(e){}
+            const res = await fetch(`/api/quote/${encodeURIComponent(symbol)}`);
+            const q = await res.json();
+            if (!q || q.error) return;
+            currentLTP = Number(q.price || q.ltp || 0);
+            const chgPct = Number(q.change_pct || q.changePercent || 0);
 
-        let res;
-        if (localPositions.length > 0) {
-            res = await fetch('/api/terminal/portfolio', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ client_positions: localPositions })
-            });
-        } else {
-            res = await fetch('/api/terminal/portfolio');
+            document.getElementById('chart-ltp').textContent = window.formatINR(currentLTP);
+            const chip = document.getElementById('chart-change-chip');
+            chip.textContent = window.formatSignedPct(chgPct);
+            chip.classList.toggle('negative', chgPct < 0);
+            document.getElementById('ticket-ltp-hint').textContent = `LTP: ${window.formatINR(currentLTP)}`;
+            updateOrderSummary();
+        } catch (e) {
+            console.error('Quote fetch error:', e);
         }
-        const data = await res.json();
+    }
 
-        document.getElementById('nav-total-equity').innerText = `₹${data.total_equity.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-        document.getElementById('nav-cash-balance').innerText = `₹${data.cash_balance.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-        const buyingPower = (data.buying_power !== undefined) ? data.buying_power : (data.cash_balance * 5);
-        const bpEl = document.getElementById('nav-buying-power');
-        if (bpEl) bpEl.innerText = `₹${buyingPower.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-        
-        const pnlEl = document.getElementById('nav-pnl');
-        const sign = data.unrealized_pnl >= 0 ? '+' : '';
-        pnlEl.innerText = `${sign}₹${data.unrealized_pnl.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-        pnlEl.className = `metric-value ${data.unrealized_pnl >= 0 ? 'text-green' : 'text-red'}`;
+    window.selectSymbol = function(sym) {
+        activeSymbol = sym.includes('.') ? sym : `${sym}.NS`;
+        document.getElementById('chart-active-symbol').textContent = activeSymbol.replace('.NS', '');
+        document.getElementById('order-symbol-input').value = activeSymbol;
+        setOrderSide(orderSide);
+        refreshQuote(activeSymbol);
+        loadCandles(activeSymbol);
+        const dd = document.getElementById('symbol-dropdown');
+        if (dd) dd.classList.remove('open');
+    };
 
-        // Sync dynamic green/red background tinting on P&L stat card
-        if (typeof syncHeaderPnlTint === 'function') {
-            syncHeaderPnlTint(data.unrealized_pnl);
+    function toggleSymbolDropdown() {
+        const dd = document.getElementById('symbol-dropdown');
+        if (!dd) return;
+        const isOpen = dd.classList.toggle('open');
+        if (isOpen) {
+            filterChartSymbolDropdown('');
+            setTimeout(() => document.getElementById('symbol-dropdown-search')?.focus(), 20);
         }
+    }
 
-        // Equity Day Change Delta
-        const deltaEl = document.getElementById('nav-equity-delta');
-        if (deltaEl) {
-            const startCap = 50000;
-            const deltaPct = ((data.total_equity - startCap) / startCap * 100);
-            const deltaSign = deltaPct >= 0 ? '+' : '';
-            deltaEl.innerText = `${deltaSign}${deltaPct.toFixed(2)}% Today`;
-            deltaEl.className = `stat-subdelta ${deltaPct >= 0 ? 'text-green' : 'text-red'}`;
-        }
+    function filterChartSymbolDropdown(query) {
+        const listEl = document.getElementById('symbol-dropdown-list');
+        if (!listEl) return;
+        const q = (query || '').trim().toUpperCase();
+        const filtered = nseStocksList.filter(s => {
+            const sym = (s.symbol || s).toUpperCase();
+            const name = (s.name || '').toUpperCase();
+            return !q || sym.includes(q) || name.includes(q);
+        }).slice(0, 15);
 
-        // Quick Order Size cash hint
-        const hintEl = document.getElementById('quick-cash-hint');
-        if (hintEl && currentQuotePrice > 0) {
-            const maxShares = Math.floor(buyingPower / currentQuotePrice);
-            hintEl.innerText = `Max: ${maxShares} shs (5x)`;
-        }
-
-        let positions = data.positions || [];
-        if (window.recentlyExitedSymbols && window.recentlyExitedSymbols.size > 0) {
-            positions = positions.filter(p => !window.recentlyExitedSymbols.has(p.symbol));
-        }
-        if (positions.length > 0) {
-            try { localStorage.setItem('terminal_active_holdings_v1', JSON.stringify(positions)); } catch(e){}
-        } else if (localPositions.length > 0 && (!window.recentlyExitedSymbols || window.recentlyExitedSymbols.size === 0)) {
-            positions = localPositions;
-        }
-
-        const posCountEl = document.getElementById('term-pos-count');
-        if (posCountEl) posCountEl.innerText = (positions ? positions.length : 0);
-
-        const tbody = document.getElementById('positions-table-body');
-        if (!positions || positions.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="8" class="text-center" style="padding: 2rem; color: var(--text-muted);">No active positions. Execute a BUY order above to start your paper portfolio.</td></tr>`;
-            return;
-        }
-
-        tbody.innerHTML = '';
-        const DASH_POS_LOCK_KEY = 'nifty_positions_entry_lock_v1';
-        let dashLock = {};
-        try { dashLock = JSON.parse(localStorage.getItem(DASH_POS_LOCK_KEY) || '{}'); } catch(e){}
-
-        positions.forEach(pos => {
-            if (dashLock[pos.symbol] && typeof dashLock[pos.symbol] === 'number') {
-                pos.average_price = dashLock[pos.symbol];
-            } else {
-                dashLock[pos.symbol] = pos.average_price;
-            }
-            try { localStorage.setItem(DASH_POS_LOCK_KEY, JSON.stringify(dashLock)); } catch(e){}
-
-            const isShort = (pos.side === 'SHORT');
-            const costBasis = pos.quantity * pos.average_price;
-            const marketVal = pos.quantity * pos.current_price;
-            const marginUsed = costBasis / (pos.leverage || 5);
-            pos.unrealized_pnl = isShort ? (costBasis - marketVal) : (marketVal - costBasis);
-            pos.unrealized_pnl_pct = marginUsed > 0 ? (pos.unrealized_pnl / marginUsed * 100) : 0.0;
-
-            const tr = document.createElement('tr');
-            const pnlColor = pos.unrealized_pnl >= 0 ? 'text-green' : 'text-red';
-            const pnlSign = pos.unrealized_pnl >= 0 ? '+' : '';
-            const sideBadge = isShort
-                ? '<span class="badge" style="background: rgba(255, 51, 102, 0.15); color: var(--red); border: 1px solid rgba(255, 51, 102, 0.35); font-weight: 800; font-family: var(--font-code); font-size: 0.72rem; padding: 2px 7px; border-radius: 4px;">SHORT</span>'
-                : '<span class="badge" style="background: rgba(0, 240, 144, 0.15); color: var(--green); border: 1px solid rgba(0, 240, 144, 0.35); font-weight: 800; font-family: var(--font-code); font-size: 0.72rem; padding: 2px 7px; border-radius: 4px;">LONG</span>';
-            
-            tr.innerHTML = `
-                <td><strong>${pos.symbol}</strong></td>
-                <td>${sideBadge}</td>
-                <td>${pos.quantity}</td>
-                <td style="font-weight: 700;">₹${pos.average_price.toFixed(2)}</td>
-                <td>₹${pos.current_price.toFixed(2)}</td>
-                <td>₹${pos.market_value.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
-                <td class="${pnlColor}">${pnlSign}₹${pos.unrealized_pnl.toFixed(2)} (${pnlSign}${pos.unrealized_pnl_pct.toFixed(2)}%)</td>
-                <td>
-                    <button class="btn-action-close" onclick="closePosition('${pos.symbol}', ${pos.quantity}, '${pos.side || 'LONG'}')">${isShort ? 'Cover' : 'Close'}</button>
-                </td>
+        listEl.innerHTML = filtered.map(s => {
+            const sym = typeof s === 'string' ? s : s.symbol;
+            const name = typeof s === 'string' ? '' : (s.name || '');
+            return `
+                <button type="button" class="sidebar-item" onclick="window.selectSymbol('${sym}')" style="justify-content: space-between; padding: 7px 10px;">
+                    <span style="font-family: var(--font-mono); font-weight: 700;">${sym.replace('.NS', '')}</span>
+                    <span style="font-size: 11px; color: var(--text-muted);">${name}</span>
+                </button>
             `;
-            tbody.appendChild(tr);
-        });
-    } catch (err) {
-        console.error('Error loading portfolio:', err);
+        }).join('');
     }
-}
 
-async function loadTrades() {
-    try {
-        const res = await fetch('/api/terminal/trades');
-        const trades = await res.json();
-        const tbody = document.getElementById('trades-table-body');
-        
-        if (!trades || trades.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="7" class="text-center" style="padding: 2rem; color: var(--text-muted);">No trades executed yet.</td></tr>`;
-            return;
-        }
-
-        tbody.innerHTML = '';
-        trades.forEach(t => {
-            const tr = document.createElement('tr');
-            const isEntry = (t.side === 'BUY' || t.side === 'SHORT');
-            const sideColor = (t.side === 'BUY' || t.side === 'COVER') ? 'text-green' : 'text-red';
-            const pnlDisplay = !isEntry ? `₹${(t.realized_pnl || 0).toFixed(2)}` : '--';
-            const pnlClass = (t.realized_pnl || 0) >= 0 ? 'text-green' : 'text-red';
-            const charges = t.charges || 0.0;
-            const chargeTooltip = `Brokerage: ₹${(t.brokerage||0).toFixed(2)} | STT: ₹${(t.stt||0).toFixed(2)} | Exch: ₹${(t.exchange_charges||0).toFixed(2)} | GST: ₹${(t.gst||0).toFixed(2)} | SEBI: ₹${(t.sebi_charges||0).toFixed(2)} | Stamp: ₹${(t.stamp_duty||0).toFixed(2)}`;
-
-            tr.innerHTML = `
-                <td>${t.timestamp}</td>
-                <td><strong>${t.symbol}</strong></td>
-                <td class="${sideColor}"><strong>${t.side}</strong></td>
-                <td>${t.quantity}</td>
-                <td>₹${t.price.toFixed(2)}</td>
-                <td>₹${t.total.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
-                <td style="color: #fca5a5; cursor: help;" title="${chargeTooltip}">-₹${charges.toFixed(2)}</td>
-                <td class="${!isEntry ? pnlClass : ''}">${pnlDisplay}</td>
-            `;
-            tbody.appendChild(tr);
-        });
-    } catch (err) {
-        console.error('Error loading trades:', err);
-    }
-}
-
-window.closePosition = async function(symbol, quantity, side = 'LONG') {
-    const isShort = (side === 'SHORT');
-    const exitSide = isShort ? 'COVER' : 'SELL';
-    const label = isShort ? 'Cover short position' : 'Liquidate long position';
-    if (!confirm(`${label} in ${symbol} (${quantity} shares)?`)) return;
-    try {
-        window.recentlyExitedSymbols = window.recentlyExitedSymbols || new Set();
-        window.recentlyExitedSymbols.add(symbol);
-
-        // Immediately purge from localStorage so subsequent sync polls never resurrect it
-        try {
-            let active = JSON.parse(localStorage.getItem('nifty_active_holdings_v3') || '[]');
-            active = active.filter(p => p.symbol !== symbol);
-            localStorage.setItem('nifty_active_holdings_v3', JSON.stringify(active));
-            let lock = JSON.parse(localStorage.getItem('nifty_positions_entry_lock_v1') || '{}');
-            delete lock[symbol];
-            localStorage.setItem('nifty_positions_entry_lock_v1', JSON.stringify(lock));
-        } catch(e){}
-
-        const res = await fetch('/api/terminal/order', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ symbol, side: exitSide, quantity })
-        });
-        const data = await res.json();
-        if (data.success) {
-            showToast(data.message, 'success');
-            loadPortfolio();
-            loadTrades();
+    function setOrderSide(side) {
+        orderSide = side === 'SELL' ? 'SELL' : 'BUY';
+        const buyBtn = document.getElementById('side-buy-btn');
+        const sellBtn = document.getElementById('side-sell-btn');
+        const submitBtn = document.getElementById('order-submit-btn');
+        buyBtn.classList.toggle('active-buy', orderSide === 'BUY');
+        sellBtn.classList.toggle('active-sell', orderSide === 'SELL');
+        submitBtn.textContent = `${orderSide} ${activeSymbol}`;
+        if (orderSide === 'BUY') {
+            submitBtn.style.background = 'var(--profit)';
+            submitBtn.style.borderColor = 'var(--profit)';
+            submitBtn.style.color = '#052212';
         } else {
-            showToast(data.message || 'Execution error', 'error');
+            submitBtn.style.background = 'var(--loss)';
+            submitBtn.style.borderColor = 'var(--loss)';
+            submitBtn.style.color = '#ffffff';
         }
-    } catch (err) {
-        showToast('Execution failure: ' + err.message, 'error');
     }
-};
 
-function setupEventListeners() {
-    document.querySelectorAll('.tf-btn').forEach(btn => {
-        btn.addEventListener('click', (e) => {
-            document.querySelectorAll('.tf-btn').forEach(b => b.classList.remove('active'));
-            e.target.classList.add('active');
-            activePeriod = e.target.dataset.period;
-            activeInterval = e.target.dataset.interval;
-            loadCandles(activeSymbol, activePeriod, activeInterval);
-        });
-    });
+    function setQtyPct(pct) {
+        if (!currentLTP || currentLTP <= 0) return;
+        const maxQty = Math.max(1, Math.floor(availableBuyingPower / currentLTP));
+        document.getElementById('order-qty').value = Math.max(1, Math.floor(maxQty * pct));
+        updateOrderSummary();
+    }
 
-    document.getElementById('order-qty').addEventListener('input', calculateOrderTotal);
+    function updateOrderSummary() {
+        const qty = Math.max(0, parseInt(document.getElementById('order-qty').value || '0', 10));
+        const total = qty * currentLTP;
+        const margin = total / 5;
+        document.getElementById('ticket-est-total').textContent = window.formatINR(total);
+        document.getElementById('ticket-margin-req').textContent = window.formatINR(margin);
+        const maxSh = currentLTP > 0 ? Math.floor(availableBuyingPower / currentLTP) : 0;
+        document.getElementById('ticket-max-qty').textContent = `Max: ${maxSh} sh`;
+    }
 
-    document.getElementById('order-form').addEventListener('submit', async (e) => {
+    function toggleMobileOrderSheet() {
+        const card = document.getElementById('order-ticket-card');
+        if (card) card.classList.toggle('mobile-sheet-open');
+    }
+
+    async function submitTerminalOrder(e) {
         e.preventDefault();
-        const sideInput = document.getElementById('order-side-input');
-        const side = sideInput ? sideInput.value : (document.querySelector('input[name="side"]:checked')?.value || 'BUY');
-        const qty = parseFloat(document.getElementById('order-qty').value);
-        const slVal = parseFloat(document.getElementById('order-sl-input')?.value || '0') || 0;
-        const tpVal = parseFloat(document.getElementById('order-tp-input')?.value || '0') || 0;
+        const qty = parseInt(document.getElementById('order-qty').value || '0', 10);
+        const sl = document.getElementById('order-sl-input').value;
+        const tp = document.getElementById('order-tp-input').value;
+        if (!qty || qty <= 0) return;
 
+        const btn = document.getElementById('order-submit-btn');
+        btn.disabled = true;
         try {
             const res = await fetch('/api/terminal/order', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ symbol: activeSymbol, side, quantity: qty, stop_loss: slVal, take_profit: tpVal })
+                body: JSON.stringify({
+                    symbol: activeSymbol,
+                    side: orderSide,
+                    quantity: qty,
+                    stop_loss: sl ? parseFloat(sl) : null,
+                    take_profit: tp ? parseFloat(tp) : null
+                })
             });
             const data = await res.json();
-            if (data.success) {
-                showToast(data.message, 'success');
-                loadPortfolio();
-                loadTrades();
+            if (res.ok && data.success !== false) {
+                window.showGlobalToast(`${orderSide} ${qty} ${activeSymbol} executed`, 'success');
+                await Promise.all([loadPortfolio(), loadTrades()]);
             } else {
-                showToast(data.message || 'Order rejected', 'error');
+                window.showGlobalToast(data.error || 'Order rejected', 'error');
             }
         } catch (err) {
-            showToast('Order failed: ' + err.message, 'error');
+            window.showGlobalToast('Order error: ' + err.message, 'error');
+        } finally {
+            btn.disabled = false;
         }
-    });
+    }
 
-    document.getElementById('add-symbol-form').addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const input = document.getElementById('new-symbol-input');
-        const symbol = input.value.trim().toUpperCase();
-        if (!symbol) return;
-
+    window.loadPortfolio = async function() {
         try {
-            const res = await fetch('/api/watchlist', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ symbol })
-            });
-            const data = await res.json();
-            if (data.success) {
-                showToast(`Added ${symbol} to watchlist`, 'success');
-                input.value = '';
-                loadWatchlist();
-            } else {
-                showToast(data.error || data.message, 'error');
-            }
-        } catch (err) {
-            showToast('Failed to add symbol', 'error');
-        }
-    });
+            const res = await fetch('/api/terminal/portfolio');
+            const p = await res.json();
+            const equity = Number(p.total_equity ?? p.equity ?? 50000);
+            const wallet = Number(p.cash_balance ?? p.wallet ?? 50000);
+            const realized = Number(p.realized_pnl ?? 0);
+            const unrealized = Number(p.unrealized_pnl ?? 0);
+            const dayPnl = Number(p.day_pnl ?? (realized + unrealized));
+            const buyingPower = Number(p.buying_power ?? wallet * 5);
+            availableBuyingPower = buyingPower;
 
-    document.querySelectorAll('.tab-btn').forEach(btn => {
-        btn.addEventListener('click', (e) => {
-            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-            btn.classList.add('active');
-            const target = document.getElementById(btn.dataset.tab);
-            if (target) target.classList.add('active');
-        });
-    });
+            const baseCapital = Number(p.initial_capital ?? 50000);
+            const deltaPct = baseCapital > 0 ? ((equity - baseCapital) / baseCapital) * 100 : 0;
 
-    // BOT EVENT LISTENERS
-    const botToggleBtn = document.getElementById('bot-toggle-btn');
-    if (botToggleBtn) botToggleBtn.addEventListener('click', toggleBot);
-    const botTickBtn = document.getElementById('bot-tick-now-btn');
-    if (botTickBtn) botTickBtn.addEventListener('click', tickBotNow);
+            document.getElementById('term-total-equity').textContent = window.formatINR(equity);
+            const deltaEl = document.getElementById('term-equity-delta');
+            deltaEl.textContent = `${window.formatSignedPct(deltaPct)} Today`;
+            deltaEl.classList.toggle('negative', deltaPct < 0);
 
-    // Initial bot status fetch
-    fetchBotStatus();
-    setInterval(fetchBotStatus, 6000);
-    window.addEventListener('storage', (e) => {
-        if (e.key === 'nifty_bot_active') {
-            fetchBotStatus();
-        }
-    });
+            const dayEl = document.getElementById('term-day-pnl');
+            dayEl.textContent = window.formatSignedINR(dayPnl);
+            dayEl.className = `hero-value tabular-num ${dayPnl < 0 ? 'val-loss' : (dayPnl > 0 ? 'val-profit' : '')}`;
 
-    window.onBtStrategyChange = function() {
-        const strat = document.getElementById('bt-strategy')?.value || 'VWAP_EMA_RSI';
-        const shortGrp = document.getElementById('bt-short-group');
-        const longGrp = document.getElementById('bt-long-group');
-        const maTypeGrp = document.getElementById('bt-ma-type-group');
-        if (strat === 'DMA_200') {
-            if (shortGrp) shortGrp.style.display = 'none';
-            if (longGrp) longGrp.style.display = 'none';
-            if (maTypeGrp) maTypeGrp.style.display = 'flex';
-        } else if (strat === 'VWAP_EMA_RSI' || strat === 'RSI_20_80') {
-            if (shortGrp) shortGrp.style.display = 'none';
-            if (longGrp) longGrp.style.display = 'none';
-            if (maTypeGrp) maTypeGrp.style.display = 'none';
-        } else {
-            if (shortGrp) shortGrp.style.display = 'flex';
-            if (longGrp) longGrp.style.display = 'flex';
-            if (maTypeGrp) maTypeGrp.style.display = 'none';
+            document.getElementById('term-wallet').textContent = window.formatINR(wallet);
+
+            const realEl = document.getElementById('term-realized-pnl');
+            realEl.textContent = window.formatSignedINR(realized);
+            realEl.className = `metric-mini-val tabular-num ${realized < 0 ? 'val-loss' : (realized > 0 ? 'val-profit' : '')}`;
+
+            const unrealEl = document.getElementById('term-unrealized-pnl');
+            unrealEl.textContent = window.formatSignedINR(unrealized);
+            unrealEl.className = `metric-mini-val tabular-num ${unrealized < 0 ? 'val-loss' : (unrealized > 0 ? 'val-profit' : '')}`;
+
+            document.getElementById('term-buying-power').textContent = window.formatINR(buyingPower);
+
+            renderPositions(p.positions || p.holdings || []);
+            updateOrderSummary();
+        } catch (e) {
+            console.error('Portfolio load error:', e);
         }
     };
 
-    document.getElementById('backtest-form').addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const symbol = document.getElementById('bt-symbol').value.trim().toUpperCase();
-        const strategy = document.getElementById('bt-strategy')?.value || 'DMA_200';
-        const ma_type = document.getElementById('bt-ma-type')?.value || 'SMA';
-        const short_window = parseInt(document.getElementById('bt-short')?.value || '20');
-        const long_window = parseInt(document.getElementById('bt-long')?.value || '50');
-        const capital = parseFloat(document.getElementById('bt-capital').value);
-        const period = document.getElementById('bt-period').value;
+    function renderPositions(positions) {
+        const tbody = document.getElementById('terminal-positions-tbody');
+        const badge = document.getElementById('positions-count-badge');
+        if (badge) badge.textContent = positions.length;
+        if (!tbody) return;
 
-        showToast('Computing strategy simulation...', 'success');
+        if (!positions.length) {
+            tbody.innerHTML = `<tr><td colspan="7" style="text-align: center; padding: 28px; color: var(--text-muted);">No open positions</td></tr>`;
+            return;
+        }
 
+        tbody.innerHTML = positions.map(pos => {
+            const sym = pos.symbol;
+            const qty = Number(pos.quantity || pos.qty || 0);
+            const side = pos.side || (qty >= 0 ? 'LONG' : 'SHORT');
+            const entry = Number(pos.avg_price || pos.entry_price || 0);
+            const ltp = Number(pos.current_price || pos.ltp || entry);
+            const pnl = Number(pos.unrealized_pnl ?? ((ltp - entry) * qty));
+            const exitSide = side === 'SHORT' || qty < 0 ? 'BUY' : 'SELL';
+            return `
+                <tr>
+                    <td data-label="Symbol"><button type="button" onclick="window.selectSymbol('${sym}')" style="background:none;border:none;color:var(--accent);font-family:var(--font-mono);font-weight:700;cursor:pointer;">${sym.replace('.NS', '')}</button></td>
+                    <td data-label="Side"><span class="delta-chip ${side === 'SHORT' ? 'negative' : ''}">${side}</span></td>
+                    <td data-label="Qty" class="num">${Math.abs(qty)}</td>
+                    <td data-label="Avg Entry" class="num">${window.formatINR(entry)}</td>
+                    <td data-label="LTP" class="num">${window.formatINR(ltp)}</td>
+                    <td data-label="Unrealized P&L" class="num ${pnl < 0 ? 'val-loss' : 'val-profit'}">${window.formatSignedINR(pnl)}</td>
+                    <td data-label="Action" class="num">
+                        <button type="button" class="pro-btn" style="padding: 4px 10px; font-size: 11px;" onclick="quickClosePosition('${sym}', '${exitSide}', ${Math.abs(qty)})">Exit</button>
+                    </td>
+                </tr>
+            `;
+        }).join('');
+    }
+
+    async function quickClosePosition(sym, side, qty) {
         try {
-            const res = await fetch('/api/backtest', {
+            const res = await fetch('/api/terminal/order', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ symbol, strategy, ma_type, short_window, long_window, capital, period })
+                body: JSON.stringify({ symbol: sym, side, quantity: qty })
             });
+            if (res.ok) {
+                window.showGlobalToast(`Closed ${sym}`, 'success');
+                await Promise.all([loadPortfolio(), loadTrades()]);
+            }
+        } catch (e) {
+            window.showGlobalToast('Exit failed: ' + e.message, 'error');
+        }
+    }
+
+    window.exitAllTerminalPositions = async function() {
+        try {
+            const res = await fetch('/api/terminal/exit-all', { method: 'POST' });
+            if (res.ok) {
+                window.showGlobalToast('All terminal positions squared off', 'success');
+                await Promise.all([loadPortfolio(), loadTrades()]);
+            }
+        } catch (e) {
+            window.showGlobalToast('Square off failed', 'error');
+        }
+    };
+
+    window.loadTrades = async function() {
+        try {
+            const res = await fetch('/api/terminal/trades');
             const data = await res.json();
-            if (data.error) {
-                showToast(data.error, 'error');
+            const trades = Array.isArray(data) ? data : (data.trades || []);
+            const tbody = document.getElementById('terminal-trades-tbody');
+            if (!tbody) return;
+
+            if (!trades.length) {
+                tbody.innerHTML = `<tr><td colspan="6" style="text-align: center; padding: 24px; color: var(--text-muted);">No executions recorded yet</td></tr>`;
                 return;
             }
-            renderBacktestResults(data);
-        } catch (err) {
-            showToast('Simulation failed', 'error');
-        }
-    });
-}
 
-/* --- ORDER TICKET HELPERS (SEGMENTED BUY/SELL & QUICK SIZES) --- */
-function setOrderSide(side) {
-    const sideInput = document.getElementById('order-side-input');
-    if (sideInput) sideInput.value = side;
-    
-    const buyBtn = document.getElementById('btn-side-buy');
-    const sellBtn = document.getElementById('btn-side-sell');
-    if (buyBtn && sellBtn) {
-        if (side === 'BUY') {
-            buyBtn.className = 'side-toggle-btn btn-buy-active';
-            sellBtn.className = 'side-toggle-btn';
-        } else {
-            buyBtn.className = 'side-toggle-btn';
-            sellBtn.className = 'side-toggle-btn btn-sell-active';
-        }
-    }
-    updateOrderButton();
-}
-
-function applyQuickSize(pct) {
-    if (!currentQuotePrice || currentQuotePrice <= 0) {
-        showToast('Waiting for current asset quote...', 'warning');
-        return;
-    }
-    const cashStr = document.getElementById('nav-cash-balance')?.innerText || '₹50,000.00';
-    const cashVal = parseFloat(cashStr.replace(/[^0-9.-]+/g, '')) || 50000;
-    const buyingPower = cashVal * 5; // 5x intraday buying power
-    
-    const targetBudget = buyingPower * pct;
-    const shares = Math.max(1, Math.floor(targetBudget / currentQuotePrice));
-    
-    const qtyInput = document.getElementById('order-qty');
-    if (qtyInput) {
-        qtyInput.value = shares;
-        calculateOrderTotal();
-    }
-}
-
-function updateOrderButton() {
-    const sideInput = document.getElementById('order-side-input');
-    const side = sideInput ? sideInput.value : 'BUY';
-    const btn = document.getElementById('submit-order-btn');
-    if (!btn) return;
-    btn.className = `btn-submit ${side === 'BUY' ? 'btn-buy' : 'btn-sell'}`;
-    btn.innerText = `${side} ${activeSymbol}`;
-}
-
-/* --- BACKTESTER RESULTS RENDERING --- */
-function renderBacktestResults(data) {
-    const resultsContainer = document.getElementById('backtest-results');
-    if (resultsContainer) resultsContainer.classList.remove('hidden');
-    
-    const stratRetEl = document.getElementById('bt-res-strategy-return');
-    if (stratRetEl) {
-        stratRetEl.innerText = `${data.strategy_return_pct >= 0 ? '+' : ''}${data.strategy_return_pct}%`;
-        stratRetEl.className = `stat-val ${data.strategy_return_pct >= 0 ? 'text-green' : 'text-red'}`;
-    }
-
-    const mktRetEl = document.getElementById('bt-res-market-return');
-    if (mktRetEl) {
-        mktRetEl.innerText = `${data.benchmark_return_pct >= 0 ? '+' : ''}${data.benchmark_return_pct}%`;
-        mktRetEl.className = `stat-val ${data.benchmark_return_pct >= 0 ? 'text-green' : 'text-red'}`;
-    }
-
-    const maxDdEl = document.getElementById('bt-res-max-drawdown');
-    if (maxDdEl) {
-        maxDdEl.innerText = `${data.max_drawdown_pct || 0.0}%`;
-    }
-
-    const winRateEl = document.getElementById('bt-res-win-rate');
-    if (winRateEl) {
-        winRateEl.innerText = `${data.win_rate_pct || 0.0}%`;
-        winRateEl.className = (data.win_rate_pct || 0) >= 50 ? 'stat-val text-green' : 'stat-val text-red';
-    }
-
-    const sharpeEl = document.getElementById('bt-res-sharpe');
-    if (sharpeEl) {
-        sharpeEl.innerText = `${data.sharpe_ratio || 0.0}`;
-    }
-
-    const endingEqEl = document.getElementById('bt-res-ending-equity');
-    if (endingEqEl) {
-        endingEqEl.innerText = `₹${(data.final_strategy_equity || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
-    }
-
-    const container = document.getElementById('backtest-chart-container');
-    if (!container || !window.LightweightCharts) return;
-    container.innerHTML = '';
-    
-    backtestChart = LightweightCharts.createChart(container, {
-        layout: { background: { color: '#07090e' }, textColor: '#7e8ba6' },
-        grid: { vertLines: { color: 'rgba(31, 41, 61, 0.35)' }, horzLines: { color: 'rgba(31, 41, 61, 0.35)' } },
-        rightPriceScale: { borderColor: '#1f293d' },
-        timeScale: { borderColor: '#1f293d' },
-    });
-
-    const stratSeries = backtestChart.addLineSeries({
-        color: '#00f090',
-        lineWidth: 2,
-        title: 'Strategy Equity (₹)'
-    });
-
-    const benchSeries = backtestChart.addLineSeries({
-        color: '#7e8ba6',
-        lineWidth: 1,
-        lineStyle: LightweightCharts.LineStyle.Dotted,
-        title: 'Buy & Hold (₹)'
-    });
-
-    const stratLineData = data.chart.dates.map((d, i) => ({ time: d, value: data.chart.strategy_equity[i] }));
-    const benchLineData = data.chart.dates.map((d, i) => ({ time: d, value: data.chart.benchmark_equity[i] }));
-
-    stratSeries.setData(stratLineData);
-    benchSeries.setData(benchLineData);
-    backtestChart.timeScale().fitContent();
-}
-
-function showToast(message, type = 'success') {
-    const container = document.getElementById('toast-container');
-    if (!container) return;
-    const toast = document.createElement('div');
-    toast.className = `toast toast-${type}`;
-    toast.innerText = message;
-    container.appendChild(toast);
-    setTimeout(() => { toast.remove(); }, 4000);
-}
-
-/* --- AUTO-TRADING BOT CLIENT LOGIC & RADAR / HEATMAP --- */
-let isBotActive = false;
-let botTickTimer = null;
-let radarResultsCache = [];
-let currentRadarFilter = 'ALL';
-let radarSortCol = 'symbol';
-let radarSortAsc = true;
-let currentRadarView = 'table';
-
-function setRadarFilter(filter, el) {
-    currentRadarFilter = filter;
-    document.querySelectorAll('.radar-filter-chip').forEach(c => c.classList.remove('active'));
-    if (el) el.classList.add('active');
-    renderRadarUI();
-}
-
-function sortRadarTable(col) {
-    if (radarSortCol === col) {
-        radarSortAsc = !radarSortAsc;
-    } else {
-        radarSortCol = col;
-        radarSortAsc = true;
-    }
-    renderRadarUI();
-}
-
-function toggleRadarView(view) {
-    currentRadarView = view;
-    const tableView = document.getElementById('radar-table-view');
-    const heatmapView = document.getElementById('radar-heatmap-view');
-    const btnTable = document.getElementById('view-toggle-table');
-    const btnHeatmap = document.getElementById('view-toggle-heatmap');
-    
-    if (view === 'heatmap') {
-        if (tableView) tableView.style.display = 'none';
-        if (heatmapView) heatmapView.style.display = 'block';
-        if (btnTable) btnTable.classList.remove('active');
-        if (btnHeatmap) btnHeatmap.classList.add('active');
-    } else {
-        if (tableView) tableView.style.display = 'block';
-        if (heatmapView) heatmapView.style.display = 'none';
-        if (btnTable) btnTable.classList.add('active');
-        if (btnHeatmap) btnHeatmap.classList.remove('active');
-    }
-    renderRadarUI();
-}
-
-function renderRadarUI() {
-    if (!radarResultsCache || radarResultsCache.length === 0) return;
-
-    // 1. Filter
-    let filtered = radarResultsCache.slice();
-    if (currentRadarFilter === 'BUY') {
-        filtered = filtered.filter(s => s.signal === 'BUY');
-    } else if (currentRadarFilter === 'SELL') {
-        filtered = filtered.filter(s => s.signal === 'SELL' || s.signal === 'STOP_LOSS' || s.signal === 'TAKE_PROFIT');
-    }
-
-    // 2. Sort
-    filtered.sort((a, b) => {
-        let valA = a[radarSortCol];
-        let valB = b[radarSortCol];
-        if (typeof valA === 'string') valA = valA.toLowerCase();
-        if (typeof valB === 'string') valB = valB.toLowerCase();
-        if (valA < valB) return radarSortAsc ? -1 : 1;
-        if (valA > valB) return radarSortAsc ? 1 : -1;
-        return 0;
-    });
-
-    // 3. Render Table
-    const tbody = document.getElementById('bot-scanner-tbody');
-    if (tbody) {
-        if (filtered.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="7" class="text-center" style="padding: 1.5rem; color: var(--text-muted);">No signals matching filter "${currentRadarFilter}".</td></tr>`;
-        } else {
-            tbody.innerHTML = '';
-            filtered.forEach(s => {
-                const tr = document.createElement('tr');
-                let sigBadge = `<span class="badge" style="background: rgba(126, 139, 166, 0.15); color: var(--text-muted); font-size: 0.72rem;">HOLD</span>`;
-                if (s.signal === 'BUY') {
-                    sigBadge = `<span class="badge" style="background: rgba(0, 240, 144, 0.2); color: var(--green); font-weight: 800; font-size: 0.72rem;">🟢 BUY</span>`;
-                } else if (s.signal === 'SELL' || s.signal === 'STOP_LOSS' || s.signal === 'TAKE_PROFIT') {
-                    sigBadge = `<span class="badge" style="background: rgba(255, 51, 102, 0.2); color: var(--red); font-weight: 800; font-size: 0.72rem;">🔴 ${s.signal}</span>`;
-                }
-
-                const changeClass = (s.change_pct || 0) >= 0 ? 'text-green' : 'text-red';
-                const changeSign = (s.change_pct || 0) >= 0 ? '+' : '';
-                
-                let indText = s.reason || '--';
-                if (s.fast_sma && s.slow_sma) {
-                    indText = `SMA9: ₹${s.fast_sma} | SMA21: ₹${s.slow_sma}`;
-                } else if (s.rsi !== undefined && s.rsi !== null) {
-                    indText = `RSI: ${s.rsi}`;
-                }
-
-                let actionBadge = '--';
-                if (s.action_executed) {
-                    actionBadge = `<span style="color: var(--green); font-weight: 700;"><i class="fa-solid fa-check"></i> ${s.action_executed}</span>`;
-                }
-
-                const vr = Number(s.vol_ratio || 1.0);
-                const volBadge = vr >= 2.0 
-                    ? `<span class="badge" style="background: rgba(255, 75, 43, 0.2); color: #ff4b2b; border: 1px solid rgba(255, 75, 43, 0.4); font-size: 0.65rem; padding: 1px 4px; border-radius: 3px; margin-left: 4px;" title="Volume Surge: ${vr.toFixed(1)}x">🔥 ${vr.toFixed(1)}x</span>`
-                    : (vr >= 1.5 ? `<span class="badge" style="background: rgba(255, 170, 0, 0.15); color: #ffaa00; border: 1px solid rgba(255, 170, 0, 0.3); font-size: 0.65rem; padding: 1px 4px; border-radius: 3px; margin-left: 4px;" title="Volume Surge: ${vr.toFixed(1)}x">${vr.toFixed(1)}x</span>` : '');
-
-                tr.innerHTML = `
-                    <td><strong>${s.displayName || s.symbol.replace('.NS', '')}</strong>${volBadge}</td>
-                    <td>₹${(s.price || 0).toFixed(2)}</td>
-                    <td class="${changeClass}">${changeSign}${(s.change_pct || 0).toFixed(2)}%</td>
-                    <td>${sigBadge}</td>
-                    <td style="font-size: 0.75rem; color: var(--text-muted);">${indText}</td>
-                    <td>${actionBadge}</td>
-                    <td>
-                        <button class="btn-sm btn-outline" style="padding: 2px 8px; font-size: 0.7rem;" onclick="selectSymbol('${s.symbol}')">
-                            <i class="fa-solid fa-chart-line"></i> Chart
-                        </button>
-                    </td>
+            tbody.innerHTML = trades.slice(0, 40).map(t => {
+                const pnl = Number(t.realized_pnl || t.pnl || 0);
+                const hasPnl = t.realized_pnl !== undefined && t.realized_pnl !== null;
+                return `
+                    <tr>
+                        <td data-label="Time" class="tabular-num" style="color: var(--text-muted); font-size: 12px;">${t.timestamp || t.time || '--'}</td>
+                        <td data-label="Symbol" class="tabular-num" style="font-weight: 700;">${(t.symbol || '').replace('.NS', '')}</td>
+                        <td data-label="Side"><span class="delta-chip ${t.side === 'SELL' ? 'negative' : ''}">${t.side}</span></td>
+                        <td data-label="Qty" class="num">${t.quantity || t.qty || 0}</td>
+                        <td data-label="Price" class="num">${window.formatINR(t.price || 0)}</td>
+                        <td data-label="Realized P&L" class="num ${hasPnl ? (pnl < 0 ? 'val-loss' : (pnl > 0 ? 'val-profit' : '')) : ''}">${hasPnl ? window.formatSignedINR(pnl) : '--'}</td>
+                    </tr>
                 `;
-                tbody.appendChild(tr);
-            });
+            }).join('');
+        } catch (e) {
+            console.error('Trades load error:', e);
         }
-    }
+    };
 
-    // 4. Render Heatmap Grid
-    const heatmapGrid = document.getElementById('nifty-heatmap-grid');
-    if (heatmapGrid && radarResultsCache.length > 0) {
-        heatmapGrid.innerHTML = '';
-        radarResultsCache.forEach(s => {
-            const tile = document.createElement('div');
-            const pct = s.change_pct || 0;
-            let tier = 'neutral';
-            if (pct >= 3.0) tier = 'gain-3';
-            else if (pct >= 1.5) tier = 'gain-2';
-            else if (pct >= 0.5) tier = 'gain-1';
-            else if (pct > 0.0) tier = 'gain-0';
-            else if (pct <= -3.0) tier = 'loss-3';
-            else if (pct <= -1.5) tier = 'loss-2';
-            else if (pct <= -0.5) tier = 'loss-1';
-            else if (pct < 0.0) tier = 'loss-0';
-
-            tile.className = `heatmap-tile ${tier}`;
-            const sign = pct >= 0 ? '+' : '';
-            const symDisplay = s.displayName || s.symbol.replace('.NS', '');
-            
-            tile.innerHTML = `
-                <div class="tile-symbol">${symDisplay}</div>
-                <div class="tile-pct">${sign}${pct.toFixed(2)}%</div>
-                <div class="tile-price">₹${(s.price || 0).toFixed(1)}</div>
-            `;
-            tile.addEventListener('click', () => selectSymbol(s.symbol));
-            heatmapGrid.appendChild(tile);
-        });
-    }
-}
-
-async function fetchBotStatus() {
-    try {
-        const res = await fetch('/api/bot/status');
-        const data = await res.json();
-        updateBotUI(data);
-    } catch (err) {
-        console.error('Error fetching bot status:', err);
-    }
-}
-
-function updateBotUI(data) {
-    if (!data) return;
-    if (typeof data.is_running === 'boolean') {
-        isBotActive = data.is_running;
-        localStorage.setItem('nifty_bot_active', isBotActive ? 'true' : 'false');
-    } else {
-        isBotActive = localStorage.getItem('nifty_bot_active') === 'true';
-    }
-    
-    // Update badge & pills
-    const badge = document.getElementById('bot-tab-badge');
-    const pillText = document.getElementById('bot-status-text');
-    const toggleBtn = document.getElementById('bot-toggle-btn');
-    
-    if (isBotActive) {
-        if (badge) {
-            badge.innerText = 'SCANNING';
-            badge.style.background = 'rgba(0, 240, 144, 0.2)';
-            badge.style.color = 'var(--green)';
-        }
-        if (pillText) pillText.innerText = 'SCANNING NIFTY 50';
-        if (toggleBtn) {
-            toggleBtn.className = 'btn-submit btn-sell';
-            toggleBtn.innerHTML = '<i class="fa-solid fa-pause"></i> PAUSE BOT';
-        }
-    } else {
-        if (badge) {
-            badge.innerText = 'IDLE';
-            badge.style.background = 'rgba(126, 139, 166, 0.15)';
-            badge.style.color = 'var(--text-muted)';
-        }
-        if (pillText) pillText.innerText = 'OFFLINE / PAUSED';
-        if (toggleBtn) {
-            toggleBtn.className = 'btn-submit btn-buy';
-            toggleBtn.innerHTML = '<i class="fa-solid fa-play"></i> START BOT';
-        }
-    }
-
-    // Update Summary cards
-    const summary = data.scan_summary || {};
-    const scannedEl = document.getElementById('bot-card-scanned');
-    if (scannedEl) scannedEl.innerText = `${summary.total_scanned || 50} NIFTY Stocks`;
-    
-    const buysFound = summary.buys_found || 0;
-    const sellsFound = summary.sells_found || 0;
-    const signalsEl = document.getElementById('bot-card-signals');
-    if (signalsEl) {
-        signalsEl.innerText = `${buysFound} BUY / ${sellsFound} SELL`;
-        signalsEl.className = buysFound > 0 ? 'bot-compact-val text-green' : (sellsFound > 0 ? 'bot-compact-val text-red' : 'bot-compact-val');
-    }
-
-    const slotsEl = document.getElementById('bot-card-slots');
-    if (slotsEl) {
-        const isUnlimited = (!data.max_positions || data.max_positions <= 0);
-        slotsEl.innerText = isUnlimited ? `${summary.active_positions_count || 0} Holdings (No Limit)` : `${summary.active_positions_count || 0} / ${data.max_positions} Active`;
-    }
-    
-    if (data.last_run_time) {
-        const timeEl = document.getElementById('bot-last-tick-time');
-        if (timeEl) timeEl.innerText = `Last scan: ${data.last_run_time.split(' ')[1] || data.last_run_time}`;
-    }
-
-    // Cache & render scanner results
-    if (summary.scanner_results && summary.scanner_results.length > 0) {
-        radarResultsCache = summary.scanner_results;
-        renderRadarUI();
-    }
-
-    // Render logs
-    const logsContainer = document.getElementById('bot-logs-container');
-    if (data.logs && data.logs.length > 0 && logsContainer) {
-        logsContainer.innerHTML = '';
-        data.logs.forEach(log => {
-            const entry = document.createElement('div');
-            let color = 'var(--text-main)';
-            if (log.level === 'SUCCESS') color = 'var(--green)';
-            if (log.level === 'ERROR') color = 'var(--red)';
-            if (log.level === 'WARNING') color = '#ffb300';
-            if (log.level === 'INFO') color = 'var(--text-muted)';
-            
-            entry.innerHTML = `<span style="color: var(--text-muted);">[${log.timestamp}]</span> <span style="color: ${color}; font-weight: 600;">[${log.level}]</span> <span>${log.message}</span>`;
-            logsContainer.appendChild(entry);
-        });
-    }
-
-    // Ensure serverless client ticker runs if active
-    if (isBotActive && !botTickTimer) {
-        botTickTimer = setInterval(async () => {
-            if (isBotActive) {
-                try {
-                    await fetch('/api/bot/tick', { method: 'POST' });
-                    fetchBotStatus();
-                    loadPortfolio();
-                    loadTrades();
-                } catch (e) {}
-            }
-        }, (data.interval_seconds || 60) * 1000);
-    } else if (!isBotActive && botTickTimer) {
-        clearInterval(botTickTimer);
-        botTickTimer = null;
-    }
-}
-
-async function toggleBot() {
-    if (isBotActive) {
+    document.addEventListener('DOMContentLoaded', async () => {
+        initTerminalChart();
         try {
-            const res = await fetch('/api/bot/stop', { method: 'POST' });
-            const data = await res.json();
-            isBotActive = false;
-            localStorage.setItem('nifty_bot_active', 'false');
-            if (typeof updateKillswitchUI === 'function') updateKillswitchUI();
-            showToast('NIFTY 50 Auto-bot paused', 'success');
-            if (data && data.status) updateBotUI(data.status);
-            else updateBotUI({ is_running: false });
-        } catch (err) {
-            showToast('Failed to stop bot', 'error');
-        }
-    } else {
-        const config = {
-            scan_mode: 'ALL_NIFTY_50',
-            single_symbol: 'RELIANCE.NS',
-            strategy: 'SMA_CROSSOVER',
-            allocation_per_trade: 500,
-            max_positions: 0,
-            interval_seconds: 60,
-            stop_loss_pct: 1.0,
-            take_profit_pct: 1.0
-        };
+            const r = await fetch('/api/nse/stocks');
+            const d = await r.json();
+            const arr = Array.isArray(d) ? d : (d.stocks || []);
+            if (arr.length) nseStocksList = arr;
+        } catch (e) {}
 
-        try {
-            const res = await fetch('/api/bot/start', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(config)
-            });
-            const data = await res.json();
-            if (data.success) {
-                isBotActive = true;
-                localStorage.setItem('nifty_bot_active', 'true');
-                if (typeof updateKillswitchUI === 'function') updateKillswitchUI();
-                showToast(`NIFTY 50 Auto-Bot Activated!`, 'success');
-                if (data.status) updateBotUI(data.status);
-                else updateBotUI({ is_running: true });
-                tickBotNow();
-            } else {
-                showToast(data.error || 'Failed to start bot', 'warning');
-            }
-        } catch (err) {
-            showToast('Start bot request failed', 'error');
-        }
-    }
-}
-
-async function tickBotNow() {
-    showToast('Scanning all NIFTY 50 stocks for signals...', 'success');
-    try {
-        const res = await fetch('/api/bot/tick', { method: 'POST' });
-        const data = await res.json();
-        if (data.bot_state) {
-            updateBotUI(data.bot_state);
-        }
+        const params = new URLSearchParams(window.location.search);
+        const initialSym = params.get('symbol') || 'RELIANCE.NS';
+        window.selectSymbol(initialSym);
         loadPortfolio();
         loadTrades();
-        
-        const summary = data.result || {};
-        showToast(`Scan Complete: Scanned ${summary.total_scanned || 50} stocks | 🟢 ${summary.buys_found || 0} BUY signals | 🔴 ${summary.sells_found || 0} SELL signals`, 'success');
-    } catch (err) {
-        showToast('Scanning cycle failed', 'error');
-    }
-}
 
-async function tickBotNow() {
-    showToast('Scanning all NIFTY 50 stocks for signals...', 'success');
-    try {
-        const res = await fetch('/api/bot/tick', { method: 'POST' });
-        const data = await res.json();
-        if (data.bot_state) {
-            updateBotUI(data.bot_state);
-        }
-        loadPortfolio();
-        loadTrades();
-        
-        const summary = data.result || {};
-        showToast(`Scan Complete: Scanned ${summary.total_scanned || 50} stocks | 🟢 ${summary.buys_found || 0} BUY signals | 🔴 ${summary.sells_found || 0} SELL signals`, 'success');
-    } catch (err) {
-        showToast('Scanning cycle failed', 'error');
-    }
-}
-
+        setInterval(() => {
+            loadPortfolio();
+            refreshQuote(activeSymbol);
+        }, 15000);
+    });
 </script>
 {% endblock %}
