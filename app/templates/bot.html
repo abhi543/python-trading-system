@@ -141,6 +141,7 @@
                         <option value="ALL_NSE_2000">🚀 NIFTY Total Market (Rolling 2,000+ NSE Stocks)</option>
                         <option value="ALL_NIFTY_200">All NIFTY 200 Basket (Top 200 Stocks)</option>
                         <option value="ALL_NIFTY_50">All NIFTY 50 Basket (Top 50 Stocks)</option>
+                        <option value="CSV_WATCHLIST">📄 Custom CSV Watchlist (Uploaded Excel/CSV)</option>
                         <option value="SINGLE">Single Stock Focus (1 Stock)</option>
                     </select>
                 </div>
@@ -371,6 +372,9 @@
                             </button>
                             <button id="tab-btn-session-report" class="ledger-tab-btn active" onclick="switchLedgerTab('session')">
                                 <i class="fa-solid fa-chart-pie" style="color: var(--green);"></i> Bot Session Report (<span id="session-trades-badge-count">0</span>)
+                            </button>
+                            <button id="tab-btn-csv-watchlist" class="ledger-tab-btn" onclick="switchLedgerTab('csv')">
+                                <i class="fa-solid fa-file-csv" style="color: #38bdf8;"></i> CSV Watchlist &amp; End Result (<span id="csv-watchlist-badge-count">0</span>)
                             </button>
                         </div>
                         <div style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
@@ -797,6 +801,85 @@
                                         </tbody>
                                     </table>
                                 </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- TAB 5: CUSTOM CSV WATCHLIST & END RESULT -->
+                    <div id="view-csv-watchlist" style="display: none; padding: 1.25rem;">
+                        <div style="display: flex; flex-direction: column; gap: 1rem;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.75rem; background: rgba(15, 23, 42, 0.75); border: 1px solid rgba(56, 189, 248, 0.3); padding: 0.9rem 1rem; border-radius: 10px;">
+                                <div style="display: flex; flex-direction: column; gap: 2px;">
+                                    <span style="font-size: 0.9rem; font-weight: 800; color: #38bdf8;"><i class="fa-solid fa-file-csv"></i> Custom Excel / CSV Watchlist Scanner</span>
+                                    <span style="font-size: 0.72rem; color: var(--text-muted);">Upload NSE/Chartink/Excel CSV (or paste symbols) to scan, trade 1:1 Intraday, and track the end result here.</span>
+                                </div>
+                                <div style="display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center;">
+                                    <label class="btn-sm btn-primary" style="cursor: pointer; margin: 0;">
+                                        <i class="fa-solid fa-upload"></i> Upload CSV File
+                                        <input type="file" id="csv-watchlist-file-input" accept=".csv,.txt" style="display: none;" onchange="handleCsvWatchlistUpload(this)">
+                                    </label>
+                                    <button class="btn-sm btn-outline" style="border-color: rgba(0,240,144,0.5); color: var(--green);" onclick="scanCsvWatchlistNow()">
+                                        <i class="fa-solid fa-bolt"></i> Scan CSV Now
+                                    </button>
+                                    <button class="btn-sm btn-outline" style="border-color: rgba(255,51,102,0.45); color: #ff7575;" onclick="clearCsvWatchlist()">
+                                        <i class="fa-solid fa-trash-can"></i> Clear
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div style="display: flex; gap: 0.65rem; flex-wrap: wrap; align-items: stretch;">
+                                <textarea id="csv-watchlist-paste" class="cal-import-textarea" style="flex: 1; min-width: 260px;" placeholder="Or paste CSV rows / symbols here (e.g. DHAMPURSUG, MAGADSUGAR, UTTAMSUGAR or full NSE CSV)..."></textarea>
+                                <button class="btn-sm btn-outline" style="border-color: rgba(56,189,248,0.5); color: #38bdf8; padding: 0 14px; font-weight: 700;" onclick="importCsvWatchlistFromPaste()">
+                                    <i class="fa-solid fa-plus"></i> Load Pasted CSV
+                                </button>
+                            </div>
+
+                            <!-- CSV END-RESULT SUMMARY STRIP -->
+                            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 0.65rem;">
+                                <div style="background: rgba(13,19,34,0.78); border: 1px solid var(--border); border-radius: 10px; padding: 0.7rem 0.85rem;">
+                                    <div style="font-size: 0.64rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase;">CSV STOCKS</div>
+                                    <div id="csv-sum-total" style="font-size: 1.05rem; font-weight: 800; font-family: var(--font-code); color: #fff;">0</div>
+                                </div>
+                                <div style="background: rgba(13,19,34,0.78); border: 1px solid var(--border); border-radius: 10px; padding: 0.7rem 0.85rem;">
+                                    <div style="font-size: 0.64rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase;">SIGNALS FOUND</div>
+                                    <div id="csv-sum-signals" style="font-size: 1.05rem; font-weight: 800; font-family: var(--font-code); color: #38bdf8;">0 BUY / 0 SHORT</div>
+                                </div>
+                                <div style="background: rgba(13,19,34,0.78); border: 1px solid var(--border); border-radius: 10px; padding: 0.7rem 0.85rem;">
+                                    <div style="font-size: 0.64rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase;">ACTIVE CSV POSITIONS</div>
+                                    <div id="csv-sum-active" style="font-size: 1.05rem; font-weight: 800; font-family: var(--font-code); color: #ffd166;">0</div>
+                                </div>
+                                <div style="background: rgba(13,19,34,0.78); border: 1px solid var(--border); border-radius: 10px; padding: 0.7rem 0.85rem;">
+                                    <div style="font-size: 0.64rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase;">CSV UNREALIZED P&amp;L</div>
+                                    <div id="csv-sum-unrealized" class="text-green" style="font-size: 1.05rem; font-weight: 800; font-family: var(--font-code);">₹0.00</div>
+                                </div>
+                                <div style="background: rgba(13,19,34,0.78); border: 1px solid rgba(0,240,144,0.35); border-radius: 10px; padding: 0.7rem 0.85rem;">
+                                    <div style="font-size: 0.64rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase;">CSV END RESULT (REALIZED)</div>
+                                    <div id="csv-sum-realized" class="text-green" style="font-size: 1.05rem; font-weight: 800; font-family: var(--font-code);">₹0.00</div>
+                                    <div id="csv-sum-winloss" style="font-size: 0.68rem; color: var(--text-muted);">0 Win / 0 Loss</div>
+                                </div>
+                            </div>
+
+                            <div class="table-wrapper">
+                                <table class="data-table">
+                                    <thead>
+                                        <tr>
+                                            <th>STOCK</th>
+                                            <th>SIGNAL</th>
+                                            <th>LTP (₹)</th>
+                                            <th>DAY CHG</th>
+                                            <th>RVOL</th>
+                                            <th>1% SL (₹)</th>
+                                            <th>1:1 TARGET (₹)</th>
+                                            <th>STATUS / ACTION</th>
+                                            <th>END RESULT P&amp;L (₹)</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="csv-watchlist-tbody">
+                                        <tr>
+                                            <td colspan="9" class="text-center" style="padding: 1.5rem; color: var(--text-muted);">Upload a CSV file or paste stock symbols above to scan and track results.</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
                             </div>
                         </div>
                     </div>
@@ -2071,6 +2154,7 @@
         }
         syncStrategyUIHints();
         updateConfigSummaryRibbon();
+        if (typeof renderCsvWatchlistSection === 'function') renderCsvWatchlistSection();
         fetchBotOverview();
 
         const savedState = localStorage.getItem('nifty_bot_active') === 'true';
@@ -2835,6 +2919,7 @@
             use_ai_filter: (typeof currentStrictAiMode !== 'undefined' ? currentStrictAiMode : false),
             scan_mode: document.getElementById('bot-scan-mode')?.value || 'TOP_200_TURNOVER',
             single_symbol: document.getElementById('bot-symbol')?.value?.trim()?.toUpperCase() || 'RELIANCE.NS',
+            custom_symbols: (typeof getCsvWatchlistSymbols === 'function') ? getCsvWatchlistSymbols() : [],
             strategy: document.getElementById('bot-strategy')?.value || 'AUTO_ENSEMBLE',
             allocation_per_trade: parseFloat(document.getElementById('bot-allocation')?.value) || 500,
             max_positions: (document.getElementById('bot-max-positions') && !isNaN(parseInt(document.getElementById('bot-max-positions').value))) ? parseInt(document.getElementById('bot-max-positions').value) : 0,
@@ -3067,6 +3152,7 @@
 
             loadAccountMetrics();
             loadBotHoldings();
+            if (typeof renderCsvWatchlistSection === 'function') renderCsvWatchlistSection();
             
             const summary = data.result || {};
             const tradesMsg = summary.trades_executed ? ` | ${summary.trades_executed} Executed` : (isBotActive ? '' : ' | (Bot Paused: 0 Orders Placed)');
@@ -4008,10 +4094,12 @@
         const btnActive = document.getElementById('tab-btn-active-holdings');
         const btnClosed = document.getElementById('tab-btn-closed-trades');
         const btnCal = document.getElementById('tab-btn-pnl-calendar');
+        const btnCsvTab = document.getElementById('tab-btn-csv-watchlist');
         const viewSession = document.getElementById('view-session-report');
         const viewActive = document.getElementById('view-active-holdings');
         const viewClosed = document.getElementById('view-closed-trades');
         const viewCal = document.getElementById('view-pnl-calendar');
+        const viewCsvTab = document.getElementById('view-csv-watchlist');
         const btnSessionCsv = document.getElementById('btn-export-session-csv');
         const btnHoldingsCsv = document.getElementById('btn-export-holdings-csv');
         const btnZerodhaBasket = document.getElementById('btn-export-zerodha-basket');
@@ -4022,12 +4110,14 @@
         if (btnActive) btnActive.classList.remove('active');
         if (btnClosed) btnClosed.classList.remove('active');
         if (btnCal) btnCal.classList.remove('active');
+        if (btnCsvTab) btnCsvTab.classList.remove('active');
 
         // Reset views
         if (viewSession) viewSession.style.display = 'none';
         if (viewActive) viewActive.style.display = 'none';
         if (viewClosed) viewClosed.style.display = 'none';
         if (viewCal) viewCal.style.display = 'none';
+        if (viewCsvTab) viewCsvTab.style.display = 'none';
 
         if (btnSessionCsv) btnSessionCsv.style.display = 'none';
         if (btnHoldingsCsv) btnHoldingsCsv.style.display = 'none';
@@ -4054,7 +4144,241 @@
             if (btnCal) btnCal.classList.add('active');
             if (viewCal) viewCal.style.display = 'block';
             loadDailyCalendar();
+        } else if (tab === 'csv') {
+            if (btnCsvTab) btnCsvTab.classList.add('active');
+            if (viewCsvTab) viewCsvTab.style.display = 'block';
+            renderCsvWatchlistSection();
         }
+    }
+
+    // ========================================================
+    // CUSTOM CSV WATCHLIST & END RESULT TRACKER
+    // ========================================================
+    const CSV_WATCHLIST_KEY = 'nifty_csv_watchlist_v1';
+
+    function getCsvWatchlistSymbols() {
+        try {
+            const raw = localStorage.getItem(CSV_WATCHLIST_KEY);
+            const parsed = raw ? JSON.parse(raw) : [];
+            return Array.isArray(parsed) ? parsed : [];
+        } catch (e) {
+            return [];
+        }
+    }
+
+    function saveCsvWatchlistSymbols(list) {
+        try {
+            localStorage.setItem(CSV_WATCHLIST_KEY, JSON.stringify(list || []));
+        } catch (e) {}
+        const badge = document.getElementById('csv-watchlist-badge-count');
+        if (badge) badge.innerText = (list || []).length;
+    }
+
+    function parseCsvSymbolsText(rawText) {
+        const lines = String(rawText || '').replace(/^\uFEFF/, '').split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+        const symbols = [];
+        let symbolColIdx = 0;
+
+        lines.forEach((line, idx) => {
+            const cols = line.split(/[,\t;]+/).map(c => c.trim().replace(/^["']|["']$/g, ''));
+            if (idx === 0) {
+                const headerIdx = cols.findIndex(c => /^(symbol|ticker|stock|nse\s*code|trading\s*symbol)$/i.test(c));
+                if (headerIdx !== -1) {
+                    symbolColIdx = headerIdx;
+                    return; // skip header row
+                }
+                if (/security\s*name|volume|turnover/i.test(line)) {
+                    return;
+                }
+            }
+            // Also support comma-separated plain list on one line (e.g. "DHAMPURSUG, MAGADSUGAR")
+            if (lines.length === 1 && cols.length > 1 && cols.every(c => /^[A-Za-z0-9._&-]{1,20}$/.test(c))) {
+                cols.forEach(c => {
+                    const sym = c.toUpperCase().includes('.') ? c.toUpperCase() : `${c.toUpperCase()}.NS`;
+                    if (!symbols.includes(sym)) symbols.push(sym);
+                });
+                return;
+            }
+            const rawSym = (cols[symbolColIdx] || cols[0] || '').toUpperCase();
+            if (!rawSym || /^(SYMBOL|TICKER|STOCK)$/i.test(rawSym) || !/^[A-Z0-9._&-]{1,25}$/.test(rawSym)) return;
+            const normSym = rawSym.includes('.') ? rawSym : `${rawSym}.NS`;
+            if (!symbols.includes(normSym)) symbols.push(normSym);
+        });
+        return symbols.slice(0, 200);
+    }
+
+    function handleCsvWatchlistUpload(input) {
+        const file = input?.files?.[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = async (e) => {
+            const syms = parseCsvSymbolsText(e.target.result || '');
+            input.value = '';
+            if (syms.length === 0) {
+                showToast('No valid stock symbols found in CSV.', 'error');
+                return;
+            }
+            saveCsvWatchlistSymbols(syms);
+            const scanSelect = document.getElementById('bot-scan-mode');
+            if (scanSelect) {
+                scanSelect.value = 'CSV_WATCHLIST';
+                localStorage.setItem('nifty_bot_scan_mode', 'CSV_WATCHLIST');
+            }
+            showToast(`Loaded ${syms.length} stocks from CSV! Scanning now...`, 'success');
+            await scanCsvWatchlistNow();
+        };
+        reader.readAsText(file);
+    }
+
+    function importCsvWatchlistFromPaste() {
+        const ta = document.getElementById('csv-watchlist-paste');
+        const syms = parseCsvSymbolsText(ta?.value || '');
+        if (syms.length === 0) {
+            showToast('Paste valid CSV rows or stock symbols first.', 'warning');
+            return;
+        }
+        saveCsvWatchlistSymbols(syms);
+        if (ta) ta.value = '';
+        const scanSelect = document.getElementById('bot-scan-mode');
+        if (scanSelect) {
+            scanSelect.value = 'CSV_WATCHLIST';
+            localStorage.setItem('nifty_bot_scan_mode', 'CSV_WATCHLIST');
+        }
+        showToast(`Loaded ${syms.length} CSV stocks! Scanning now...`, 'success');
+        scanCsvWatchlistNow();
+    }
+
+    async function scanCsvWatchlistNow() {
+        const syms = getCsvWatchlistSymbols();
+        if (syms.length === 0) {
+            showToast('Upload or paste a CSV stock list first.', 'warning');
+            return;
+        }
+        const scanSelect = document.getElementById('bot-scan-mode');
+        if (scanSelect) {
+            scanSelect.value = 'CSV_WATCHLIST';
+            localStorage.setItem('nifty_bot_scan_mode', 'CSV_WATCHLIST');
+        }
+        await tickBotNow();
+        renderCsvWatchlistSection();
+    }
+
+    function clearCsvWatchlist() {
+        saveCsvWatchlistSymbols([]);
+        renderCsvWatchlistSection();
+        showToast('Cleared CSV Watchlist.', 'info');
+    }
+
+    function renderCsvWatchlistSection() {
+        const syms = getCsvWatchlistSymbols();
+        const badge = document.getElementById('csv-watchlist-badge-count');
+        if (badge) badge.innerText = syms.length;
+
+        const sumTotalEl = document.getElementById('csv-sum-total');
+        const sumSignalsEl = document.getElementById('csv-sum-signals');
+        const sumActiveEl = document.getElementById('csv-sum-active');
+        const sumUnrealizedEl = document.getElementById('csv-sum-unrealized');
+        const sumRealizedEl = document.getElementById('csv-sum-realized');
+        const sumWinLossEl = document.getElementById('csv-sum-winloss');
+        const tbody = document.getElementById('csv-watchlist-tbody');
+        if (!tbody) return;
+
+        if (sumTotalEl) sumTotalEl.innerText = syms.length;
+        if (syms.length === 0) {
+            if (sumSignalsEl) sumSignalsEl.innerText = '0 BUY / 0 SHORT';
+            if (sumActiveEl) sumActiveEl.innerText = '0';
+            if (sumUnrealizedEl) sumUnrealizedEl.innerText = '₹0.00';
+            if (sumRealizedEl) sumRealizedEl.innerText = '₹0.00';
+            if (sumWinLossEl) sumWinLossEl.innerText = '0 Win / 0 Loss';
+            tbody.innerHTML = '<tr><td colspan="9" class="text-center" style="padding: 1.5rem; color: var(--text-muted);">Upload a CSV file or paste stock symbols above to scan and track results.</td></tr>';
+            return;
+        }
+
+        const symSet = new Set(syms);
+        const radarMap = new Map();
+        (allScannerData || []).forEach(r => { if (r && r.symbol) radarMap.set(r.symbol, r); });
+
+        const activeMap = new Map();
+        (window.cachedActivePositions || []).forEach(p => { if (p && p.symbol) activeMap.set(p.symbol, p); });
+
+        const closedList = (typeof cachedClosedTrades !== 'undefined' && Array.isArray(cachedClosedTrades) && cachedClosedTrades.length > 0)
+            ? cachedClosedTrades
+            : ((typeof getStoredClosedTrades === 'function') ? getStoredClosedTrades() : []);
+
+        const closedBySym = new Map();
+        let csvRealized = 0.0;
+        let csvWins = 0;
+        let csvLosses = 0;
+        closedList.forEach(t => {
+            if (!t || !symSet.has(t.symbol)) return;
+            const rp = parseFloat(t.realized_pnl || 0.0);
+            csvRealized += rp;
+            if (rp >= 0) csvWins++; else csvLosses++;
+            closedBySym.set(t.symbol, (closedBySym.get(t.symbol) || 0) + rp);
+        });
+
+        let buys = 0, shorts = 0, activeCnt = 0, csvUnrealized = 0.0;
+        tbody.innerHTML = '';
+
+        syms.forEach(sym => {
+            const r = radarMap.get(sym);
+            const pos = activeMap.get(sym);
+            const closedPnl = closedBySym.get(sym);
+
+            const sig = r ? (r.signal || 'HOLD') : 'PENDING';
+            if (sig === 'BUY') buys++;
+            else if (sig === 'SELL' || sig === 'SHORT') shorts++;
+
+            if (pos) {
+                activeCnt++;
+                csvUnrealized += parseFloat(pos.unrealized_pnl || 0.0);
+            }
+
+            const sigBadge = sig === 'BUY'
+                ? '<span class="signal-badge badge-buy">BUY</span>'
+                : ((sig === 'SELL' || sig === 'SHORT') ? '<span class="signal-badge badge-short">SHORT</span>' : `<span class="badge" style="background: rgba(255,255,255,0.06); color: var(--text-muted);">${sig}</span>`);
+
+            const ltp = pos ? parseFloat(pos.current_price || pos.average_price || 0) : (r ? parseFloat(r.price || 0) : 0);
+            const chg = r ? parseFloat(r.change_pct || 0) : 0;
+            const rvol = r ? parseFloat(r.vol_ratio || 1) : 0;
+            const sl = pos ? parseFloat(pos.stop_loss || 0) : (r ? parseFloat(r.suggested_sl || r.stop_loss || 0) : 0);
+            const tp = pos ? parseFloat(pos.take_profit || 0) : (r ? parseFloat(r.suggested_tp || r.take_profit || 0) : 0);
+            const statusText = pos ? `ACTIVE (${pos.side})` : (r && r.action_executed ? r.action_executed : (closedPnl !== undefined ? 'CLOSED' : 'READY TO SCAN'));
+
+            let endPnlHtml = '<span class="text-muted">--</span>';
+            if (pos) {
+                const up = parseFloat(pos.unrealized_pnl || 0);
+                endPnlHtml = `<span class="${up >= 0 ? 'text-green' : 'text-red'}" style="font-weight:800;">${up >= 0 ? '+' : ''}₹${up.toFixed(2)} (Live)</span>`;
+            } else if (closedPnl !== undefined) {
+                endPnlHtml = `<span class="${closedPnl >= 0 ? 'text-green' : 'text-red'}" style="font-weight:800;">${closedPnl >= 0 ? '+' : ''}₹${closedPnl.toFixed(2)} (Closed)</span>`;
+            }
+
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td><strong style="color:#fff; font-family:var(--font-code);">${sym.replace('.NS','')}</strong></td>
+                <td>${sigBadge}</td>
+                <td style="font-family:var(--font-code);">${ltp > 0 ? '₹' + ltp.toFixed(2) : '--'}</td>
+                <td class="${chg >= 0 ? 'text-green' : 'text-red'}" style="font-family:var(--font-code);">${r ? (chg >= 0 ? '+' : '') + chg.toFixed(2) + '%' : '--'}</td>
+                <td style="font-family:var(--font-code);">${r ? rvol.toFixed(2) + 'x' : '--'}</td>
+                <td style="font-family:var(--font-code); color:#fca5a5;">${sl > 0 ? '₹' + sl.toFixed(2) : '--'}</td>
+                <td style="font-family:var(--font-code); color:#6ee7b7;">${tp > 0 ? '₹' + tp.toFixed(2) : '--'}</td>
+                <td style="font-size:0.75rem; color:var(--text-muted);">${statusText}</td>
+                <td style="font-family:var(--font-code);">${endPnlHtml}</td>
+            `;
+            tbody.appendChild(tr);
+        });
+
+        if (sumSignalsEl) sumSignalsEl.innerText = `${buys} BUY / ${shorts} SHORT`;
+        if (sumActiveEl) sumActiveEl.innerText = activeCnt;
+        if (sumUnrealizedEl) {
+            sumUnrealizedEl.innerText = `${csvUnrealized >= 0 ? '+' : ''}₹${csvUnrealized.toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+            sumUnrealizedEl.className = csvUnrealized >= 0 ? 'text-green' : 'text-red';
+        }
+        if (sumRealizedEl) {
+            sumRealizedEl.innerText = `${csvRealized >= 0 ? '+' : ''}₹${csvRealized.toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+            sumRealizedEl.className = csvRealized >= 0 ? 'text-green' : 'text-red';
+        }
+        if (sumWinLossEl) sumWinLossEl.innerText = `${csvWins} Win / ${csvLosses} Loss`;
     }
 
     function refreshCurrentLedgerTab() {
