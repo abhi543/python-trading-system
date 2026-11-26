@@ -1688,25 +1688,47 @@
     }
 
     function exportZerodhaBasketJSON() {
-        const active = getStoredActivePositions() || [];
+        const active = (window.cachedActivePositions && window.cachedActivePositions.length > 0)
+            ? window.cachedActivePositions
+            : (getStoredActivePositions() || []);
         if (!active || active.length === 0) {
             showToast('No active holdings to export to Zerodha Basket', 'warning');
             return;
         }
 
-        const basketItems = active.map(p => generateZerodhaBasketItem(p.symbol, p.side, p.quantity, p.average_price));
+        const basketItems = [];
+        active.forEach(p => {
+            const isShort = (p.side === 'SHORT');
+            const entrySide = isShort ? 'SELL' : 'BUY';
+            const exitSide = isShort ? 'BUY' : 'SELL';
+            const avg = parseFloat(p.average_price || 0);
+            const qty = Math.max(1, parseInt(p.quantity || 1, 10));
+            const sl = parseFloat(p.stop_loss || (isShort ? avg * 1.01 : avg * 0.99));
+            const tp = parseFloat(p.take_profit || (isShort ? avg * 0.99 : avg * 1.01));
+
+            // Leg 1: Entry order
+            basketItems.push(generateZerodhaBasketItem(p.symbol, entrySide, qty, avg, 'MARKET'));
+            // Leg 2: Automatic Stop-Loss (SL)
+            if (sl > 0) {
+                basketItems.push(generateZerodhaBasketItem(p.symbol, exitSide, qty, sl, 'SL', sl));
+            }
+            // Leg 3: Automatic 1:1 Target (LIMIT)
+            if (tp > 0) {
+                basketItems.push(generateZerodhaBasketItem(p.symbol, exitSide, qty, tp, 'LIMIT'));
+            }
+        });
         const jsonStr = JSON.stringify(basketItems, null, 2);
         const blob = new Blob([jsonStr], { type: 'application/json' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
         const nowStr = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
-        a.download = `zerodha_basket_holdings_${nowStr}.json`;
+        a.download = `zerodha_alpha_basket_with_sl_tp_${nowStr}.json`;
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
-        showToast(`Exported ${basketItems.length} orders into Zerodha Basket JSON! Ready to import into Kite.`, 'success');
+        showToast(`Exported ${active.length} positions (${basketItems.length} orders incl. SL & Target) to Zerodha Basket JSON! Import in Kite -> Orders -> Baskets.`, 'success');
     }
 
     // ==========================================
