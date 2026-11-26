@@ -853,3 +853,25 @@ body.trading-mode-live .mode-accent-line {
         text-align: left;
     }
 }
+
+/* ==============================================================================
+   SUBPAGE UNIFICATION (Bot Desks, Scanner, Strategy Lab)
+   ============================================================================== */
+table td,
+table th,
+.kpi-val,
+.kpi-value,
+.stat-val,
+.metric-val,
+.price-val,
+.pnl-val {
+    font-variant-numeric: tabular-nums;
+}
+
+.bot-page-container table td:not(:first-child),
+.scanner-page-container table td:not(:first-child),
+.lab-container table td:not(:first-child) {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+}
+
