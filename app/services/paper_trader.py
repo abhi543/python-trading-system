@@ -1000,7 +1000,7 @@ class TerminalPaperTradingEngine:
         return {**account_data, "account": account_data, "positions": portfolio_positions}
 
     @staticmethod
-    def execute_order(symbol: str, side: str, quantity: float, execution_price: float = None):
+    def execute_order(symbol: str, side: str, quantity: float, execution_price: float = None, stop_loss: float = 0.0, take_profit: float = 0.0):
         symbol = symbol.strip().upper()
         side = side.strip().upper()
         quantity = float(quantity)
@@ -1073,12 +1073,24 @@ class TerminalPaperTradingEngine:
                 return {"success": False, "message": f"Insufficient Terminal margin. Required: ₹{margin_required:,.2f}, Available: ₹{account.cash_balance:,.2f}"}
             account.cash_balance -= margin_required
             if not position:
-                position = TerminalPosition(symbol=symbol, side=("SHORT" if order_side == "SHORT" else "LONG"), quantity=quantity, average_price=price, peak_price=price)
+                position = TerminalPosition(
+                    symbol=symbol,
+                    side=("SHORT" if order_side == "SHORT" else "LONG"),
+                    quantity=quantity,
+                    average_price=price,
+                    peak_price=price,
+                    stop_loss=round(float(stop_loss or 0.0), 2),
+                    take_profit=round(float(take_profit or 0.0), 2)
+                )
                 db.session.add(position)
             else:
                 total_qty = position.quantity + quantity
                 position.average_price = ((position.quantity * position.average_price) + turnover) / total_qty
                 position.quantity = total_qty
+                if stop_loss and float(stop_loss) > 0:
+                    position.stop_loss = round(float(stop_loss), 2)
+                if take_profit and float(take_profit) > 0:
+                    position.take_profit = round(float(take_profit), 2)
             trade = TerminalTradeHistory(
                 symbol=symbol, side=order_side, quantity=quantity, price=price, total=turnover,
                 realized_pnl=0.0, charges=total_charges, brokerage=charges_data["brokerage"],

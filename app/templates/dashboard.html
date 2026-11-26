@@ -22,27 +22,82 @@
         </div>
     </aside>
 
-    <!-- CENTER PANEL: INTERACTIVE CANDLESTICK CHART -->
-    <section class="panel chart-panel">
-        <div class="chart-header">
-            <div class="active-ticker-info">
-                <span class="symbol-display" id="active-symbol">RELIANCE.NS</span>
-                <span class="price-display" id="active-price">₹0.00</span>
-                <span class="change-display" id="active-change">+0.00 (+0.00%)</span>
+    <!-- CENTER COLUMN: CHART (TOP) + SCROLLABLE POSITIONS (BOTTOM) -->
+    <div class="terminal-center-col">
+        <section class="panel chart-panel">
+            <div class="chart-header">
+                <div class="active-ticker-info">
+                    <span class="symbol-display" id="active-symbol">RELIANCE.NS</span>
+                    <span class="price-display" id="active-price">₹0.00</span>
+                    <span class="change-display" id="active-change">+0.00 (+0.00%)</span>
+                </div>
+                <div class="timeframe-selectors" style="display: flex; gap: 8px; align-items: center;">
+                    <a href="/scanner" class="btn-sm" style="background: linear-gradient(135deg, #00d2ff, #0088ff); color: #07090e; font-weight: 800; text-decoration: none; padding: 6px 14px; border-radius: 6px; font-size: 0.75rem; display: inline-flex; align-items: center; gap: 6px; box-shadow: 0 0 14px rgba(0, 210, 255, 0.45); border: 1px solid #00d2ff; letter-spacing: 0.02em;">
+                        <i class="fa-solid fa-crosshairs"></i> SCANNER RADAR &rarr;
+                    </a>
+                    <button class="tf-btn" data-period="1d" data-interval="5m">1D</button>
+                    <button class="tf-btn" data-period="5d" data-interval="15m">5D</button>
+                    <button class="tf-btn active" data-period="1mo" data-interval="1d">1M</button>
+                    <button class="tf-btn" data-period="6mo" data-interval="1d">6M</button>
+                    <button class="tf-btn" data-period="1y" data-interval="1d">1Y</button>
+                </div>
             </div>
-            <div class="timeframe-selectors" style="display: flex; gap: 8px; align-items: center;">
-                <a href="/scanner" class="btn-sm" style="background: linear-gradient(135deg, #00d2ff, #0088ff); color: #07090e; font-weight: 800; text-decoration: none; padding: 6px 14px; border-radius: 6px; font-size: 0.75rem; display: inline-flex; align-items: center; gap: 6px; box-shadow: 0 0 14px rgba(0, 210, 255, 0.45); border: 1px solid #00d2ff; letter-spacing: 0.02em;">
-                    <i class="fa-solid fa-crosshairs"></i> SCANNER RADAR &rarr;
-                </a>
-                <button class="tf-btn" data-period="1d" data-interval="5m">1D</button>
-                <button class="tf-btn" data-period="5d" data-interval="15m">5D</button>
-                <button class="tf-btn active" data-period="1mo" data-interval="1d">1M</button>
-                <button class="tf-btn" data-period="6mo" data-interval="1d">6M</button>
-                <button class="tf-btn" data-period="1y" data-interval="1d">1Y</button>
+            <div id="chart-container" class="chart-container"></div>
+        </section>
+
+        <!-- INLINE TOP-DOWN SCROLLABLE POSITIONS & AUDIT LOG -->
+        <div class="bottom-layout">
+            <div class="tabs-header">
+                <button class="tab-btn active" data-tab="tab-positions"><i class="fa-solid fa-briefcase"></i> Active Positions (<span id="term-pos-count">0</span>)</button>
+                <button class="tab-btn" data-tab="tab-trades"><i class="fa-solid fa-clock-rotate-left"></i> Execution Audit Log</button>
+                <button type="button" onclick="exitAllTerminalPositions()" class="btn-sm" style="margin-left: auto; margin-right: 8px; background: rgba(255, 51, 102, 0.16); color: #ff6b6b; border: 1px solid rgba(255, 51, 102, 0.4); padding: 4px 10px; border-radius: 6px; font-size: 0.72rem; font-weight: 800; cursor: pointer;">
+                    <i class="fa-solid fa-xmark"></i> Close All
+                </button>
+            </div>
+
+            <!-- POSITIONS TAB -->
+            <div id="tab-positions" class="tab-content active">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Symbol</th>
+                            <th>Side</th>
+                            <th>Shares</th>
+                            <th>Avg Cost</th>
+                            <th>Current Price</th>
+                            <th>Market Value</th>
+                            <th>Unrealized P&amp;L</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody id="positions-table-body">
+                        <tr><td colspan="8" class="text-center" style="padding: 1.5rem; color: var(--text-muted);">No active positions. Execute a BUY/SELL order on the right to start.</td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- TRADES TAB -->
+            <div id="tab-trades" class="tab-content">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Timestamp</th>
+                            <th>Symbol</th>
+                            <th>Side</th>
+                            <th>Quantity</th>
+                            <th>Fill Price</th>
+                            <th>Notional Total</th>
+                            <th>Charges &amp; Taxes</th>
+                            <th>Net Realized P&amp;L</th>
+                        </tr>
+                    </thead>
+                    <tbody id="trades-table-body">
+                        <tr><td colspan="8" class="text-center" style="padding: 1.5rem; color: var(--text-muted);">No trades executed yet.</td></tr>
+                    </tbody>
+                </table>
             </div>
         </div>
-        <div id="chart-container" class="chart-container"></div>
-    </section>
+    </div>
 
     <!-- RIGHT PANEL: ORDER EXECUTION TICKET (REDESIGNED) -->
     <aside class="panel trade-panel">
@@ -81,6 +136,22 @@
                 </div>
             </div>
 
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem;">
+                <div class="form-group" style="margin-bottom: 0;">
+                    <label style="font-size: 0.68rem;">Stop-Loss (₹ opt.)</label>
+                    <input type="number" id="order-sl-input" class="form-control mono" step="0.05" placeholder="Auto / Optional">
+                </div>
+                <div class="form-group" style="margin-bottom: 0;">
+                    <label style="font-size: 0.68rem;">Target (₹ opt.)</label>
+                    <input type="number" id="order-tp-input" class="form-control mono" step="0.05" placeholder="Auto / Optional">
+                </div>
+            </div>
+            <div style="display: flex; gap: 0.4rem; margin-top: 0.35rem;">
+                <button type="button" class="quick-size-btn" onclick="presetTerminalSlTp(1, 1)">1% SL / 1:1</button>
+                <button type="button" class="quick-size-btn" onclick="presetTerminalSlTp(1, 2)">1% SL / 1:2</button>
+                <button type="button" class="quick-size-btn" onclick="presetTerminalSlTp(0, 0)">Clear</button>
+            </div>
+
             <div class="order-summary">
                 <div class="summary-row">
                     <span>Market Ask/Bid</span>
@@ -99,18 +170,7 @@
     </aside>
 </div>
 
-<!-- BOTTOM SECTION: POSITIONS & STRATEGY BACKTESTER -->
-<div class="bottom-layout">
-    <div class="tabs-header">
-        <button class="tab-btn active" data-tab="tab-positions"><i class="fa-solid fa-briefcase"></i> Active Positions (<span id="term-pos-count">0</span>)</button>
-        <button class="tab-btn" data-tab="tab-bot"><i class="fa-solid fa-robot"></i> Quick Bot Control <span class="badge" id="bot-tab-badge" style="margin-left: 6px; padding: 2px 6px; font-size: 0.65rem; background: rgba(0, 240, 144, 0.15); color: var(--green);">IDLE</span></button>
-        <button class="tab-btn" data-tab="tab-trades"><i class="fa-solid fa-clock-rotate-left"></i> Execution Audit Log</button>
-        <button class="tab-btn" data-tab="tab-backtester"><i class="fa-solid fa-chart-line"></i> Historical Backtester</button>
-        <a href="/bot" class="tab-btn" style="text-decoration: none; color: var(--green); margin-left: auto; border-left: 1px solid var(--border);">
-            <i class="fa-solid fa-satellite-dish"></i> <strong>Launch Full Bot Station</strong> <i class="fa-solid fa-arrow-up-right-from-square" style="font-size: 0.7rem; margin-left: 4px;"></i>
-        </a>
-    </div>
-
+<div class="bottom-layout" style="margin-top: 0.75rem;">
     <!-- AUTO-TRADING BOT TAB (STREAMLINED & MERGED) -->
     <div id="tab-bot" class="tab-content">
         <!-- COMPACT BOT STATUS STRIP -->
@@ -221,48 +281,6 @@
         </div>
     </div>
 
-    <!-- POSITIONS TAB -->
-    <div id="tab-positions" class="tab-content active">
-        <table class="data-table">
-            <thead>
-                <tr>
-                    <th>Symbol</th>
-                    <th>Side</th>
-                    <th>Shares</th>
-                    <th>Avg Cost</th>
-                    <th>Current Price</th>
-                    <th>Market Value</th>
-                    <th>Unrealized P&L</th>
-                    <th>Action</th>
-                </tr>
-            </thead>
-            <tbody id="positions-table-body">
-                <tr><td colspan="8" class="text-center" style="padding: 2rem; color: var(--text-muted);">No active positions. Execute a BUY order above to start your paper portfolio.</td></tr>
-            </tbody>
-        </table>
-    </div>
-
-    <!-- TRADES TAB -->
-    <div id="tab-trades" class="tab-content">
-        <table class="data-table">
-            <thead>
-                <tr>
-                    <th>Timestamp</th>
-                    <th>Symbol</th>
-                    <th>Side</th>
-                    <th>Quantity</th>
-                    <th>Fill Price</th>
-                    <th>Notional Total</th>
-                    <th>Charges &amp; Taxes</th>
-                    <th>Net Realized P&amp;L</th>
-                </tr>
-            </thead>
-            <tbody id="trades-table-body">
-                <tr><td colspan="8" class="text-center" style="padding: 2rem; color: var(--text-muted);">No trades executed yet.</td></tr>
-            </tbody>
-        </table>
-    </div>
-
     <!-- BACKTEST TAB -->
     <div id="tab-backtester" class="tab-content">
         <form id="backtest-form" class="backtest-form">
@@ -350,6 +368,37 @@ let candleSeries = null;
 let volumeSeries = null;
 let backtestChart = null;
 let currentQuotePrice = 0.0;
+
+function presetTerminalSlTp(slPct, rr) {
+    const slEl = document.getElementById('order-sl-input');
+    const tpEl = document.getElementById('order-tp-input');
+    if (!slEl || !tpEl) return;
+    if (!slPct || slPct <= 0 || currentQuotePrice <= 0) {
+        slEl.value = '';
+        tpEl.value = '';
+        return;
+    }
+    const side = document.getElementById('order-side-input')?.value || 'BUY';
+    const isShort = (side === 'SELL' || side === 'SHORT');
+    const slPrice = isShort ? currentQuotePrice * (1 + slPct / 100) : currentQuotePrice * (1 - slPct / 100);
+    const tpPrice = isShort ? currentQuotePrice * (1 - (slPct * rr) / 100) : currentQuotePrice * (1 + (slPct * rr) / 100);
+    slEl.value = slPrice.toFixed(2);
+    tpEl.value = tpPrice.toFixed(2);
+}
+
+async function exitAllTerminalPositions() {
+    if (!confirm('Close all active Terminal positions at live market prices?')) return;
+    try {
+        localStorage.removeItem('terminal_active_holdings_v1');
+        const res = await fetch('/api/terminal/exit-all', { method: 'POST' });
+        const data = await res.json();
+        showToast(`Closed ${data.closed || 0} Terminal position(s)`, 'success');
+        loadPortfolio();
+        loadTrades();
+    } catch (err) {
+        showToast('Failed to close Terminal positions: ' + err.message, 'error');
+    }
+}
 
 document.addEventListener('DOMContentLoaded', () => {
     initChart();
@@ -722,12 +771,14 @@ function setupEventListeners() {
         const sideInput = document.getElementById('order-side-input');
         const side = sideInput ? sideInput.value : (document.querySelector('input[name="side"]:checked')?.value || 'BUY');
         const qty = parseFloat(document.getElementById('order-qty').value);
+        const slVal = parseFloat(document.getElementById('order-sl-input')?.value || '0') || 0;
+        const tpVal = parseFloat(document.getElementById('order-tp-input')?.value || '0') || 0;
 
         try {
             const res = await fetch('/api/terminal/order', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ symbol: activeSymbol, side, quantity: qty })
+                body: JSON.stringify({ symbol: activeSymbol, side, quantity: qty, stop_loss: slVal, take_profit: tpVal })
             });
             const data = await res.json();
             if (data.success) {

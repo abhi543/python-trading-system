@@ -268,10 +268,25 @@ def place_terminal_order():
     symbol = body.get('symbol')
     side = body.get('side')
     quantity = float(body.get('quantity', 0))
-    res = TerminalPaperTradingEngine.execute_order(symbol, side, quantity)
+    sl = float(body.get('stop_loss', 0) or 0)
+    tp = float(body.get('take_profit', 0) or 0)
+    res = TerminalPaperTradingEngine.execute_order(symbol, side, quantity, stop_loss=sl, take_profit=tp)
     if not res.get("success"):
         return jsonify(res), 400
     return jsonify(res)
+
+@api_bp.route('/terminal/exit-all', methods=['POST'])
+def exit_all_terminal_positions():
+    from app.services.paper_trader import TerminalPaperTradingEngine
+    from app.models.trading import TerminalPosition
+    positions = TerminalPosition.query.filter(TerminalPosition.quantity > 0).all()
+    closed = 0
+    for p in positions:
+        exit_side = "COVER" if (getattr(p, "side", "LONG") == "SHORT") else "SELL"
+        r = TerminalPaperTradingEngine.execute_order(p.symbol, exit_side, p.quantity)
+        if r.get("success"):
+            closed += 1
+    return jsonify({"success": True, "closed": closed})
 
 @api_bp.route('/terminal/trades', methods=['GET'])
 def get_terminal_trades():
