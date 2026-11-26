@@ -941,11 +941,8 @@ class TerminalPaperTradingEngine:
         total_margin_used = 0.0
         portfolio_positions = []
 
-        symbols_list = [p.symbol for p in positions]
-        quotes_map = MarketDataService.get_batch_quotes(symbols_list) if symbols_list else {}
-
         for pos in positions:
-            quote = quotes_map.get(pos.symbol) or MarketDataService.get_quote(pos.symbol)
+            quote = MarketDataService.get_quote(pos.symbol)
             curr_price = quote["price"] if "error" not in quote else pos.average_price
             pos_side = getattr(pos, 'side', 'LONG') or 'LONG'
             market_val = round(pos.quantity * curr_price, 2)
