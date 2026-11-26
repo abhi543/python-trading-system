@@ -1696,39 +1696,50 @@
             return;
         }
 
-        const basketItems = [];
-        active.forEach(p => {
-            const isShort = (p.side === 'SHORT');
-            const entrySide = isShort ? 'SELL' : 'BUY';
-            const exitSide = isShort ? 'BUY' : 'SELL';
-            const avg = parseFloat(p.average_price || 0);
-            const qty = Math.max(1, parseInt(p.quantity || 1, 10));
-            const sl = Math.round(parseFloat(p.stop_loss || (isShort ? avg * 1.01 : avg * 0.99)));
-            const tp = Math.round(parseFloat(p.take_profit || (isShort ? avg * 0.99 : avg * 1.01)));
-
-            // Leg 1: Entry order
-            basketItems.push(generateZerodhaBasketItem(p.symbol, entrySide, qty, avg, 'MARKET'));
-            // Leg 2: Automatic Stop-Loss (SL)
-            if (sl > 0) {
-                basketItems.push(generateZerodhaBasketItem(p.symbol, exitSide, qty, sl, 'SL', sl));
-            }
-            // Leg 3: Automatic 1:1 Target (LIMIT)
-            if (tp > 0) {
-                basketItems.push(generateZerodhaBasketItem(p.symbol, exitSide, qty, tp, 'LIMIT'));
-            }
-        });
-        const jsonStr = JSON.stringify(basketItems, null, 2);
-        const blob = new Blob([jsonStr], { type: 'application/json' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
+        const CHUNK_SIZE = 6; // 6 stocks x 3 legs = 18 orders per file (safely under Zerodha's 20-order basket limit)
+        const totalParts = Math.ceil(active.length / CHUNK_SIZE);
         const nowStr = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
-        a.download = `zerodha_alpha_basket_with_sl_tp_${nowStr}.json`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-        showToast(`Exported ${active.length} positions (${basketItems.length} orders incl. SL & Target) to Zerodha Basket JSON! Import in Kite -> Orders -> Baskets.`, 'success');
+
+        for (let part = 0; part < totalParts; part++) {
+            const chunk = active.slice(part * CHUNK_SIZE, (part + 1) * CHUNK_SIZE);
+            const basketItems = [];
+            chunk.forEach(p => {
+                const isShort = (p.side === 'SHORT');
+                const entrySide = isShort ? 'SELL' : 'BUY';
+                const exitSide = isShort ? 'BUY' : 'SELL';
+                const avg = parseFloat(p.average_price || 0);
+                const qty = Math.max(1, parseInt(p.quantity || 1, 10));
+                const sl = Math.round(parseFloat(p.stop_loss || (isShort ? avg * 1.01 : avg * 0.99)));
+                const tp = Math.round(parseFloat(p.take_profit || (isShort ? avg * 0.99 : avg * 1.01)));
+
+                // Leg 1: Entry order
+                basketItems.push(generateZerodhaBasketItem(p.symbol, entrySide, qty, avg, 'MARKET'));
+                // Leg 2: Automatic Stop-Loss (SL)
+                if (sl > 0) {
+                    basketItems.push(generateZerodhaBasketItem(p.symbol, exitSide, qty, sl, 'SL', sl));
+                }
+                // Leg 3: Automatic 1:1 Target (LIMIT)
+                if (tp > 0) {
+                    basketItems.push(generateZerodhaBasketItem(p.symbol, exitSide, qty, tp, 'LIMIT'));
+                }
+            });
+
+            const jsonStr = JSON.stringify(basketItems, null, 2);
+            const suffix = totalParts > 1 ? `_part${part + 1}_of_${totalParts}` : '';
+            setTimeout(() => {
+                const blob = new Blob([jsonStr], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `zerodha_alpha_basket${suffix}_${nowStr}.json`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+            }, part * 250);
+        }
+
+        showToast(`Auto-split ${active.length} positions into ${totalParts} Zerodha Basket file(s) (max 18 orders/file, under 20-order limit)!`, 'success');
     }
 
     // ==========================================
