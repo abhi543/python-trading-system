@@ -179,7 +179,7 @@ class AutoTradingBot:
         # Institutional Survival Mode & Apex Capital Shield
         self.survival_mode = persisted.get("survival_mode", True)
         self.daily_max_drawdown_pct = float(persisted.get("daily_max_drawdown_pct", 1.5))
-        self.min_risk_reward_ratio = float(persisted.get("min_risk_reward_ratio", 2.5))
+        self.min_risk_reward_ratio = 1.0 if self.name == "ALPHA" else float(persisted.get("min_risk_reward_ratio", 2.5))
         self.survival_breakeven_pct = float(persisted.get("survival_breakeven_pct", 0.5))
         self.enable_partial_profits = persisted.get("enable_partial_profits", True)
         self.stagnation_timeout_mins = int(persisted.get("stagnation_timeout_mins", 45))
@@ -1416,14 +1416,21 @@ class AutoTradingBot:
                 reason = f"SHORT Filtered: Weak Volume Surge ({vol_ratio:.2f}x < {min_vol:.1f}x threshold)"
                 filter_status = "FILTERED_VOLUME"
 
-        # Survival Mode Asymmetric Risk-to-Reward Floor (Mandatory Minimum 1 : 2.5 RR)
+        # Intraday 1:1 Risk-to-Reward enforcement for Bot ALPHA
+        if self.name == "ALPHA" and not self.is_after_hours_forced and signal in ["BUY", "SELL"] and not pos:
+            pot_sl = suggested_sl or (round(current_price * (1 - min(abs(self.stop_loss_pct or 1.0), 1.0) / 100.0), 2) if signal == "BUY" else round(current_price * (1 + min(abs(self.stop_loss_pct or 1.0), 1.0) / 100.0), 2))
+            suggested_sl = pot_sl
+            risk_dist = max(current_price * 0.002, abs(current_price - pot_sl))
+            suggested_tp = round(current_price + risk_dist, 2) if signal == "BUY" else round(current_price - risk_dist, 2)
+
+        # Survival Mode Asymmetric Risk-to-Reward Floor (1:1 for Alpha Intraday, 1:2.5 for Night Hawk)
         if signal in ["BUY", "SELL"] and not pos and getattr(self, "survival_mode", True):
             pot_sl = suggested_sl or (current_price * 0.99 if signal == "BUY" else current_price * 1.01)
-            pot_tp = suggested_tp or (current_price * 1.025 if signal == "BUY" else current_price * 0.975)
+            pot_tp = suggested_tp or (current_price * 1.01 if self.name == "ALPHA" else current_price * 1.025 if signal == "BUY" else current_price * 0.99 if self.name == "ALPHA" else current_price * 0.975)
             pot_risk = abs(current_price - pot_sl)
             pot_reward = abs(pot_tp - current_price)
             rr_val = round(pot_reward / pot_risk, 2) if pot_risk > 0 else 0.0
-            min_rr = getattr(self, "min_risk_reward_ratio", 2.5)
+            min_rr = 1.0 if (self.name == "ALPHA" and not self.is_after_hours_forced) else getattr(self, "min_risk_reward_ratio", 2.5)
             if rr_val < min_rr:
                 signal = "HOLD"
                 reason = f"🛡️ Survival Shield: Setup R:R (1:{rr_val:.1f}) below institutional 1:{min_rr:.1f} floor"
@@ -1931,6 +1938,8 @@ class AutoTradingBot:
                                         else:
                                             pos_rec.stop_loss = round(price * (1 - self.stop_loss_pct / 100), 2)
                                             pos_rec.take_profit = round(price * (1 + self.take_profit_pct / 100), 2)
+                                        if self.name == "ALPHA" and not self.is_after_hours_forced and pos_rec.stop_loss > 0:
+                                            pos_rec.take_profit = round(price + abs(price - pos_rec.stop_loss), 2)
                                         pos_rec.peak_price = price
                                         pos_rec.trailing_active = False
                                         try:
@@ -2087,6 +2096,8 @@ class AutoTradingBot:
                                         else:
                                             pos_rec.stop_loss = round(price * (1 + self.stop_loss_pct / 100), 2)
                                             pos_rec.take_profit = round(price * (1 - self.take_profit_pct / 100), 2)
+                                        if self.name == "ALPHA" and not self.is_after_hours_forced and pos_rec.stop_loss > 0:
+                                            pos_rec.take_profit = round(price - abs(pos_rec.stop_loss - price), 2)
                                         pos_rec.peak_price = price
                                         pos_rec.trailing_active = False
                                         try:

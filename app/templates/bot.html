@@ -233,7 +233,7 @@
                                 <span class="badge" style="background: rgba(0, 240, 144, 0.2); color: var(--green); border: 1px solid rgba(0, 240, 144, 0.4); font-size: 0.7rem; font-weight: 700;">ACTIVE</span>
                             </div>
                             <div style="font-size: 0.74rem; color: #94a3b8; margin-top: 4px; line-height: 1.4;">
-                                Guarantees positive mathematical expectancy: <strong>1:2.5+ Risk-Reward Floor</strong>, <strong>+0.65% Breakeven Lock (Fees Covered)</strong>, <strong>50% Partial Profit Banking</strong>, <strong>45-Min Stagnation Cut</strong>, and <strong>-1.5% Max Daily Drawdown Circuit Breaker</strong>.
+                                Guarantees positive mathematical expectancy: <strong>1:1 Intraday Risk-Reward</strong>, <strong>+0.65% Breakeven Lock (Fees Covered)</strong>, <strong>50% Partial Profit Banking</strong>, <strong>45-Min Stagnation Cut</strong>, and <strong>-1.5% Max Daily Drawdown Circuit Breaker</strong>.
                             </div>
                         </div>
                         <div id="circuit-breaker-status-badge">
@@ -2464,7 +2464,7 @@
         const exposureVal = marginVal * 5;
         if (ribCap) ribCap.innerHTML = `<i class="fa-solid fa-bolt" style="color: var(--green);"></i> Margin: <strong>₹${marginVal.toLocaleString('en-IN')}</strong> <span style="opacity: 0.85;">(5x: ₹${exposureVal.toLocaleString('en-IN')})</span>`;
         if (ribSl) ribSl.innerHTML = (stratVal === 'AUTO_ENSEMBLE') ? `<i class="fa-solid fa-robot" style="color: #00f090;"></i> SL: <strong>Adaptive Auto (Max ${slVal}%)</strong>` : ((stratVal === 'SMC_LIQUIDITY_SWEEP') ? `<i class="fa-solid fa-shield-halved"></i> SL: <strong>Sweep Wick (Max ${slVal}%)</strong>` : ((stratVal === '123_REVERSAL') ? `<i class="fa-solid fa-shield-halved"></i> SL: <strong>Point 3 (Max ${slVal}%)</strong>` : `<i class="fa-solid fa-shield-halved"></i> SL: <strong>${slVal}%</strong>`));
-        if (ribTp) ribTp.innerHTML = (stratVal === 'AUTO_ENSEMBLE') ? `<i class="fa-solid fa-bullseye" style="color: #00f090;"></i> TP: <strong>Adaptive 1:2.8+ Target</strong>` : ((stratVal === 'SMC_LIQUIDITY_SWEEP') ? `<i class="fa-solid fa-bullseye"></i> TP: <strong>1:2.8 Institutional Target</strong>` : ((stratVal === '123_REVERSAL') ? `<i class="fa-solid fa-bullseye"></i> TP: <strong>Dual (${tpVal}% / Measured Move)</strong>` : `<i class="fa-solid fa-bullseye"></i> TP: <strong>${tpVal}%</strong>`));
+        if (ribTp) ribTp.innerHTML = `<i class="fa-solid fa-bullseye" style="color: #00f090;"></i> TP: <strong>1:1 Intraday Target (${slVal}% SL)</strong>`;
         if (ribEma) ribEma.innerHTML = emaOn ? `<i class="fa-solid fa-filter" style="color: var(--green);"></i> 200 EMA: <strong>ON</strong>` : `<i class="fa-solid fa-filter" style="color: var(--text-muted);"></i> 200 EMA: <strong>OFF</strong>`;
         const regStr = window.lastNiftyRegime || 'BULLISH';
         const regCol = regStr === 'BULLISH' ? '#06d6a0' : (regStr === 'BEARISH' ? '#ff3366' : '#ffd166');
@@ -2617,7 +2617,7 @@
             slBadge.style.display = 'inline-block';
         }
         if (tpBadge) {
-            tpBadge.innerHTML = isAuto ? '🎯 Adaptive Institutional TP (1:2.6 - 1:2.8+ R:R)' : (isSmc ? '🎯 1:2.8 Institutional Target' : (is200 ? '🎯 1:2.8+ Macro Trend Target' : (is123 ? '🎯 Dual Target: % Gain OR Measured Move' : '🎯 % Target')));
+            tpBadge.innerHTML = '🎯 1:1 Intraday Target (Matches SL Distance)';
             tpBadge.style.display = 'inline-block';
         }
 
