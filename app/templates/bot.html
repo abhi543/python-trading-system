@@ -3403,6 +3403,9 @@
             updateRiskUtilizationGauge({ portfolio_value: cash, buying_power: buyingPower }, positions);
             detectAudioEvents(positions, data);
         }
+        if (typeof renderCsvWatchlistSection === 'function') {
+            renderCsvWatchlistSection();
+        }
     }
 
     // ==========================================
