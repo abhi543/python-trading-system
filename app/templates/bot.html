@@ -1516,8 +1516,13 @@
         });
     }
 
+    const ZERODHA_SYMBOL_ALIASES = {
+        'ICICIPRULI': 'ICICILIFE'
+    };
+
     function generateZerodhaBasketItem(symbol, side, qty, price, orderType = 'LIMIT', triggerPrice = 0) {
-        const cleanSym = (symbol || '').replace('.NS', '').replace('.BO', '').trim().toUpperCase();
+        const rawSym = (symbol || '').replace('.NS', '').replace('.BO', '').trim().toUpperCase();
+        const cleanSym = ZERODHA_SYMBOL_ALIASES[rawSym] || rawSym;
         const isShort = (side === 'SHORT' || side === 'SELL');
         const numQty = Math.max(1, parseInt(qty) || 1);
         const numPrice = Math.round(parseFloat(price || 0));

@@ -2199,7 +2199,8 @@ def reset_swing_account():
 def generate_swing_gtt_basket():
     """Generates a Zerodha Kite 3-Leg GTT (OCO) order payload for swing positions"""
     data = request.get_json(silent=True) or {}
-    sym = data.get("symbol", "RELIANCE.NS").replace(".NS", "").replace(".BO", "")
+    raw_sym = data.get("symbol", "RELIANCE.NS").replace(".NS", "").replace(".BO", "").strip().upper()
+    sym = {"ICICIPRULI": "ICICILIFE"}.get(raw_sym, raw_sym)
     qty = int(data.get("quantity", 10))
     entry_price = float(data.get("price", 2500.0))
     sl_price = float(data.get("stop_loss", entry_price * 0.965))
