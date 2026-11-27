@@ -112,7 +112,7 @@ class AutoTradingBot:
             self.account_model = AfterHoursAccount
             self.engine = AfterHoursPaperTradingEngine
         else:
-            default_alloc = 3000.0   # ₹3,000 per trade (5x = ₹15,000 exposure; max 6 positions fits 1 Zerodha Basket)
+            default_alloc = 2500.0   # ₹2,500 per trade (5x = ₹12,500 exposure; max 4 positions = ₹10,000 active margin out of ₹20k)
             from app.models.trading import Position, TradeHistory, Account
             from app.services.paper_trader import PaperTradingEngine
             self.pos_model = Position
@@ -133,8 +133,8 @@ class AutoTradingBot:
         if self.name == "ALPHA":
             persisted_alloc = persisted.get("allocation_per_trade")
             self.allocation_per_trade = float(persisted_alloc) if persisted_alloc is not None and float(persisted_alloc) >= 1000 else default_alloc
-            persisted_max = int(persisted.get("max_positions", 6))
-            self.max_positions = persisted_max if 1 <= persisted_max <= 20 else 6
+            persisted_max = int(persisted.get("max_positions", 4))
+            self.max_positions = persisted_max if 1 <= persisted_max <= 4 else 4
         else:
             self.allocation_per_trade = float(persisted.get("allocation_per_trade", default_alloc))
             self.max_positions = int(persisted.get("max_positions", 0))
@@ -1687,7 +1687,13 @@ class AutoTradingBot:
         held_positions = self.pos_model.query.filter(self.pos_model.quantity > 0).all()
         held_map = {p.symbol: p for p in held_positions}
         account = self.engine.reconcile_account_balance()
-        available_cash = account.cash_balance if account else 0.0
+        raw_cash = account.cash_balance if account else 0.0
+        if self.name == "ALPHA" and not self.is_after_hours_forced:
+            # Strict ₹10,000 active trading cap out of ₹20,000 total allocation (₹10,000 kept in reserve)
+            margin_used = sum((p.quantity * p.average_price) / self.leverage for p in held_positions)
+            available_cash = min(raw_cash, max(0.0, 10000.0 - margin_used))
+        else:
+            available_cash = raw_cash
         already_traded_today = self.get_intraday_traded_symbols(client_traded_symbols=client_traded_symbols)
 
         # Master Market Regime: NIFTY 50 trend check
