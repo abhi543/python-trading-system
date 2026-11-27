@@ -85,7 +85,7 @@
                 <button id="bot-square-off-btn" class="btn-bot-scan" style="border-color: rgba(255, 75, 75, 0.5); color: #ff7575; font-weight: 700;" onclick="manualSquareOffAll()" title="Immediately close and liquidate all open positions at live market prices">
                     <i class="fa-solid fa-person-running"></i> EXIT ALL POSITIONS (<span id="hero-holdings-count">0</span>)
                 </button>
-                <button id="bot-reset-restart-btn" class="btn-bot-scan" style="border-color: rgba(167, 139, 250, 0.5); color: #c4b5fd; font-weight: 700;" onclick="resetAndRestartBot()" title="Square off all positions, reset desk to ₹50,000 and restart bot">
+                <button id="bot-reset-restart-btn" class="btn-bot-scan" style="border-color: rgba(167, 139, 250, 0.5); color: #c4b5fd; font-weight: 700;" onclick="resetAndRestartBot()" title="Square off all positions, reset desk to ₹20,000 and restart bot">
                     <i class="fa-solid fa-arrows-rotate"></i> RESET &amp; RESTART BOT
                 </button>
                 <button id="bot-stop-both-btn" class="btn-bot-scan" style="border-color: rgba(239, 68, 68, 0.6); background: linear-gradient(135deg, rgba(239, 68, 68, 0.16) 0%, rgba(185, 28, 28, 0.28) 100%); color: #ff6b6b; font-weight: 800;" onclick="globalStopBothBots()" title="Emergency Kill Switch: Stop both ALPHA and NIGHTHAWK bots immediately">
@@ -383,7 +383,7 @@
                             <button class="btn-sm btn-outline" onclick="refreshCurrentLedgerTab()">
                                 <i class="fa-solid fa-rotate"></i> Refresh
                             </button>
-                            <button class="btn-sm btn-outline" style="color: #ff7575; border-color: rgba(255, 75, 75, 0.4); font-weight: 700;" onclick="resetPortfolioTo10Lakh()" title="Reset portfolio cash to ₹50,000 and clear holdings">
+                            <button class="btn-sm btn-outline" style="color: #ff7575; border-color: rgba(255, 75, 75, 0.4); font-weight: 700;" onclick="resetPortfolioTo10Lakh()" title="Reset portfolio cash to ₹20,000 and clear holdings">
                                 <i class="fa-solid fa-rotate-left"></i> Reset to ₹50k
                             </button>
                         </div>
@@ -575,7 +575,7 @@
                             </div>
                             <div class="score-card-item">
                                 <span class="score-label"><i class="fa-solid fa-wallet" style="color: #a78bfa;"></i> CLEAN TRADING WALLET</span>
-                                <span class="score-val" id="closed-wallet-balance" style="color: #fff;">₹50,000.00</span>
+                                <span class="score-val" id="closed-wallet-balance" style="color: #fff;">₹20,000.00</span>
                                 <span class="score-sub" style="color: #a78bfa;">P&amp;L Not Added into Wallet</span>
                             </div>
                             <div class="score-card-item">
@@ -858,8 +858,8 @@
                         <div class="rule-item">
                             <div class="rule-icon"><i class="fa-solid fa-bolt" style="color: #00f090;"></i></div>
                             <div>
-                                <h4>₹50,000 Capital &amp; 5x NSE Leverage</h4>
-                                <p>Trades with standard <strong>5x intraday leverage (20% margin)</strong> on NSE equities. Allocates <strong>₹5,000 margin</strong> to control <strong>₹25,000 buying power</strong> per position, backed by ₹50,000 cash balance.</p>
+                                <h4>₹20,000 Capital &amp; 5x NSE Leverage</h4>
+                                <p>Trades with standard <strong>5x intraday leverage (20% margin)</strong> on NSE equities. Allocates <strong>₹3,000 margin</strong> to control <strong>₹15,000 buying power</strong> per position, backed by ₹20,000 cash balance.</p>
                             </div>
                         </div>
                     </div>
@@ -1959,7 +1959,7 @@
         const gaugeBox = document.getElementById('risk-gauge-box');
         if (!gaugeBox) return;
 
-        const cash = (data && data.portfolio_value) ? data.portfolio_value : 50000;
+        const cash = (data && data.portfolio_value) ? data.portfolio_value : 20000;
         const leverage = 5;
         const buyingPower = (data && data.buying_power !== undefined) ? data.buying_power : (cash * leverage);
 
@@ -1992,7 +1992,7 @@
         });
 
         const marginUsed = totalCostBasis;
-        const totalMarginCap = 50000.0;
+        const totalMarginCap = 20000.0;
         const marginPct = totalMarginCap > 0 ? Math.min(100, (marginUsed / totalMarginCap) * 100) : 0;
         const riskPctOfCash = totalMarginCap > 0 ? (totalMaxRisk / totalMarginCap) * 100 : 0;
 
@@ -3194,8 +3194,8 @@
         localPositions = localPositions || ((typeof getStoredActivePositions === 'function') ? getStoredActivePositions() : []);
 
         // 1. Update Navbar Metrics
-        const cash = (data.cash_balance !== undefined) ? data.cash_balance : (data.account ? data.account.cash_balance : 50000);
-        const equity = (data.total_equity !== undefined) ? data.total_equity : (data.account ? data.account.total_equity : 50000);
+        const cash = (data.cash_balance !== undefined) ? data.cash_balance : (data.account ? data.account.cash_balance : 20000);
+        const equity = (data.total_equity !== undefined) ? data.total_equity : (data.account ? data.account.total_equity : 20000);
         let pnl = (data.unrealized_pnl !== undefined) ? data.unrealized_pnl : (data.account ? data.account.unrealized_pnl : 0);
         if (!data.positions || data.positions.length === 0) {
             pnl = 0.0;
@@ -3218,7 +3218,7 @@
         }
         const deltaEl = document.getElementById('nav-equity-delta');
         if (deltaEl) {
-            const deltaPct = ((equity - 50000) / 50000 * 100);
+            const deltaPct = ((equity - 20000) / 20000 * 100);
             const deltaSign = deltaPct >= 0 ? '+' : '';
             deltaEl.innerText = `${deltaSign}${deltaPct.toFixed(2)}% Today`;
             deltaEl.className = `stat-subdelta ${deltaPct >= 0 ? 'text-green' : 'text-red'}`;
@@ -4871,7 +4871,7 @@
     }
 
     async function resetAndRestartBot() {
-        if (!confirm('Are you sure you want to RESET & RESTART the bot?\n\n• All open positions will be squared off\n• Desk capital restored to ₹50,000 cash\n• Intraday limits cleared\n• Fresh bot session initiated\n• Bot will immediately restart autonomous scanning')) return;
+        if (!confirm('Are you sure you want to RESET & RESTART the bot?\n\n• All open positions will be squared off\n• Desk capital restored to ₹20,000 cash\n• Intraday limits cleared\n• Fresh bot session initiated\n• Bot will immediately restart autonomous scanning')) return;
 
         try {
             const res = await fetch('/api/bot/reset-and-restart', { method: 'POST' });
@@ -4892,7 +4892,7 @@
                 }
                 resetBotSessionReport(false);
                 if (typeof resetElapsedTimer === 'function') resetElapsedTimer();
-                showToast('Bot reset and successfully restarted fresh with ₹50,000 capital!', 'success');
+                showToast('Bot reset and successfully restarted fresh with ₹20,000 capital!', 'success');
                 loadAccountMetrics();
                 loadBotHoldings();
                 loadClosedTrades();
@@ -4906,7 +4906,7 @@
     }
 
     async function resetPortfolioTo10Lakh() {
-        if (!confirm('Are you sure you want to reset your portfolio back to ₹50,000?\n\n• Cash balance will be restored to ₹50,000\n• All open positions will be cleared\n• Trade history and closed trades report will be reset\n• Bot session trades report will be reset')) return;
+        if (!confirm('Are you sure you want to reset your portfolio back to ₹20,000?\n\n• Cash balance will be restored to ₹20,000\n• All open positions will be cleared\n• Trade history and closed trades report will be reset\n• Bot session trades report will be reset')) return;
 
         try {
             const res = await fetch('/api/reset-account', { method: 'POST' });
@@ -4925,7 +4925,7 @@
                     pnlEl.innerText = '₹0.00';
                     pnlEl.className = 'metric-value text-green';
                 }
-                showToast('Portfolio successfully reset back to ₹50,000 cash!', 'success');
+                showToast('Portfolio successfully reset back to ₹20,000 cash!', 'success');
                 resetBotSessionReport(false);
                 if (typeof resetElapsedTimer === 'function') resetElapsedTimer();
                 loadAccountMetrics();

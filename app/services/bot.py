@@ -1830,7 +1830,7 @@ class AutoTradingBot:
                         unrealized_today += (p_price - p.average_price) * p.quantity
                 
                 total_session_pnl = realized_today + unrealized_today
-                base_capital = 1000000.0 if self.is_after_hours_forced else 50000.0
+                base_capital = 1000000.0 if self.is_after_hours_forced else 20000.0
                 session_pnl_pct = round((total_session_pnl / base_capital) * 100, 2)
                 max_dd_limit = float(getattr(self, "daily_max_drawdown_pct", 1.5))
 

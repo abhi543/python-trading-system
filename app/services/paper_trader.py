@@ -25,6 +25,7 @@ def prune_old_trades(trade_model, max_trades=100):
 
 class PaperTradingEngine:
     LEVERAGE = 5.0  # NSE Intraday MIS Leverage: 5x (20% margin requirement)
+    INITIAL_CASH = 20000.0  # Alpha desk allocation (₹20,000)
 
     @staticmethod
     def reconcile_account_balance():
@@ -32,7 +33,7 @@ class PaperTradingEngine:
         from app import db
         account = Account.query.first()
         if not account:
-            account = Account(cash_balance=50000.0)
+            account = Account(cash_balance=PaperTradingEngine.INITIAL_CASH)
             db.session.add(account)
             db.session.commit()
             return account
@@ -41,8 +42,8 @@ class PaperTradingEngine:
         total_margin_used = sum((p.quantity * p.average_price) / PaperTradingEngine.LEVERAGE for p in positions)
         total_realized_pnl = db.session.query(db.func.sum(TradeHistory.realized_pnl)).scalar() or 0.0
         
-        # Canonical cash balance = Starting cash (₹50k) - Active Margin Blocked (Realized P&L tracked separately, not added to wallet!)
-        expected_cash = round(max(0.0, 50000.0 - total_margin_used), 2)
+        # Canonical cash balance = Starting cash (₹20k) - Active Margin Blocked (Realized P&L tracked separately, not added to wallet!)
+        expected_cash = round(max(0.0, PaperTradingEngine.INITIAL_CASH - total_margin_used), 2)
         account.cash_balance = expected_cash
         db.session.commit()
         return account
@@ -131,7 +132,7 @@ class PaperTradingEngine:
         ).scalar() or 0.0
 
         day_pnl = round(day_realized_pnl, 2)
-        total_equity = round(50000.0 + total_realized_pnl + total_unrealized_pnl, 2)
+        total_equity = round(PaperTradingEngine.INITIAL_CASH + total_realized_pnl + total_unrealized_pnl, 2)
         buying_power = round(account.cash_balance * PaperTradingEngine.LEVERAGE, 2)
         
         account_data = {

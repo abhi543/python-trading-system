@@ -1053,7 +1053,7 @@ def complete_system_reset():
     """
     COMPLETE RESET:
     1. Closes and deletes ALL open positions across ALPHA, NIGHTHAWK, and TITAN.
-    2. Resets all accounts to clean baseline capital (ALPHA: ₹50,000, NIGHTHAWK: ₹1 Crore, TITAN: ₹1 Lakh).
+    2. Resets all accounts to clean baseline capital (ALPHA: ₹20,000, NIGHTHAWK: ₹1 Crore, TITAN: ₹1 Lakh).
     3. Clears unrealized PnL to strictly 0.0.
     4. Resets scanner results, trade sessions, and logs across all bots.
     5. Restores default watchlists.
@@ -1077,9 +1077,9 @@ def complete_system_reset():
             db.session.add(WatchlistItem(symbol=s))
         account = Account.query.first()
         if account:
-            account.cash_balance = 50000.0
+            account.cash_balance = 20000.0
         else:
-            db.session.add(Account(cash_balance=50000.0))
+            db.session.add(Account(cash_balance=20000.0))
         
         bot_instance.logs = []
         bot_instance.last_scan_summary = {
@@ -1149,8 +1149,8 @@ def complete_system_reset():
         "positions": [],
         "desk": desk,
         "alpha": {
-            "cash_balance": 50000.0,
-            "total_equity": 50000.0,
+            "cash_balance": 20000.0,
+            "total_equity": 20000.0,
             "unrealized_pnl": 0.0,
             "positions_count": 0
         },
@@ -1177,9 +1177,9 @@ def reset_account():
         db.session.add(WatchlistItem(symbol=s))
     account = Account.query.first()
     if account:
-        account.cash_balance = 50000.0
+        account.cash_balance = 20000.0
     else:
-        account = Account(cash_balance=50000.0)
+        account = Account(cash_balance=20000.0)
         db.session.add(account)
     db.session.commit()
 
@@ -1195,9 +1195,9 @@ def reset_account():
     bot_instance.start_new_session()
     return jsonify({
         "success": True, 
-        "message": "Account reset to ₹50,000 cash capital and NIFTY 50 watchlist restored",
-        "cash_balance": 50000.0,
-        "total_equity": 50000.0
+        "message": "Account reset to ₹20,000 cash capital and NIFTY 50 watchlist restored",
+        "cash_balance": 20000.0,
+        "total_equity": 20000.0
     })
 
 @api_bp.route('/positions/exit-all', methods=['POST'])
@@ -1281,7 +1281,7 @@ def exit_all_positions():
 @api_bp.route('/bot/reset-and-restart', methods=['POST'])
 def reset_and_restart_bot():
     """
-    Squares off any open positions, resets intraday limits, restores cash to ₹50,000,
+    Squares off any open positions, resets intraday limits, restores cash to ₹20,000,
     starts a fresh session report, and restarts the bot cleanly.
     """
     open_positions = Position.query.filter(Position.quantity > 0).all()
@@ -1296,9 +1296,9 @@ def reset_and_restart_bot():
         db.session.add(WatchlistItem(symbol=s))
     account = Account.query.first()
     if account:
-        account.cash_balance = 50000.0
+        account.cash_balance = 20000.0
     else:
-        account = Account(cash_balance=50000.0)
+        account = Account(cash_balance=20000.0)
         db.session.add(account)
     db.session.commit()
 
@@ -1314,9 +1314,9 @@ def reset_and_restart_bot():
     bot_instance.start()
     return jsonify({
         "success": True,
-        "message": "Bot successfully reset back to ₹50,000 and restarted fresh!",
-        "cash_balance": 50000.0,
-        "total_equity": 50000.0,
+        "message": "Bot successfully reset back to ₹20,000 and restarted fresh!",
+        "cash_balance": 20000.0,
+        "total_equity": 20000.0,
         "is_running": bot_instance.is_running
     })
 
