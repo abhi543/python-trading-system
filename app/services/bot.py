@@ -1980,7 +1980,8 @@ class AutoTradingBot:
                                             pos_rec.stop_loss = round(price * (1 - self.stop_loss_pct / 100), 2)
                                             pos_rec.take_profit = round(price * (1 + self.take_profit_pct / 100), 2)
                                         if self.name == "ALPHA" and not self.is_after_hours_forced and pos_rec.stop_loss > 0:
-                                            pos_rec.take_profit = round(price + (abs(price - pos_rec.stop_loss) * 2.0), 2)
+                                            pos_rec.stop_loss = float(round(pos_rec.stop_loss))
+                                            pos_rec.take_profit = float(round(price + (abs(price - pos_rec.stop_loss) * 2.0)))
                                         pos_rec.peak_price = price
                                         pos_rec.trailing_active = False
                                         try:
@@ -2138,7 +2139,8 @@ class AutoTradingBot:
                                             pos_rec.stop_loss = round(price * (1 + self.stop_loss_pct / 100), 2)
                                             pos_rec.take_profit = round(price * (1 - self.take_profit_pct / 100), 2)
                                         if self.name == "ALPHA" and not self.is_after_hours_forced and pos_rec.stop_loss > 0:
-                                            pos_rec.take_profit = round(price - (abs(pos_rec.stop_loss - price) * 2.0), 2)
+                                            pos_rec.stop_loss = float(round(pos_rec.stop_loss))
+                                            pos_rec.take_profit = float(round(price - (abs(pos_rec.stop_loss - price) * 2.0)))
                                         pos_rec.peak_price = price
                                         pos_rec.trailing_active = False
                                         try:

@@ -1566,8 +1566,8 @@
         const side = currentTicketData.side;
         const qty = currentTicketData.qty;
         const price = currentTicketData.price;
-        const sl = currentTicketData.sl;
-        const tp = currentTicketData.tp;
+        const sl = currentTicketData.sl ? Math.round(parseFloat(currentTicketData.sl)) : 0;
+        const tp = currentTicketData.tp ? Math.round(parseFloat(currentTicketData.tp)) : 0;
         const isShort = (side === 'SHORT' || side === 'SELL');
         const cleanSym = (sym || 'ORDER').replace('.NS', '');
 
